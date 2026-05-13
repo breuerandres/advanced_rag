@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+
+# Build outputs
+dist/
+build/
+bin/
+obj/
+coverage/
+TestResults/
+
+# Local config and secrets
+.env
+.env.*
+!.env.example
+infra/compose/secrets/*
+!infra/compose/secrets/README.md
+
+# Logs
+logs/
+*.log
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

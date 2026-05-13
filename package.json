@@ -1,0 +1,11 @@
+{
+  "name": "advanced-rag-instruction-platform",
+  "private": true,
+  "packageManager": "pnpm@10",
+  "scripts": {
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build"
+  }
+}
