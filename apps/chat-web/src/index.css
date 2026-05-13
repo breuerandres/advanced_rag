@@ -1,0 +1,30 @@
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #eef2ff;
+  color: #0f172a;
+}
+
+button {
+  font: inherit;
+}
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;
+}
+
+.ui-button {
+  border: 1px solid #c7d2fe;
+  background: white;
+  color: #0f172a;
+  padding: 8px 12px;
+  border-radius: 6px;
+}

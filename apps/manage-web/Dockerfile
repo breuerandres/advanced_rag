@@ -1,0 +1,13 @@
+FROM node:25-alpine AS build
+WORKDIR /repo
+
+RUN npm install -g pnpm@10.33.4
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/manage-web/package.json apps/manage-web/
+COPY apps/manage-web apps/manage-web
+
+RUN pnpm --dir apps/manage-web install --frozen-lockfile && pnpm --dir apps/manage-web build
+
+FROM nginx:1.27-alpine
+COPY --from=build /repo/apps/manage-web/dist /usr/share/nginx/html

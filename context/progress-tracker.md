@@ -100,17 +100,24 @@
 - Added `services/rag-api/Dockerfile` using the `ghcr.io/astral-sh/uv:0.9.22-python3.12-bookworm-slim` base image and `services/rag-api/.dockerignore` to keep generated local artifacts out of the container context.
 - Updated root `.gitignore` to ignore Visual Studio `.vs/` working folders after local verification surfaced generated IDE indexes.
 - Verified Task 3 with `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `uv build`, and `docker build -f services/rag-api/Dockerfile services/rag-api`.
+- User confirmed Task 4 local Node tooling: Node `25.6.1`; `pnpm` was missing and was installed globally as `10.33.4`.
+- Scaffolded the three frontend apps with Vite React TypeScript templates under `apps/manage-web`, `apps/chat-web`, and `apps/docs-web`.
+- Corrected the scaffolds back to React 18.3.1 so the frontend stack matches the approved MVP code-standards decision.
+- Installed shared frontend dependencies: `lucide-react`, Tailwind/Vite support, Vitest, jsdom, and Testing Library packages.
+- Added root `packageManager` metadata for `pnpm@10.33.4` so the workspace resolves to the installed pnpm line without warnings.
+- Added frontend shell smoke tests first, verified the expected RED state, then implemented minimal management/chat/viewer shells that render the required product labels.
+- Added local shadcn-compatible support files in each app: `components.json`, `src/lib/utils.ts`, and `src/components/ui/button.tsx`.
+- Added `typecheck` scripts and app-local Vitest setup files so the workspace can be verified consistently.
+- Added Dockerfiles for each frontend app that build from the repo root using `pnpm` inside a Node build stage and serve the static output with nginx.
+- Verified Task 4 with `pnpm -r typecheck`, `pnpm -r test -- --run`, `pnpm -r build`, and Docker builds for `apps/manage-web`, `apps/chat-web`, and `apps/docs-web`.
 
 ## In Progress
 
-- Preparing Task 4 frontend foundations.
+- Preparing Task 5 and the next user-owned checkpoint.
 
 ## Next Up
 
-- User-owned checkpoint for Task 4: confirm Node and pnpm tooling from the repository root with:
-  - `node --version`
-  - `pnpm --version`
-  - If `pnpm` is missing, install/enable it before scaffolding the React frontends.
+- User-owned checkpoint for Task 5 depends on the next backend/task slice once the plan is advanced.
 
 ## Open Questions
 
@@ -157,8 +164,9 @@ Current state:
 - Task 1 infrastructure and Caddy baseline is complete and committed.
 - Task 2 .NET API foundation is complete and committed with the scoped foundation changes.
 - Task 3 FastAPI RAG foundation is complete and committed with the scoped foundation changes.
+- Task 4 frontend foundation is complete and ready to commit with the scoped foundation changes.
 - The base architecture formal spec is written and approved as the basis for implementation: monorepo, Docker Compose, Caddy same-origin API routing, three React frontends, .NET management API, FastAPI RAG API, PostgreSQL with `app` and `rag` schemas, secure cookies, chat token flow, viewer exchange codes, document lifecycle, assisted imports, publishing blocked on successful indexing, semantic cache, AI usage budgets, audit, logs, secrets, health checks, operational defaults, UI foundation, and OpenAI model defaults.
 
 Next safe implementation work:
 
-- Begin Task 4 frontend foundations after the user confirms local Node and pnpm tooling.
+- Begin the next implementation task after advancing the plan and selecting the next user-owned checkpoint.

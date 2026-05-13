@@ -552,8 +552,11 @@ Expected: commit succeeds.
 - Create: each app's `Dockerfile`
 - Create: each app's `src/lib/api-error.ts`
 - Create: each app's `src/test/setup.ts`
+- Create: each app's `components.json`
+- Create: each app's `src/lib/utils.ts`
+- Create: each app's `src/components/ui/button.tsx`
 
-- [ ] **Step 1: Scaffold Vite apps**
+- [x] **Step 1: Scaffold Vite apps**
 
 Run:
 
@@ -565,7 +568,7 @@ pnpm create vite apps/docs-web --template react-ts
 
 Expected: all three apps contain React TypeScript Vite scaffolds.
 
-- [ ] **Step 2: Install shared frontend dependencies**
+- [x] **Step 2: Install shared frontend dependencies**
 
 Run:
 
@@ -580,13 +583,13 @@ pnpm --dir apps/docs-web add -D tailwindcss @tailwindcss/vite vitest jsdom @test
 
 Expected: package manifests update and installs complete.
 
-- [ ] **Step 3: Add shadcn/ui to each app**
+- [x] **Step 3: Add shadcn/ui to each app**
 
 Run the shadcn init command in each app and choose Tailwind CSS, TypeScript, CSS variables, and the app-local component path `src/components/ui`.
 
 Expected: each app has `components.json`, base CSS variables, and `src/components/ui` support files.
 
-- [ ] **Step 4: Write failing smoke tests**
+- [x] **Step 4: Write failing smoke tests**
 
 For each app, create a test that renders the root app and expects a product-specific shell label:
 
@@ -602,15 +605,15 @@ pnpm -r test -- --run
 
 Expected before implementation: tests fail because shells are not rendered.
 
-- [ ] **Step 5: Implement minimal shells**
+- [x] **Step 5: Implement minimal shells**
 
 Replace default Vite content with minimal shells using Tailwind utility classes and no marketing hero sections.
 
-- [ ] **Step 6: Add frontend Dockerfiles**
+- [x] **Step 6: Add frontend Dockerfiles**
 
 Each frontend Dockerfile builds the Vite app and serves static output with nginx or Caddy on port `80`.
 
-- [ ] **Step 7: Verify frontend foundation**
+- [x] **Step 7: Verify frontend foundation**
 
 Run:
 

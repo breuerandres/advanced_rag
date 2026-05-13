@@ -16,6 +16,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [API Contract Granularity](#2026-05-11---api-contract-granularity)
 - [MVP API Contract Groups](#2026-05-11---mvp-api-contract-groups)
 - [Management Reporting Read Model](#2026-05-11---management-reporting-read-model)
+- [Frontend Scaffold Stack Alignment](#2026-05-13---frontend-scaffold-stack-alignment)
 
 ### Authentication, Sessions, And Access
 
@@ -946,3 +947,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** FastAPI commands should be run from `services/rag-api` through `uv`, and Docker builds should use a Python 3.12 uv base image. Moving to Python 3.13 or newer requires an explicit stack decision update.
 
 **Evidence:** Verified on 2026-05-13 with `uv run python --version`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `uv build`, and `docker build -f services/rag-api/Dockerfile services/rag-api`. The uv settings reference documents `[tool.uv.build-backend].module-name` as the way to set the module directory name when it differs from the package name.
+
+## 2026-05-13 - Frontend Scaffold Stack Alignment
+
+**Context:** Task 4 starts from `create-vite` scaffolds, which defaulted to React 19 and template noise. The approved code standards already fixed the MVP frontend stack to React 18 with Tailwind CSS, `shadcn/ui`, and `lucide-react`.
+
+**Options Considered:** Leave the Vite defaults, accept React 19 in the app scaffolds, or realign the scaffolds to the approved React 18 stack before continuing.
+
+**Decision:** Reconfigure the three frontend apps to React 18.3.1, install shared frontend dependencies under the pnpm workspace, add `pnpm@10.33.4` to the root `packageManager` field, and add local shadcn-compatible support files (`components.json`, `src/lib/utils.ts`, and `src/components/ui/button.tsx`) in each app. The frontend Dockerfiles build from the repo root so they can see the workspace lockfile and app package files.
+
+**Rationale:** The scaffolds must match the approved stack and the monorepo packaging model. Accepting the template defaults would silently diverge from the documented frontend baseline. The local shadcn-compatible support files are enough to begin the component system without depending on an interactive CLI during the foundation task.
+
+**Tradeoffs:** The root `packageManager` now tracks a specific pnpm patch version instead of the coarse `pnpm@10` placeholder. That is acceptable because the workspace already depends on exact pnpm behavior for reproducible installs and builds.
+
+**Consequences:** Future frontend work should continue from React 18.3.1 and the existing `pnpm` workspace. If the team wants a different React major or a fully scripted shadcn CLI bootstrap later, that should be recorded as a new stack decision.
+
+**Evidence:** Verified on 2026-05-13 with `pnpm -r typecheck`, `pnpm -r test -- --run`, `pnpm -r build`, and Docker builds for `apps/manage-web`, `apps/chat-web`, and `apps/docs-web`.
