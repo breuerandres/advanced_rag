@@ -24,6 +24,7 @@
 ## FastAPI RAG Service
 
 - FastAPI owns chat, retrieval, embeddings, semantic cache, RAG audit, model pricing, and indexing jobs.
+- The FastAPI service targets Python 3.12. `services/rag-api/.python-version` must stay on the Python 3.12 line and `pyproject.toml` must constrain `requires-python` to `>=3.12,<3.13` unless the stack decision is updated.
 - FastAPI must not parse PDF/DOCX imports in the MVP.
 - Use Alembic migrations for the `rag` schema.
 - Store chunk text/metadata and its vector embedding together in `rag.document_chunks` for the MVP. The default embedding column uses pgvector `vector(1536)` and the OpenAI embeddings request must pass the configured `OPENAI_EMBEDDING_DIMENSIONS`.
@@ -106,7 +107,7 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | Concern | Library | Notes |
 | --- | --- | --- |
 | Web framework | `fastapi` | Run with `uvicorn` in dev, `gunicorn` + `uvicorn.workers.UvicornWorker` in compose. |
-| Package manager | `uv` | `pyproject.toml` with locked `uv.lock`. |
+| Package manager | `uv` | `pyproject.toml` with locked `uv.lock`; the Task 3 scaffold used `uv` 0.9.22. |
 | ORM | `SQLAlchemy` 2.0 async + `asyncpg` driver | `rag` schema only; never write `app`. |
 | Migrations | `Alembic` | Generates SQL for `rag` schema only. Owns the read-only reporting views consumed by .NET. |
 | Validation | `pydantic` v2 | All request/response models, all config via `pydantic-settings`. |
@@ -180,4 +181,3 @@ The product UI for end users (chat, viewer, management) is **Spanish (Argentine 
 The MVP does not include a full i18n framework. Instead, each frontend app keeps user-facing strings in a single `src/strings.ts` (or `src/i18n/es.ts`) module so that a future locale addition is a mechanical refactor. Do not scatter user-facing literals through components.
 
 Stable error codes coming from the shared error envelope are mapped to Spanish messages in a per-app `src/errorMessages.ts`. A missing code falls back to a generic "Ocurrió un error inesperado." message and is logged with the unmapped code for operators.
-

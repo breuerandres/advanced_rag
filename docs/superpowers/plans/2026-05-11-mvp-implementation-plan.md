@@ -468,14 +468,21 @@ Expected: commit succeeds.
 ## Task 3: FastAPI RAG Foundation
 
 **Files:**
+- Create: `services/rag-api/.python-version`
+- Create: `services/rag-api/.dockerignore`
 - Create: `services/rag-api/pyproject.toml`
+- Create: `services/rag-api/uv.lock`
+- Create: `services/rag-api/README.md`
 - Create: `services/rag-api/src/advanced_rag/main.py`
 - Create: `services/rag-api/src/advanced_rag/core/config.py`
 - Create: `services/rag-api/src/advanced_rag/core/errors.py`
 - Create: `services/rag-api/tests/test_health.py`
+- Create: `services/rag-api/tests/test_config.py`
+- Create: `services/rag-api/tests/test_errors.py`
 - Create: `services/rag-api/Dockerfile`
+- Modify: `.gitignore`
 
-- [ ] **Step 1: Scaffold Python package with uv**
+- [x] **Step 1: Scaffold Python package with uv**
 
 Run:
 
@@ -490,7 +497,7 @@ Set-Location ..\..
 
 Expected: `pyproject.toml` and `uv.lock` exist.
 
-- [ ] **Step 2: Write failing health test**
+- [x] **Step 2: Write failing health test**
 
 Create `services/rag-api/tests/test_health.py` with tests for `/health/live` and `/health/ready`.
 
@@ -504,11 +511,11 @@ Set-Location ..\..
 
 Expected before implementation: tests fail because the app is not implemented.
 
-- [ ] **Step 3: Implement app factory and health endpoints**
+- [x] **Step 3: Implement app factory and health endpoints**
 
 Create `services/rag-api/src/advanced_rag/main.py` with a FastAPI app exposing `/health/live` and `/health/ready`. Both return JSON `{ "status": "ok" }` until database readiness is added.
 
-- [ ] **Step 4: Verify FastAPI foundation**
+- [x] **Step 4: Verify FastAPI foundation**
 
 Run:
 
@@ -521,11 +528,11 @@ Set-Location ..\..
 
 Expected: tests and lint pass.
 
-- [ ] **Step 5: Add FastAPI Dockerfile**
+- [x] **Step 5: Add FastAPI Dockerfile**
 
 Create `services/rag-api/Dockerfile` using `uv` to sync dependencies and run `uvicorn advanced_rag.main:app --host 0.0.0.0 --port 8000`.
 
-- [ ] **Step 6: Commit FastAPI foundation**
+- [x] **Step 6: Commit FastAPI foundation**
 
 Run:
 

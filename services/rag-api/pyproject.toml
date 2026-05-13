@@ -1,0 +1,36 @@
+[project]
+name = "advanced-rag-rag-api"
+version = "0.1.0"
+description = "FastAPI RAG service for the Advanced RAG Instruction Platform."
+readme = "README.md"
+authors = [
+    { name = "Andres Breuer", email = "breuer.andres@gmail.com" }
+]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic==1.18.4",
+    "asyncpg==0.31.0",
+    "fastapi==0.136.1",
+    "openai==2.36.0",
+    "pydantic-settings==2.14.1",
+    "pyjwt==2.12.1",
+    "sqlalchemy==2.0.49",
+    "structlog==25.5.0",
+    "uvicorn==0.46.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.22,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "advanced_rag"
+
+[dependency-groups]
+dev = [
+    "httpx==0.28.1",
+    "mypy==1.19.0",
+    "pytest==9.0.2",
+    "pytest-asyncio==1.3.0",
+    "ruff==0.14.8",
+]

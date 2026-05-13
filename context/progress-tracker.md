@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Finish Task 2 .NET API foundation and prepare the user-owned tooling check for Task 3 FastAPI RAG foundation.
+- Finish Task 3 FastAPI RAG foundation and prepare the user-owned tooling check for Task 4 frontend foundations.
 
 ## Completed
 
@@ -91,17 +91,26 @@
 - Added `services/dotnet-api/Dockerfile` as a multi-stage .NET 8 publish/runtime image for `AdvancedRag.Api` on port `8080`.
 - Added `services/dotnet-api/.dockerignore` after Docker build exposed that local Windows `bin/obj` output can overwrite Linux restore artifacts inside the container build context.
 - Verified Task 2 with `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, and `docker build -f services/dotnet-api/Dockerfile services/dotnet-api`.
+- User confirmed Task 3 local Python tooling: Python `3.12.5` and `uv` `0.9.22`.
+- Scaffolded the FastAPI RAG service at `services/rag-api` with `uv`, exact dependency pins in `pyproject.toml`, and a committed `uv.lock`.
+- Corrected the initial `uv` scaffold from Python 3.13 to Python 3.12 by adding `.python-version` and constraining `requires-python` to `>=3.12,<3.13`.
+- Configured the uv build backend to package the import module `advanced_rag` while keeping the distribution name `advanced-rag-rag-api`.
+- Added FastAPI health tests first, verified the expected RED state with 404 responses, then implemented `/health/live` and `/health/ready`.
+- Added tested base configuration and shared error-envelope models for the future RAG API routes.
+- Added `services/rag-api/Dockerfile` using the `ghcr.io/astral-sh/uv:0.9.22-python3.12-bookworm-slim` base image and `services/rag-api/.dockerignore` to keep generated local artifacts out of the container context.
+- Updated root `.gitignore` to ignore Visual Studio `.vs/` working folders after local verification surfaced generated IDE indexes.
+- Verified Task 3 with `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `uv build`, and `docker build -f services/rag-api/Dockerfile services/rag-api`.
 
 ## In Progress
 
-- Preparing Task 3 FastAPI RAG foundation.
+- Preparing Task 4 frontend foundations.
 
 ## Next Up
 
-- User-owned checkpoint for Task 3: confirm Python and `uv` tooling from the repository root with:
-  - `python --version`
-  - `uv --version`
-  - If `uv` is missing, install it before scaffolding `services/rag-api`.
+- User-owned checkpoint for Task 4: confirm Node and pnpm tooling from the repository root with:
+  - `node --version`
+  - `pnpm --version`
+  - If `pnpm` is missing, install/enable it before scaffolding the React frontends.
 
 ## Open Questions
 
@@ -147,8 +156,9 @@ Current state:
 - Task 0 repository baseline is complete and committed.
 - Task 1 infrastructure and Caddy baseline is complete and committed.
 - Task 2 .NET API foundation is complete and committed with the scoped foundation changes.
+- Task 3 FastAPI RAG foundation is complete and committed with the scoped foundation changes.
 - The base architecture formal spec is written and approved as the basis for implementation: monorepo, Docker Compose, Caddy same-origin API routing, three React frontends, .NET management API, FastAPI RAG API, PostgreSQL with `app` and `rag` schemas, secure cookies, chat token flow, viewer exchange codes, document lifecycle, assisted imports, publishing blocked on successful indexing, semantic cache, AI usage budgets, audit, logs, secrets, health checks, operational defaults, UI foundation, and OpenAI model defaults.
 
 Next safe implementation work:
 
-- Begin Task 3 FastAPI RAG foundation after the user confirms local Python and `uv` tooling.
+- Begin Task 4 frontend foundations after the user confirms local Node and pnpm tooling.

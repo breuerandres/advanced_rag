@@ -80,6 +80,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Secrets And Configuration](#2026-05-11---secrets-and-configuration)
 - [Compose PostgreSQL Role Password Secrets](#2026-05-13---compose-postgresql-role-password-secrets)
 - [.NET SDK Selection With global.json](#2026-05-13---net-sdk-selection-with-globaljson)
+- [FastAPI Python And Packaging Foundation](#2026-05-13---fastapi-python-and-packaging-foundation)
 - [MVP Operational Defaults](#2026-05-11---mvp-operational-defaults)
 - [Default OpenAI Models](#2026-05-11---default-openai-models)
 
@@ -929,3 +930,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Future .NET work should keep controllers/endpoints thin, place use cases in `AdvancedRag.App`, domain rules in `AdvancedRag.Domain`, and EF/infrastructure concerns in `AdvancedRag.Infrastructure`. Docker builds for `services/dotnet-api` must not depend on host-local `bin/obj` artifacts.
 
 **Evidence:** Verified on 2026-05-13 with `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, and `docker build -f services/dotnet-api/Dockerfile services/dotnet-api`.
+
+## 2026-05-13 - FastAPI Python And Packaging Foundation
+
+**Context:** Task 3 scaffolds the FastAPI RAG service. The user's local `python --version` is `3.12.5`, but the first `uv init`/`uv add` pass selected an installed CPython 3.13 interpreter and generated `requires-python = ">=3.13"`, which would make the service diverge from the confirmed local toolchain.
+
+**Options Considered:** Accept Python 3.13, leave the interpreter unconstrained, or pin the RAG service to Python 3.12 for the MVP foundation.
+
+**Decision:** Pin `services/rag-api` to Python 3.12 using `.python-version` and `requires-python = ">=3.12,<3.13"`. Keep dependencies exact in `pyproject.toml` and locked by `uv.lock`. Configure the uv build backend with `module-name = "advanced_rag"` because the package distribution name is `advanced-rag-rag-api` while the import module is `advanced_rag`.
+
+**Rationale:** Python 3.12 matches the user-confirmed workstation interpreter, is a conservative target for FastAPI dependencies, and keeps local and Docker behavior aligned. The explicit uv build-backend module name prevents package builds from looking for the default normalized module name `advanced_rag_rag_api`.
+
+**Tradeoffs:** Developers with only Python 3.13 installed must install a Python 3.12 interpreter for this service. This is acceptable for MVP reproducibility.
+
+**Consequences:** FastAPI commands should be run from `services/rag-api` through `uv`, and Docker builds should use a Python 3.12 uv base image. Moving to Python 3.13 or newer requires an explicit stack decision update.
+
+**Evidence:** Verified on 2026-05-13 with `uv run python --version`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `uv build`, and `docker build -f services/rag-api/Dockerfile services/rag-api`. The uv settings reference documents `[tool.uv.build-backend].module-name` as the way to set the module directory name when it differs from the package name.
