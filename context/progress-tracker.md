@@ -118,7 +118,7 @@
 
 ## In Progress
 
-- Preparing the Task 5 scoped commit.
+- Preparing Task 6 database migrations and schema ownership.
 
 ## Next Up
 
@@ -170,9 +170,9 @@ Current state:
 - Task 2 .NET API foundation is complete and committed with the scoped foundation changes.
 - Task 3 FastAPI RAG foundation is complete and committed with the scoped foundation changes.
 - Task 4 frontend foundation is complete and committed with the scoped foundation changes.
-- Task 5 shared error, request ID, and frontend error parsing contracts are implemented and ready to commit with the scoped foundation changes.
+- Task 5 shared error, request ID, and frontend error parsing contracts are complete and committed with the scoped foundation changes.
 - The base architecture formal spec is written and approved as the basis for implementation: monorepo, Docker Compose, Caddy same-origin API routing, three React frontends, .NET management API, FastAPI RAG API, PostgreSQL with `app` and `rag` schemas, secure cookies, chat token flow, viewer exchange codes, document lifecycle, assisted imports, publishing blocked on successful indexing, semantic cache, AI usage budgets, audit, logs, secrets, health checks, operational defaults, UI foundation, and OpenAI model defaults.
 
 Next safe implementation work:
 
-- Commit Task 5, then begin Task 6 database migrations and schema ownership.
+- Begin Task 6 database migrations and schema ownership.

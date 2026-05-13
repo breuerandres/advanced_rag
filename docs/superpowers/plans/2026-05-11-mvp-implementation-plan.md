@@ -707,7 +707,7 @@ pnpm -r test -- --run
 
 Expected: all tests pass.
 
-- [ ] **Step 7: Commit shared contracts**
+- [x] **Step 7: Commit shared contracts**
 
 Run:
 
