@@ -78,6 +78,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 ### Data Model And Operations
 
 - [Initial Database Entity Boundaries](#2026-05-11---initial-database-entity-boundaries)
+- [Initial Database Migration Foundation](#2026-05-13---initial-database-migration-foundation)
 - [Secrets And Configuration](#2026-05-11---secrets-and-configuration)
 - [Compose PostgreSQL Role Password Secrets](#2026-05-13---compose-postgresql-role-password-secrets)
 - [.NET SDK Selection With global.json](#2026-05-13---net-sdk-selection-with-globaljson)
@@ -963,3 +964,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Future frontend work should continue from React 18.3.1 and the existing `pnpm` workspace. If the team wants a different React major or a fully scripted shadcn CLI bootstrap later, that should be recorded as a new stack decision.
 
 **Evidence:** Verified on 2026-05-13 with `pnpm -r typecheck`, `pnpm -r test -- --run`, `pnpm -r build`, and Docker builds for `apps/manage-web`, `apps/chat-web`, and `apps/docs-web`.
+
+## 2026-05-13 - Initial Database Migration Foundation
+
+**Context:** Task 6 turns the approved schema ownership model into executable migrations for `.NET` and FastAPI. The project needs early proof that `.NET` writes only `app` objects and FastAPI writes only `rag` objects while both can be tested against a disposable Postgres instance with pgvector.
+
+**Options Considered:** Keep schema definitions as documentation only, create migrations without container-backed ownership tests, or implement EF Core and Alembic migrations with disposable Postgres verification.
+
+**Decision:** Implement the initial `.NET` `app` schema through EF Core migrations and the initial FastAPI `rag` schema through Alembic. EF migration history is stored under the `app` schema through `__EFMigrationsHistory`; Alembic versioning is stored under the `rag` schema through `rag.alembic_version`. Migration verification uses `pgvector/pgvector:pg16` containers for both backend stacks.
+
+**Rationale:** The MVP's strongest data invariant is service ownership by schema. Container-backed migration tests prove the actual database result, including pgvector extension behavior, instead of trusting model metadata or migration files alone.
+
+**Tradeoffs:** Testcontainers adds slower backend tests and requires Docker for full verification. That cost is acceptable because schema ownership failures would be expensive to unwind later.
+
+**Consequences:** Future `.NET` schema changes must go through `AppDbContext`/EF migrations and stay in `app`. Future RAG schema changes must go through Alembic and stay in `rag` except for explicitly approved extension setup and read-only grants. Task 6 pins the added migration/testing packages in project manifests: `Npgsql.EntityFrameworkCore.PostgreSQL` `8.0.11`, EF Core packages `8.0.27`, `Testcontainers.PostgreSql` `4.11.0`, Python `pgvector` `0.4.2`, and Python `testcontainers[postgres]` `4.14.2`.
+
+**Evidence:** Verified on 2026-05-13 with `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, and `uv run mypy src tests`.

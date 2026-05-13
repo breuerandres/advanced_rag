@@ -728,7 +728,7 @@ Expected: commit succeeds.
 - Create: EF Core migrations for `app`
 - Create: Alembic migrations for `rag`
 
-- [ ] **Step 1: Add app schema migration tests**
+- [x] **Step 1: Add app schema migration tests**
 
 Write .NET tests that verify EF Core maps these `app` entities and schema names:
 
@@ -750,11 +750,11 @@ Write .NET tests that verify EF Core maps these `app` entities and schema names:
 
 Expected before implementation: tests fail because mappings do not exist.
 
-- [ ] **Step 2: Implement .NET domain entities and EF mappings**
+- [x] **Step 2: Implement .NET domain entities and EF mappings**
 
 Create focused domain entities and EF configurations. Enforce `app` schema in mappings. Do not map any `rag` table as writable.
 
-- [ ] **Step 3: Generate EF migration**
+- [x] **Step 3: Generate EF migration**
 
 Run:
 
@@ -764,7 +764,7 @@ dotnet ef migrations add InitialAppSchema --project services/dotnet-api/src/Adva
 
 Expected: migration creates only `app` schema objects.
 
-- [ ] **Step 4: Add rag schema migration tests**
+- [x] **Step 4: Add rag schema migration tests**
 
 Write FastAPI/Alembic tests or migration assertions that verify these `rag` tables:
 
@@ -778,7 +778,7 @@ Write FastAPI/Alembic tests or migration assertions that verify these `rag` tabl
 
 Expected before migration: tests fail because tables do not exist.
 
-- [ ] **Step 5: Implement Alembic migration**
+- [x] **Step 5: Implement Alembic migration**
 
 Initialize Alembic and create an initial migration that:
 
@@ -787,7 +787,7 @@ Initialize Alembic and create an initial migration that:
 - Creates `document_chunks.embedding` as `vector(1536)`.
 - Adds indexes needed for document version lookup, corpus lookup, access scope lookup, audit date filtering, budget user/month filtering, and citation document filtering.
 
-- [ ] **Step 6: Verify migration ownership**
+- [x] **Step 6: Verify migration ownership**
 
 Run migration tests against a disposable Postgres container.
 

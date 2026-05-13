@@ -115,15 +115,21 @@
 - Added FastAPI request ID middleware plus shared handlers for `ApiException`, HTTP errors, and request validation errors.
 - Added `parseApiError()` and `ApiError` helpers to the three frontend apps with tests for valid shared envelopes and malformed response fallbacks.
 - Verified Task 5 with `dotnet test services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `pnpm -r test -- --run`, and `pnpm -r typecheck`.
+- User confirmed Task 6 migration tooling checkpoint: .NET SDK `8.0.421`, `dotnet-ef` `8.0.27`, Docker `28.5.1`, and local `pgvector/pgvector:pg16` image.
+- Added Task 6 .NET infrastructure tests for `AppDbContext` schema/table mappings and EF migration ownership against a disposable `pgvector/pgvector:pg16` Postgres container.
+- Implemented the initial `.NET` `app` schema foundation with `AppDbContext`, focused persistence entities, EF mappings, and `InitialAppSchema` migration.
+- Added Task 6 FastAPI Alembic migration test against a disposable `pgvector/pgvector:pg16` Postgres container.
+- Implemented FastAPI Alembic foundation for the `rag` schema, including `vector` extension setup, `document_chunks.embedding vector(1536)`, RAG audit/cache/indexing/pricing tables, and lookup indexes.
+- Verified Task 6 backend migration work with `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, and `uv run mypy src tests`.
 
 ## In Progress
 
-- Task 6 database migrations and schema ownership is at the user-owned tooling checkpoint before dependency installation and Docker-backed migration tests.
+- Preparing the Task 6 scoped commit.
 
 ## Next Up
 
-- User runs the Task 6 tooling checkpoint commands and reports the outputs.
-- After confirmation, add migration dependencies, write RED migration tests, and implement the initial `app` and `rag` schemas.
+- Commit Task 6 database foundations.
+- Start Task 7 authentication foundation after the Task 6 commit.
 
 ## Open Questions
 
@@ -172,8 +178,9 @@ Current state:
 - Task 3 FastAPI RAG foundation is complete and committed with the scoped foundation changes.
 - Task 4 frontend foundation is complete and committed with the scoped foundation changes.
 - Task 5 shared error, request ID, and frontend error parsing contracts are complete and committed with the scoped foundation changes.
+- Task 6 initial database schemas are implemented and verified, and are ready to commit with the scoped foundation changes.
 - The base architecture formal spec is written and approved as the basis for implementation: monorepo, Docker Compose, Caddy same-origin API routing, three React frontends, .NET management API, FastAPI RAG API, PostgreSQL with `app` and `rag` schemas, secure cookies, chat token flow, viewer exchange codes, document lifecycle, assisted imports, publishing blocked on successful indexing, semantic cache, AI usage budgets, audit, logs, secrets, health checks, operational defaults, UI foundation, and OpenAI model defaults.
 
 Next safe implementation work:
 
-- Begin Task 6 database migrations and schema ownership.
+- Commit Task 6, then begin Task 7 authentication foundation.

@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvancedRag.Api.Tests", "te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvancedRag.App.Tests", "tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj", "{DCC045BB-A5FB-4D8C-8AFC-EBFE45D0CC51}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvancedRag.Infrastructure.Tests", "tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj", "{F0F78F36-16F8-448D-8450-A5AD51A84EA8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -52,6 +54,10 @@ Global
 		{DCC045BB-A5FB-4D8C-8AFC-EBFE45D0CC51}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DCC045BB-A5FB-4D8C-8AFC-EBFE45D0CC51}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DCC045BB-A5FB-4D8C-8AFC-EBFE45D0CC51}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F0F78F36-16F8-448D-8450-A5AD51A84EA8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F0F78F36-16F8-448D-8450-A5AD51A84EA8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F0F78F36-16F8-448D-8450-A5AD51A84EA8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F0F78F36-16F8-448D-8450-A5AD51A84EA8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{3C8A4BC5-CDAC-4774-8D9A-46FEB3E9CABE} = {F68CEAA9-BD2A-4B03-8D7C-6D75E3FD19B3}
@@ -60,5 +66,6 @@ Global
 		{AE13D0A3-077E-4CDB-92B8-F34D57444E4D} = {F68CEAA9-BD2A-4B03-8D7C-6D75E3FD19B3}
 		{609F5FEF-C9A3-4B7A-8167-6D2DAD9732AF} = {5F3E28CB-3CCE-46E3-B40C-50DA3493C5E8}
 		{DCC045BB-A5FB-4D8C-8AFC-EBFE45D0CC51} = {5F3E28CB-3CCE-46E3-B40C-50DA3493C5E8}
+		{F0F78F36-16F8-448D-8450-A5AD51A84EA8} = {5F3E28CB-3CCE-46E3-B40C-50DA3493C5E8}
 	EndGlobalSection
 EndGlobal
