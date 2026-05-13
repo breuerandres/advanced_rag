@@ -118,11 +118,12 @@
 
 ## In Progress
 
-- Preparing Task 6 database migrations and schema ownership.
+- Task 6 database migrations and schema ownership is at the user-owned tooling checkpoint before dependency installation and Docker-backed migration tests.
 
 ## Next Up
 
-- Start Task 6 database migrations and schema ownership after the Task 5 commit.
+- User runs the Task 6 tooling checkpoint commands and reports the outputs.
+- After confirmation, add migration dependencies, write RED migration tests, and implement the initial `app` and `rag` schemas.
 
 ## Open Questions
 
