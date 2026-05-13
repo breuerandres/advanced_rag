@@ -375,6 +375,7 @@ Expected: commit succeeds.
 ## Task 2: .NET API Foundation
 
 **Files:**
+- Create: `global.json`
 - Create: `services/dotnet-api/AdvancedRag.sln`
 - Create: `services/dotnet-api/src/AdvancedRag.Api/`
 - Create: `services/dotnet-api/src/AdvancedRag.App/`
@@ -383,8 +384,9 @@ Expected: commit succeeds.
 - Create: `services/dotnet-api/tests/AdvancedRag.Api.Tests/`
 - Create: `services/dotnet-api/tests/AdvancedRag.App.Tests/`
 - Create: `services/dotnet-api/Dockerfile`
+- Create: `services/dotnet-api/.dockerignore`
 
-- [ ] **Step 1: Scaffold solution and projects**
+- [x] **Step 1: Scaffold solution and projects**
 
 Run:
 
@@ -407,7 +409,7 @@ dotnet sln services/dotnet-api/AdvancedRag.sln add services/dotnet-api/tests/Adv
 
 Expected: solution exists and `dotnet sln list` shows six projects.
 
-- [ ] **Step 2: Add project references**
+- [x] **Step 2: Add project references**
 
 Run:
 
@@ -421,7 +423,7 @@ dotnet add services/dotnet-api/tests/AdvancedRag.App.Tests/AdvancedRag.App.Tests
 
 Expected: references are added without circular dependencies.
 
-- [ ] **Step 3: Add health endpoint failing test**
+- [x] **Step 3: Add health endpoint failing test**
 
 Create an API test that calls `/health/live` and expects HTTP 200 with a JSON body containing `status: "ok"`.
 
@@ -433,11 +435,11 @@ dotnet test services/dotnet-api/AdvancedRag.sln --filter Health
 
 Expected before implementation: test fails because `/health/live` is not wired.
 
-- [ ] **Step 4: Add minimal health endpoint**
+- [x] **Step 4: Add minimal health endpoint**
 
 Modify `services/dotnet-api/src/AdvancedRag.Api/Program.cs` to expose `/health/live` and `/health/ready`. `/health/live` returns process liveness. `/health/ready` initially returns ready without DB checks; DB readiness is added after EF Core is configured.
 
-- [ ] **Step 5: Verify .NET foundation**
+- [x] **Step 5: Verify .NET foundation**
 
 Run:
 
@@ -448,11 +450,11 @@ dotnet build services/dotnet-api/AdvancedRag.sln
 
 Expected: tests and build pass.
 
-- [ ] **Step 6: Add .NET Dockerfile**
+- [x] **Step 6: Add .NET Dockerfile**
 
 Create `services/dotnet-api/Dockerfile` as a multi-stage .NET 8 build that publishes `AdvancedRag.Api` and runs it on port `8080`.
 
-- [ ] **Step 7: Commit .NET foundation**
+- [x] **Step 7: Commit .NET foundation**
 
 Run:
 

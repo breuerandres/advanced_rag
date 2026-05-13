@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Start Task 2 .NET API foundation using the human-in-the-loop workflow.
+- Finish Task 2 .NET API foundation and prepare the user-owned tooling check for Task 3 FastAPI RAG foundation.
 
 ## Completed
 
@@ -76,15 +76,32 @@
 - Verified local secret files are ignored by Git via `git check-ignore -v`.
 - Marked Task 1 steps complete in the MVP implementation plan.
 - Created the Task 1 infrastructure baseline commit with message `chore: add compose and caddy baseline`.
+- User reported local .NET SDK check output: `dotnet --version` returned `9.0.311` and `dotnet --list-sdks` listed only `9.0.311`.
+- Verified locally that only .NET SDK `9.0.311` is installed.
+- Checked WinGet availability for .NET 8 SDK; `Microsoft.DotNet.SDK.8` is available as version `8.0.421`.
+- Confirmed Task 2 is blocked until .NET 8 SDK is installed because the project is pinned to .NET 8.
+- User installed .NET SDK 8.0.421 side by side with .NET SDK 9.0.311.
+- Added repository-root `global.json` to select .NET SDK 8.0.421 with `rollForward: latestFeature`.
+- Updated `context/code-standards.md` and `context/design-decisions.md` to record the .NET SDK selection rule.
+- Scaffolded the Task 2 .NET solution at `services/dotnet-api/AdvancedRag.sln` with six projects: API host, application layer, domain layer, infrastructure layer, API tests, and application tests.
+- Added project references preserving the intended dependency direction: API depends on App and Infrastructure; Infrastructure depends on App and Domain; App depends on Domain; tests reference only the layers they verify.
+- Added API health endpoint tests first and verified the expected RED state before wiring `/health/live` and `/health/ready`.
+- Implemented minimal .NET health endpoints returning `{ "status": "ok" }`; database readiness remains deferred until EF Core is configured.
+- Removed scaffold placeholder classes/tests and added a small application/domain assembly load test to keep the foundation test project non-empty.
+- Added `services/dotnet-api/Dockerfile` as a multi-stage .NET 8 publish/runtime image for `AdvancedRag.Api` on port `8080`.
+- Added `services/dotnet-api/.dockerignore` after Docker build exposed that local Windows `bin/obj` output can overwrite Linux restore artifacts inside the container build context.
+- Verified Task 2 with `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, and `docker build -f services/dotnet-api/Dockerfile services/dotnet-api`.
 
 ## In Progress
 
-- Task 2 .NET API foundation is next.
+- Preparing Task 3 FastAPI RAG foundation.
 
 ## Next Up
 
-- User verifies local .NET SDK availability with `dotnet --version` and `dotnet --list-sdks`.
-- Scaffold the .NET solution and projects after the SDK check.
+- User-owned checkpoint for Task 3: confirm Python and `uv` tooling from the repository root with:
+  - `python --version`
+  - `uv --version`
+  - If `uv` is missing, install it before scaffolding `services/rag-api`.
 
 ## Open Questions
 
@@ -127,8 +144,11 @@ Current state:
 - Git has been initialized by the user.
 - Human-in-the-loop implementation is now required for MVP execution.
 - The implementation branch is `mvp-implementation`.
+- Task 0 repository baseline is complete and committed.
+- Task 1 infrastructure and Caddy baseline is complete and committed.
+- Task 2 .NET API foundation is complete and committed with the scoped foundation changes.
 - The base architecture formal spec is written and approved as the basis for implementation: monorepo, Docker Compose, Caddy same-origin API routing, three React frontends, .NET management API, FastAPI RAG API, PostgreSQL with `app` and `rag` schemas, secure cookies, chat token flow, viewer exchange codes, document lifecycle, assisted imports, publishing blocked on successful indexing, semantic cache, AI usage budgets, audit, logs, secrets, health checks, operational defaults, UI foundation, and OpenAI model defaults.
 
 Next safe implementation work:
 
-- Begin Task 2 .NET API foundation.
+- Begin Task 3 FastAPI RAG foundation after the user confirms local Python and `uv` tooling.

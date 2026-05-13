@@ -82,6 +82,8 @@ The MVP locks in the following library choices. Do not substitute without an upd
 
 ### .NET 8 API
 
+The repository root uses `global.json` to select the .NET 8 SDK line for CLI commands. Do not scaffold or build the .NET API with a newer major SDK unless the stack decision is updated in `context/design-decisions.md`.
+
 | Concern | Library | Notes |
 | --- | --- | --- |
 | Web framework | ASP.NET Core 8 (Minimal API or MVC controllers) | Prefer controllers for testability; controllers stay thin. |
@@ -178,5 +180,4 @@ The product UI for end users (chat, viewer, management) is **Spanish (Argentine 
 The MVP does not include a full i18n framework. Instead, each frontend app keeps user-facing strings in a single `src/strings.ts` (or `src/i18n/es.ts`) module so that a future locale addition is a mechanical refactor. Do not scatter user-facing literals through components.
 
 Stable error codes coming from the shared error envelope are mapped to Spanish messages in a per-app `src/errorMessages.ts`. A missing code falls back to a generic "Ocurrió un error inesperado." message and is logged with the unmapped code for operators.
-
 

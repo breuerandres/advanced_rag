@@ -12,6 +12,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Single-Tenant Docker Compose Deployment](#2026-05-11---single-tenant-docker-compose-deployment)
 - [Monorepo Compose Product](#2026-05-11---monorepo-compose-product)
 - [Service Boundaries](#2026-05-11---service-boundaries)
+- [.NET API Foundation Shape](#2026-05-13---net-api-foundation-shape)
 - [API Contract Granularity](#2026-05-11---api-contract-granularity)
 - [MVP API Contract Groups](#2026-05-11---mvp-api-contract-groups)
 - [Management Reporting Read Model](#2026-05-11---management-reporting-read-model)
@@ -78,6 +79,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Initial Database Entity Boundaries](#2026-05-11---initial-database-entity-boundaries)
 - [Secrets And Configuration](#2026-05-11---secrets-and-configuration)
 - [Compose PostgreSQL Role Password Secrets](#2026-05-13---compose-postgresql-role-password-secrets)
+- [.NET SDK Selection With global.json](#2026-05-13---net-sdk-selection-with-globaljson)
 - [MVP Operational Defaults](#2026-05-11---mvp-operational-defaults)
 - [Default OpenAI Models](#2026-05-11---default-openai-models)
 
@@ -895,3 +897,35 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Tradeoffs:** Local setup requires more secret files before Compose validation or stack startup. The extra setup is acceptable because the project now has explicit user-owned secret preparation steps.
 
 **Consequences:** `infra/compose/secrets/README.md` lists all required local secret files. `.NET` receives the app and reporting password file paths, FastAPI receives the RAG password file path, and Postgres receives the admin password file path.
+
+## 2026-05-13 - .NET SDK Selection With global.json
+
+**Context:** Task 2 targets .NET 8, but the development machine has both .NET SDK 8.0.421 and 9.0.311 installed. Without an SDK selector, the .NET CLI can use the latest installed SDK, which may scaffold or build with SDK 9 defaults.
+
+**Options Considered:** Use the latest installed SDK, pass SDK/version flags manually on every command, or add a repository-level `global.json`.
+
+**Decision:** Add repository-root `global.json` selecting SDK `8.0.421` with `rollForward` set to `latestFeature`.
+
+**Rationale:** The MVP stack is explicitly .NET 8. A root `global.json` makes CLI behavior reproducible for scaffolding, local builds, and CI while still allowing newer compatible 8.0 feature bands/patches.
+
+**Tradeoffs:** Developers must install a .NET 8 SDK locally even if they already have SDK 9 or newer. This is acceptable because .NET 8 is the approved target stack.
+
+**Consequences:** `dotnet --version` from the repository root should resolve to an 8.0 SDK. Moving to a newer major SDK requires an explicit stack decision update.
+
+**Evidence:** Verified against Microsoft documentation on 2026-05-13. Microsoft documents that `global.json` selects the .NET SDK used by CLI commands and that the `latestFeature` roll-forward policy stays within the requested major/minor SDK line while using a compatible later feature band or patch.
+
+## 2026-05-13 - .NET API Foundation Shape
+
+**Context:** Task 2 turns the approved .NET management API boundary into a concrete repository structure before EF Core, authentication, document workflows, or reporting are added.
+
+**Options Considered:** Keep a single ASP.NET Core project, split only API and tests, or create the planned API/App/Domain/Infrastructure layers from the beginning.
+
+**Decision:** Scaffold the .NET service as a six-project solution: `AdvancedRag.Api`, `AdvancedRag.App`, `AdvancedRag.Domain`, `AdvancedRag.Infrastructure`, `AdvancedRag.Api.Tests`, and `AdvancedRag.App.Tests`. The API host exposes minimal `/health/live` and `/health/ready` endpoints. Readiness returns `ok` until database and secret checks are introduced in the operational hardening task. The service image uses a multi-stage .NET 8 Dockerfile and a service-local `.dockerignore` that excludes generated `bin/obj` output from the Linux container build context.
+
+**Rationale:** Starting with the layer split keeps future auth, EF Core, lifecycle, reporting, and integration work from collapsing into the API host. The minimal health endpoints give Compose and tests an early stable contract. The `.dockerignore` is required because copying local Windows restore/build artifacts into a Linux Docker build can break publish with host-specific NuGet paths.
+
+**Tradeoffs:** The foundation has more projects than the current behavior strictly needs. This is acceptable because later tasks depend on clean boundaries and testable application services.
+
+**Consequences:** Future .NET work should keep controllers/endpoints thin, place use cases in `AdvancedRag.App`, domain rules in `AdvancedRag.Domain`, and EF/infrastructure concerns in `AdvancedRag.Infrastructure`. Docker builds for `services/dotnet-api` must not depend on host-local `bin/obj` artifacts.
+
+**Evidence:** Verified on 2026-05-13 with `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, and `docker build -f services/dotnet-api/Dockerfile services/dotnet-api`.

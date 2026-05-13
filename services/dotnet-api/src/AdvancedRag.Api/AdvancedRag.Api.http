@@ -1,0 +1,11 @@
+@AdvancedRag.Api_HostAddress = http://localhost:5150
+
+GET {{AdvancedRag.Api_HostAddress}}/health/live
+Accept: application/json
+
+###
+
+GET {{AdvancedRag.Api_HostAddress}}/health/ready
+Accept: application/json
+
+###
