@@ -1,0 +1,65 @@
+{
+  log {
+    output file /var/log/caddy/access.json
+    format json
+  }
+}
+
+(security_headers) {
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "no-referrer"
+    X-Frame-Options "DENY"
+    Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  }
+}
+
+manage.localhost {
+  tls internal
+  import security_headers
+
+  @api path /api/*
+  handle @api {
+    reverse_proxy dotnet-api:8080
+  }
+
+  handle {
+    reverse_proxy manage-web:80
+  }
+}
+
+chat.localhost {
+  tls internal
+  import security_headers
+
+  @rag path /api/chat /api/chat/* /api/feedback /api/feedback/*
+  handle @rag {
+    reverse_proxy rag-api:8000 {
+      flush_interval -1
+    }
+  }
+
+  @dotnet path /api/auth/* /api/session/* /api/csrf /api/viewer/*
+  handle @dotnet {
+    reverse_proxy dotnet-api:8080
+  }
+
+  handle {
+    reverse_proxy chat-web:80
+  }
+}
+
+docs.localhost {
+  tls internal
+  import security_headers
+
+  @api path /api/*
+  handle @api {
+    reverse_proxy dotnet-api:8080
+  }
+
+  handle {
+    reverse_proxy docs-web:80
+  }
+}

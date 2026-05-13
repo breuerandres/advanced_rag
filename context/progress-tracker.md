@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Start Task 1 infrastructure and configuration baseline using the human-in-the-loop workflow.
+- Start Task 2 .NET API foundation using the human-in-the-loop workflow.
 
 ## Completed
 
@@ -66,16 +66,25 @@
 - Verified documentation marker scan with the corrected command; no unresolved marker matches were returned.
 - Created the repository baseline commit with message `chore: establish repository baseline`.
 - Marked Task 0 steps complete in the MVP implementation plan.
+- User confirmed local Docker tooling: Docker `28.5.1` and Docker Compose `v2.40.3-desktop.1`.
+- Created Task 1 infrastructure files under `infra/compose`: Compose file, Compose override, Caddyfile, non-sensitive environment example, local secrets README, and Postgres initialization scripts.
+- Updated architecture and design decisions to record separate Compose secret files for PostgreSQL admin, app, RAG, and reporting role passwords.
+- Updated `context/code-patterns.md` and the Task 1 plan notes so future sessions use the current Compose, Caddy, and Postgres secret patterns instead of stale skeleton snippets.
+- Ran a lightweight Compose parse with `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`; it exited successfully.
+- User confirmed local secret placeholders were created for Task 1 validation.
+- Verified full Compose syntax with `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`; it rendered successfully.
+- Verified local secret files are ignored by Git via `git check-ignore -v`.
+- Marked Task 1 steps complete in the MVP implementation plan.
+- Created the Task 1 infrastructure baseline commit with message `chore: add compose and caddy baseline`.
 
 ## In Progress
 
-- Task 1 infrastructure and configuration baseline is next.
+- Task 2 .NET API foundation is next.
 
 ## Next Up
 
-- Split Task 1 into `Agent-owned` and `User-owned` steps.
-- Create Compose, Caddy, environment example, and local secret instructions.
-- Ask the user to run Docker Compose syntax validation.
+- User verifies local .NET SDK availability with `dotnet --version` and `dotnet --list-sdks`.
+- Scaffold the .NET solution and projects after the SDK check.
 
 ## Open Questions
 
@@ -122,4 +131,4 @@ Current state:
 
 Next safe implementation work:
 
-- Begin Task 1 infrastructure and configuration baseline.
+- Begin Task 2 .NET API foundation.

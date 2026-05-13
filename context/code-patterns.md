@@ -520,124 +520,18 @@ docs.{$PUBLIC_DOMAIN} {
 
 For local development, replace `{$PUBLIC_DOMAIN}` with `localhost` and rely on Caddy's internal CA.
 
-## docker-compose.yml Skeleton
+## Docker Compose Baseline
 
-```yaml
-# infra/compose/docker-compose.yml
-services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-advanced_rag}
-      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
-    secrets: [postgres_password]
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-advanced_rag}"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
+The current Compose baseline lives in `infra/compose/compose.yaml`; copy from the implemented file instead of recreating the skeleton from memory.
 
-  postgres-init:
-    image: pgvector/pgvector:pg16
-    depends_on:
-      postgres:
-        condition: service_healthy
-    secrets: [postgres_password]
-    environment:
-      PGHOST: postgres
-      PGUSER: ${POSTGRES_SUPERUSER:-postgres}
-      PGDATABASE: ${POSTGRES_DB:-advanced_rag}
-      PGPASSWORD_FILE: /run/secrets/postgres_password
-    entrypoint: ["bash", "-lc", "PGPASSWORD=$$(cat $$PGPASSWORD_FILE) psql -f /init/init.sql"]
-    volumes:
-      - ./postgres-init/init.sql:/init/init.sql:ro
-    restart: "no"
+Key rules:
 
-  dotnet-api:
-    build: ../../services/dotnet-api
-    restart: unless-stopped
-    depends_on:
-      postgres-init:
-        condition: service_completed_successfully
-    environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: http://+:8080
-      Postgres__ConnectionString: "Host=postgres;Database=${POSTGRES_DB:-advanced_rag};Username=app_owner;Include Error Detail=false"
-      Postgres__ReportingConnectionString: "Host=postgres;Database=${POSTGRES_DB:-advanced_rag};Username=app_reporting_reader"
-    secrets:
-      - postgres_password
-      - jwt_signing_keys
-      - csrf_signing_key
-      - internal_service_token
-    volumes:
-      - logs_dotnet:/var/log/dotnet-api
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health/ready"]
-      interval: 10s
-      retries: 5
-
-  rag-api:
-    build: ../../services/rag-api
-    restart: unless-stopped
-    depends_on:
-      postgres-init:
-        condition: service_completed_successfully
-    environment:
-      RAG_DATABASE_URL: "postgresql+asyncpg://rag_owner@postgres:5432/${POSTGRES_DB:-advanced_rag}"
-      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4.1-mini}
-      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-large}
-      OPENAI_EMBEDDING_DIMENSIONS: ${OPENAI_EMBEDDING_DIMENSIONS:-1536}
-      RAG_SEMANTIC_CACHE_TTL_HOURS: ${RAG_SEMANTIC_CACHE_TTL_HOURS:-24}
-      RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD: ${RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD:-0.90}
-      DOTNET_JWKS_URL: "http://dotnet-api:8080/.well-known/jwks.json"
-    secrets:
-      - openai_api_key
-      - postgres_password
-      - csrf_signing_key
-      - internal_service_token
-    volumes:
-      - logs_rag:/var/log/rag-api
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health/ready"]
-      interval: 10s
-      retries: 5
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    depends_on:
-      dotnet-api: { condition: service_healthy }
-      rag-api:    { condition: service_healthy }
-    ports: ["80:80", "443:443"]
-    environment:
-      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-localhost}
-      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-admin@example.com}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ../../apps/manage-web/dist:/srv/manage-web:ro
-      - ../../apps/chat-web/dist:/srv/chat-web:ro
-      - ../../apps/docs-web/dist:/srv/docs-web:ro
-      - caddy_data:/data
-      - caddy_config:/config
-
-secrets:
-  postgres_password:       { file: ./secrets/postgres_password.txt }
-  openai_api_key:          { file: ./secrets/openai_api_key.txt }
-  jwt_signing_keys:        { file: ./secrets/jwt_signing_keys.json }
-  csrf_signing_key:        { file: ./secrets/csrf_signing_key.txt }
-  internal_service_token:  { file: ./secrets/internal_service_token.txt }
-
-volumes:
-  postgres_data: {}
-  logs_dotnet: {}
-  logs_rag: {}
-  caddy_data: {}
-  caddy_config: {}
-```
+- Include `postgres`, `postgres-init`, `.NET`, FastAPI, the three frontends, and Caddy.
+- Gate `.NET` and FastAPI on `postgres-init` with `condition: service_completed_successfully`.
+- Use separate Compose secrets for `postgres_admin_password`, `postgres_app_password`, `postgres_rag_password`, and `postgres_reporting_password`.
+- Pass database password file paths to services. Do not put database passwords directly in environment variables.
+- Use `jwt_signing_keys.json`, `csrf_signing_key.txt`, `openai_api_key.txt`, and `internal_service_token.txt` as file-mounted secrets.
+- Preserve `/api/*` prefixes in Caddy reverse proxy routes. Do not use `handle_path` for backend API routes.
 
 ## .env.example
 
@@ -665,38 +559,14 @@ CUSTOMER_TIMEZONE=America/Argentina/Buenos_Aires
 DEFAULT_MONTHLY_AI_BUDGET_USD=5
 ```
 
-## postgres-init/init.sql
+## postgres-init
 
-```sql
--- infra/compose/postgres-init/init.sql
-SELECT 'CREATE DATABASE ' || quote_ident(:'PGDATABASE')
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'PGDATABASE')
-\gexec
+The current Postgres initialization scripts live in:
 
-\c :PGDATABASE
+- `infra/compose/postgres-init/init.sh`
+- `infra/compose/postgres-init/init.sql`
 
-CREATE EXTENSION IF NOT EXISTS vector;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'app_owner') THEN
-    CREATE ROLE app_owner LOGIN;
-  END IF;
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'rag_owner') THEN
-    CREATE ROLE rag_owner LOGIN;
-  END IF;
-  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'app_reporting_reader') THEN
-    CREATE ROLE app_reporting_reader LOGIN;
-  END IF;
-END$$;
-
-CREATE SCHEMA IF NOT EXISTS app AUTHORIZATION app_owner;
-CREATE SCHEMA IF NOT EXISTS rag AUTHORIZATION rag_owner;
-
-GRANT USAGE ON SCHEMA rag TO app_reporting_reader;
-```
-
-Passwords for the service roles are not handled by this SQL; the MVP uses peer authentication via the Docker network plus the file-based Postgres password for the superuser. If password authentication for service roles is needed, add per-role Compose secrets and a follow-up SQL step.
+The scripts must stay idempotent. They create the database if missing, enable `pgvector`, create or update service role passwords from Compose secrets, create the `app` and `rag` schemas, assign schema ownership, and grant reporting access.
 
 ## Logger Setup
 

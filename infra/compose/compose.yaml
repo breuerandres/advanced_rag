@@ -1,0 +1,160 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_SUPERUSER}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_admin_password
+    secrets:
+      - postgres_admin_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-init:
+    image: pgvector/pgvector:pg16
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: postgres
+      PGUSER: ${POSTGRES_SUPERUSER}
+      PGPASSWORD_FILE: /run/secrets/postgres_admin_password
+      TARGET_POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER}
+      POSTGRES_RAG_USER: ${POSTGRES_RAG_USER}
+      POSTGRES_REPORTING_USER: ${POSTGRES_REPORTING_USER}
+    secrets:
+      - postgres_admin_password
+      - postgres_app_password
+      - postgres_rag_password
+      - postgres_reporting_password
+    volumes:
+      - ./postgres-init:/init:ro
+    entrypoint: ["/bin/bash", "/init/init.sh"]
+    restart: "no"
+
+  dotnet-api:
+    build:
+      context: ../../services/dotnet-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      CUSTOMER_TIMEZONE: ${CUSTOMER_TIMEZONE}
+      AI_DEFAULT_MONTHLY_BUDGET_USD: ${AI_DEFAULT_MONTHLY_BUDGET_USD}
+      TECH_LOG_RETENTION_DAYS: ${TECH_LOG_RETENTION_DAYS}
+      Postgres__Host: postgres
+      Postgres__Database: ${POSTGRES_DB}
+      Postgres__Username: ${POSTGRES_APP_USER}
+      Postgres__PasswordFile: /run/secrets/postgres_app_password
+      Postgres__ReportingUsername: ${POSTGRES_REPORTING_USER}
+      Postgres__ReportingPasswordFile: /run/secrets/postgres_reporting_password
+      Jwt__SigningKeysFile: /run/secrets/jwt_signing_keys
+      Csrf__SigningKeyFile: /run/secrets/csrf_signing_key
+      InternalServiceTokenFile: /run/secrets/internal_service_token
+      Rag__InternalBaseUrl: http://rag-api:8000
+    depends_on:
+      postgres-init:
+        condition: service_completed_successfully
+    secrets:
+      - postgres_app_password
+      - postgres_reporting_password
+      - jwt_signing_keys
+      - csrf_signing_key
+      - internal_service_token
+    volumes:
+      - dotnet-logs:/var/log/dotnet-api
+
+  rag-api:
+    build:
+      context: ../../services/rag-api
+    environment:
+      CUSTOMER_TIMEZONE: ${CUSTOMER_TIMEZONE}
+      TECH_LOG_RETENTION_DAYS: ${TECH_LOG_RETENTION_DAYS}
+      RAG_DATABASE_HOST: postgres
+      RAG_DATABASE_PORT: 5432
+      RAG_DATABASE_NAME: ${POSTGRES_DB}
+      RAG_DATABASE_USER: ${POSTGRES_RAG_USER}
+      RAG_DATABASE_PASSWORD_FILE: /run/secrets/postgres_rag_password
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL}
+      OPENAI_EMBEDDING_DIMENSIONS: ${OPENAI_EMBEDDING_DIMENSIONS}
+      RAG_SEMANTIC_CACHE_TTL_HOURS: ${RAG_SEMANTIC_CACHE_TTL_HOURS}
+      RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD: ${RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD}
+      DOTNET_JWKS_URL: http://dotnet-api:8080/.well-known/jwks.json
+      Csrf__SigningKeyFile: /run/secrets/csrf_signing_key
+      InternalServiceTokenFile: /run/secrets/internal_service_token
+    depends_on:
+      postgres-init:
+        condition: service_completed_successfully
+    secrets:
+      - postgres_rag_password
+      - openai_api_key
+      - csrf_signing_key
+      - internal_service_token
+    volumes:
+      - rag-logs:/var/log/rag-api
+
+  manage-web:
+    build:
+      context: ../../apps/manage-web
+
+  chat-web:
+    build:
+      context: ../../apps/chat-web
+
+  docs-web:
+    build:
+      context: ../../apps/docs-web
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      - caddy-logs:/var/log/caddy
+    depends_on:
+      - manage-web
+      - chat-web
+      - docs-web
+      - dotnet-api
+      - rag-api
+
+secrets:
+  postgres_admin_password:
+    file: ./secrets/postgres_admin_password.txt
+  postgres_app_password:
+    file: ./secrets/postgres_app_password.txt
+  postgres_rag_password:
+    file: ./secrets/postgres_rag_password.txt
+  postgres_reporting_password:
+    file: ./secrets/postgres_reporting_password.txt
+  openai_api_key:
+    file: ./secrets/openai_api_key.txt
+  jwt_signing_keys:
+    file: ./secrets/jwt_signing_keys.json
+  csrf_signing_key:
+    file: ./secrets/csrf_signing_key.txt
+  internal_service_token:
+    file: ./secrets/internal_service_token.txt
+
+volumes:
+  postgres-data:
+  dotnet-logs:
+  rag-logs:
+  caddy-data:
+  caddy-config:
+  caddy-logs:

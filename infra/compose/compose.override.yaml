@@ -1,0 +1,12 @@
+services:
+  dotnet-api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+
+  rag-api:
+    environment:
+      APP_ENV: development
+
+  caddy:
+    environment:
+      PUBLIC_DOMAIN: localhost

@@ -77,6 +77,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 - [Initial Database Entity Boundaries](#2026-05-11---initial-database-entity-boundaries)
 - [Secrets And Configuration](#2026-05-11---secrets-and-configuration)
+- [Compose PostgreSQL Role Password Secrets](#2026-05-13---compose-postgresql-role-password-secrets)
 - [MVP Operational Defaults](#2026-05-11---mvp-operational-defaults)
 - [Default OpenAI Models](#2026-05-11---default-openai-models)
 
@@ -880,3 +881,17 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Tradeoffs:** The marker scan no longer checks the implementation plan file itself. That is acceptable because the plan was already self-reviewed and is now the execution roadmap.
 
 **Consequences:** Task 18 and the final verification command set scan `README.md`, `docs`, and `context` while excluding the active implementation plan file.
+
+## 2026-05-13 - Compose PostgreSQL Role Password Secrets
+
+**Context:** Task 1 turns the architecture's database initialization model into concrete Compose files. The architecture requires separate `app`, `rag`, and reporting ownership boundaries, while services connect to Postgres over the Docker network and should not receive database passwords as plain environment variable values.
+
+**Options Considered:** Use one shared Postgres password for all service roles, rely on passwordless/peer-style local access, or create separate Compose secret files for the admin, app, RAG, and reporting database roles.
+
+**Decision:** Use separate Compose secret files for `postgres_admin_password`, `postgres_app_password`, `postgres_rag_password`, and `postgres_reporting_password`. The short-lived `postgres-init` service reads these files to create or update the role passwords, and runtime services read only their own password file.
+
+**Rationale:** Separate role secrets preserve the schema ownership boundary and make future rotation/audit clearer. File-mounted Compose secrets reduce accidental exposure compared with putting passwords directly in environment variables.
+
+**Tradeoffs:** Local setup requires more secret files before Compose validation or stack startup. The extra setup is acceptable because the project now has explicit user-owned secret preparation steps.
+
+**Consequences:** `infra/compose/secrets/README.md` lists all required local secret files. `.NET` receives the app and reporting password file paths, FastAPI receives the RAG password file path, and Postgres receives the admin password file path.

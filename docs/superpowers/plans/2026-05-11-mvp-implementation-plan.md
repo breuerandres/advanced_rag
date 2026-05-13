@@ -291,8 +291,12 @@ Expected: commit succeeds.
 - Create: `infra/compose/Caddyfile`
 - Create: `infra/compose/.env.example`
 - Create: `infra/compose/secrets/README.md`
+- Create: `infra/compose/postgres-init/init.sh`
+- Create: `infra/compose/postgres-init/init.sql`
 
-- [ ] **Step 1: Create non-sensitive environment defaults**
+**Implementation note:** Task 1 follows the current `context/architecture.md` and `context/code-patterns.md` rules, which supersede the older inline skeleton below where they differ. The implemented baseline includes `postgres-init`, `csrf_signing_key`, `jwt_signing_keys.json`, and separate Postgres role password secrets.
+
+- [x] **Step 1: Create non-sensitive environment defaults**
 
 Create `infra/compose/.env.example`:
 
@@ -314,167 +318,40 @@ CHAT_FEEDBACK_COMMENT_MAX_CHARS=1000
 REVIEW_COMMENT_MAX_CHARS=2000
 ```
 
-- [ ] **Step 2: Create secret instructions**
+- [x] **Step 2: Create secret instructions**
 
 Create `infra/compose/secrets/README.md`:
 
 ```markdown
 # Local Compose Secrets
 
-Create these files locally before running the full stack:
+Create these files locally before validating or running the Compose stack:
 
+- `postgres_admin_password.txt`
 - `postgres_app_password.txt`
 - `postgres_rag_password.txt`
-- `postgres_admin_password.txt`
+- `postgres_reporting_password.txt`
 - `openai_api_key.txt`
-- `jwt_signing_key.pem`
+- `jwt_signing_keys.json`
+- `csrf_signing_key.txt`
 - `internal_service_token.txt`
 
 Do not commit secret values. This directory is ignored except for this README.
 ```
 
-- [ ] **Step 3: Create Compose skeleton**
+- [x] **Step 3: Create Compose skeleton**
 
-Create `infra/compose/compose.yaml` with services for `caddy`, `postgres`, `dotnet-api`, `rag-api`, `manage-web`, `chat-web`, and `docs-web`. Services that are scaffolded in later tasks can keep build contexts declared now; the build itself is verified after those directories exist. Local development uses `manage.localhost`, `chat.localhost`, and `docs.localhost`:
+Create `infra/compose/compose.yaml` with services for `postgres`, `postgres-init`, `dotnet-api`, `rag-api`, `manage-web`, `chat-web`, `docs-web`, and `caddy`.
 
-```yaml
-services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_admin_password
-    secrets:
-      - postgres_admin_password
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+The implemented file keeps later build contexts declared, uses `postgres-init` gated by Postgres health, mounts Compose secrets as files, and wires service-specific database password file paths instead of putting database passwords in environment variables.
 
-  dotnet-api:
-    build:
-      context: ../../services/dotnet-api
-    environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      CUSTOMER_TIMEZONE: ${CUSTOMER_TIMEZONE}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    secrets:
-      - postgres_app_password
-      - jwt_signing_key
-      - internal_service_token
+- [x] **Step 4: Create Caddy route skeleton**
 
-  rag-api:
-    build:
-      context: ../../services/rag-api
-    environment:
-      CUSTOMER_TIMEZONE: ${CUSTOMER_TIMEZONE}
-      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL}
-      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL}
-      OPENAI_EMBEDDING_DIMENSIONS: ${OPENAI_EMBEDDING_DIMENSIONS}
-      RAG_SEMANTIC_CACHE_TTL_HOURS: ${RAG_SEMANTIC_CACHE_TTL_HOURS}
-      RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD: ${RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    secrets:
-      - postgres_rag_password
-      - openai_api_key
-      - internal_service_token
+Create `infra/compose/Caddyfile` for `manage.localhost`, `chat.localhost`, and `docs.localhost`.
 
-  manage-web:
-    build:
-      context: ../../apps/manage-web
+The implemented Caddyfile uses `tls internal` for local HTTPS and preserves `/api/*` path prefixes when proxying to the backends.
 
-  chat-web:
-    build:
-      context: ../../apps/chat-web
-
-  docs-web:
-    build:
-      context: ../../apps/docs-web
-
-  caddy:
-    image: caddy:2
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      - manage-web
-      - chat-web
-      - docs-web
-      - dotnet-api
-      - rag-api
-
-secrets:
-  postgres_admin_password:
-    file: ./secrets/postgres_admin_password.txt
-  postgres_app_password:
-    file: ./secrets/postgres_app_password.txt
-  postgres_rag_password:
-    file: ./secrets/postgres_rag_password.txt
-  openai_api_key:
-    file: ./secrets/openai_api_key.txt
-  jwt_signing_key:
-    file: ./secrets/jwt_signing_key.pem
-  internal_service_token:
-    file: ./secrets/internal_service_token.txt
-
-volumes:
-  postgres-data:
-  caddy-data:
-  caddy-config:
-```
-
-- [ ] **Step 4: Create Caddy route skeleton**
-
-Create `infra/compose/Caddyfile`:
-
-```caddyfile
-{
-  auto_https off
-}
-
-manage.localhost {
-  handle_path /api/* {
-    reverse_proxy dotnet-api:8080
-  }
-  reverse_proxy manage-web:80
-}
-
-chat.localhost {
-  handle_path /api/chat/* {
-    reverse_proxy rag-api:8000
-  }
-  handle_path /api/feedback/* {
-    reverse_proxy rag-api:8000
-  }
-  handle_path /api/auth/* {
-    reverse_proxy dotnet-api:8080
-  }
-  handle_path /api/session/* {
-    reverse_proxy dotnet-api:8080
-  }
-  reverse_proxy chat-web:80
-}
-
-docs.localhost {
-  handle_path /api/* {
-    reverse_proxy dotnet-api:8080
-  }
-  reverse_proxy docs-web:80
-}
-```
-
-- [ ] **Step 5: Validate Compose syntax**
+- [x] **Step 5: Validate Compose syntax**
 
 Run:
 
@@ -484,7 +361,7 @@ docker compose --env-file infra/compose/.env.example -f infra/compose/compose.ya
 
 Expected: Compose renders configuration. Build contexts may not exist until later tasks; syntax must still be valid.
 
-- [ ] **Step 6: Commit infrastructure baseline**
+- [x] **Step 6: Commit infrastructure baseline**
 
 Run:
 

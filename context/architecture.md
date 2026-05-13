@@ -262,7 +262,16 @@ Rate limits and AI usage budgets are separate controls. Rate limits protect serv
 
 ## Configuration And Secrets
 
-Sensitive values use Docker Compose secrets mounted as files, including OpenAI API key, Postgres passwords, JWT signing/private key, and internal service tokens.
+Sensitive values use Docker Compose secrets mounted as files, including OpenAI API key, Postgres passwords, JWT signing/private key sets, CSRF signing key, and internal service tokens.
+
+Postgres uses separate Compose secret files for the admin/superuser password and each service role password:
+
+- `postgres_admin_password.txt`
+- `postgres_app_password.txt`
+- `postgres_rag_password.txt`
+- `postgres_reporting_password.txt`
+
+The `postgres-init` service reads those files to create or update the `app_owner`, `rag_owner`, and `app_reporting_reader` role passwords. Runtime services read their own password files and must not receive database passwords as plain environment variable values.
 
 Non-sensitive runtime configuration uses environment variables, including internal URLs, ports, cache TTL, model names, and environment flags.
 
@@ -357,8 +366,9 @@ Readiness must verify critical dependencies such as DB connectivity and required
      - `app_owner` (owns the `app` schema, used by `.NET`)
      - `rag_owner` (owns the `rag` schema, used by FastAPI)
      - `app_reporting_reader` (read-only across the FastAPI-owned reporting views, used by `.NET` for management reporting)
-  4. Creates the schemas `app` and `rag` with the right owners.
-  5. Grants schema USAGE to the reporting reader role.
+  4. Sets or updates those role passwords from Compose secret files.
+  5. Creates the schemas `app` and `rag` with the right owners.
+  6. Grants schema USAGE to the reporting reader role.
 - `postgres-init` exits 0 once the script completes. Compose's `depends_on: service_completed_successfully` gates `dotnet-api` and `rag-api` on this.
 
 ### Migration Order
