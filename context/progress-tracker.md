@@ -110,14 +110,19 @@
 - Added `typecheck` scripts and app-local Vitest setup files so the workspace can be verified consistently.
 - Added Dockerfiles for each frontend app that build from the repo root using `pnpm` inside a Node build stage and serve the static output with nginx.
 - Verified Task 4 with `pnpm -r typecheck`, `pnpm -r test -- --run`, `pnpm -r build`, and Docker builds for `apps/manage-web`, `apps/chat-web`, and `apps/docs-web`.
+- Created Task 5 shared error and request ID contract tests for .NET, FastAPI, and all three frontend apps, verified the expected RED failures, then implemented the minimal shared contracts.
+- Added .NET request ID propagation and safe `NOT_FOUND`/`INTERNAL_ERROR` envelope responses through API middleware.
+- Added FastAPI request ID middleware plus shared handlers for `ApiException`, HTTP errors, and request validation errors.
+- Added `parseApiError()` and `ApiError` helpers to the three frontend apps with tests for valid shared envelopes and malformed response fallbacks.
+- Verified Task 5 with `dotnet test services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `pnpm -r test -- --run`, and `pnpm -r typecheck`.
 
 ## In Progress
 
-- Preparing Task 5 and the next user-owned checkpoint.
+- Preparing the Task 5 scoped commit.
 
 ## Next Up
 
-- User-owned checkpoint for Task 5 depends on the next backend/task slice once the plan is advanced.
+- Start Task 6 database migrations and schema ownership after the Task 5 commit.
 
 ## Open Questions
 
@@ -164,9 +169,10 @@ Current state:
 - Task 1 infrastructure and Caddy baseline is complete and committed.
 - Task 2 .NET API foundation is complete and committed with the scoped foundation changes.
 - Task 3 FastAPI RAG foundation is complete and committed with the scoped foundation changes.
-- Task 4 frontend foundation is complete and ready to commit with the scoped foundation changes.
+- Task 4 frontend foundation is complete and committed with the scoped foundation changes.
+- Task 5 shared error, request ID, and frontend error parsing contracts are implemented and ready to commit with the scoped foundation changes.
 - The base architecture formal spec is written and approved as the basis for implementation: monorepo, Docker Compose, Caddy same-origin API routing, three React frontends, .NET management API, FastAPI RAG API, PostgreSQL with `app` and `rag` schemas, secure cookies, chat token flow, viewer exchange codes, document lifecycle, assisted imports, publishing blocked on successful indexing, semantic cache, AI usage budgets, audit, logs, secrets, health checks, operational defaults, UI foundation, and OpenAI model defaults.
 
 Next safe implementation work:
 
-- Begin the next implementation task after advancing the plan and selecting the next user-owned checkpoint.
+- Commit Task 5, then begin Task 6 database migrations and schema ownership.

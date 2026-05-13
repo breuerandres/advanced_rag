@@ -625,7 +625,7 @@ pnpm -r build
 
 Expected: typecheck, tests, and builds pass.
 
-- [ ] **Step 8: Commit frontend foundation**
+- [x] **Step 8: Commit frontend foundation**
 
 Run:
 
@@ -646,7 +646,7 @@ Expected: commit succeeds.
 - Create: `services/rag-api/src/advanced_rag/core/request_id.py`
 - Create: `apps/*/src/lib/api-error.ts`
 
-- [ ] **Step 1: Write .NET error envelope tests**
+- [x] **Step 1: Write .NET error envelope tests**
 
 Test that an unknown route or forced validation endpoint returns:
 
@@ -669,11 +669,11 @@ dotnet test services/dotnet-api/AdvancedRag.sln --filter ErrorEnvelope
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 2: Implement .NET shared error envelope and request IDs**
+- [x] **Step 2: Implement .NET shared error envelope and request IDs**
 
 Add middleware that creates or propagates `X-Request-Id`, adds it to responses, and uses it in safe error responses.
 
-- [ ] **Step 3: Write FastAPI error envelope tests**
+- [x] **Step 3: Write FastAPI error envelope tests**
 
 Test that invalid routes and explicit validation errors use the same envelope shape.
 
@@ -687,15 +687,15 @@ Set-Location ..\..
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 4: Implement FastAPI error handlers and request ID propagation**
+- [x] **Step 4: Implement FastAPI error handlers and request ID propagation**
 
 Add exception handlers for HTTP errors and validation errors. Add middleware for `X-Request-Id`.
 
-- [ ] **Step 5: Add frontend error parser tests**
+- [x] **Step 5: Add frontend error parser tests**
 
 For each app, test that `parseApiError()` extracts `code`, `message`, `details`, and `requestId` from the shared envelope and returns a safe fallback for malformed responses.
 
-- [ ] **Step 6: Verify shared error behavior**
+- [x] **Step 6: Verify shared error behavior**
 
 Run:
 
