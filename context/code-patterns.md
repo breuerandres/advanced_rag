@@ -101,10 +101,12 @@ Codes are stable strings, UPPER_SNAKE_CASE. Document new codes in this file when
 | --- | --- | --- |
 | `VALIDATION_FAILED` | 400 | Request body or query parameters failed validation. `details` contains field errors. |
 | `AUTH_REQUIRED` | 401 | Missing or invalid session/token. |
+| `AUTH_TOKEN_INVALID` | 401 | Token signature or required claims are invalid. |
 | `AUTH_TOKEN_EXPIRED` | 401 | Token signature valid but expired. |
 | `AUTH_TOKEN_INVALID_KEY` | 401 | Token signed by a retired key id. |
 | `AUTH_INTERNAL_TOKEN_INVALID` | 401 | Missing or wrong internal service token on internal endpoints. |
 | `AUTH_FORBIDDEN` | 403 | Authenticated but not authorized for this resource. |
+| `CSRF_TOKEN_INVALID` | 400 | Missing or invalid CSRF cookie/header pair on a mutating browser request. |
 | `NOT_FOUND` | 404 | Resource does not exist or is not visible to the caller. |
 | `CONFLICT` | 409 | Concurrent modification or invalid state transition. |
 | `INVALID_LIFECYCLE_TRANSITION` | 409 | Document lifecycle transition is not allowed in the current state. |

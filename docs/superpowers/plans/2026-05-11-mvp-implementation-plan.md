@@ -816,7 +816,7 @@ Expected: commit succeeds.
 - Modify: Caddy route support if needed
 - Test: `.NET` API tests and FastAPI auth tests
 
-- [ ] **Step 1: Write .NET auth tests**
+- [x] **Step 1: Write .NET auth tests**
 
 Cover:
 
@@ -828,11 +828,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 2: Implement local user auth and secure sessions**
+- [x] **Step 2: Implement local user auth and secure sessions**
 
 Implement password hashing, login, logout, current session, CSRF token support, and session cookie options. Keep controllers thin and move behavior into app services.
 
-- [ ] **Step 3: Write FastAPI token validation tests**
+- [x] **Step 3: Write FastAPI token validation tests**
 
 Cover:
 
@@ -844,11 +844,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 4: Implement FastAPI local signed token validation**
+- [x] **Step 4: Implement FastAPI local signed token validation**
 
 Implement validation using configured issuer, audience, signing key/public key, and expected claims.
 
-- [ ] **Step 5: Verify auth flow**
+- [x] **Step 5: Verify auth flow**
 
 Run:
 
@@ -859,7 +859,7 @@ Set-Location services/rag-api; uv run pytest tests -k auth -q; Set-Location ..\.
 
 Expected: all auth tests pass.
 
-- [ ] **Step 6: Commit auth foundation**
+- [x] **Step 6: Commit auth foundation**
 
 Run:
 

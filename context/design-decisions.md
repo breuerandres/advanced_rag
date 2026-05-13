@@ -29,6 +29,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Viewer Access Tokens](#2026-05-11---viewer-access-tokens)
 - [Viewer Access Token TTL](#2026-05-11---viewer-access-token-ttl)
 - [Viewer Access Token Reuse](#2026-05-11---viewer-access-token-reuse)
+- [Task 7 Auth Foundation](#2026-05-13---task-7-auth-foundation)
 
 ### Document Lifecycle And Versioning
 
@@ -980,3 +981,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Future `.NET` schema changes must go through `AppDbContext`/EF migrations and stay in `app`. Future RAG schema changes must go through Alembic and stay in `rag` except for explicitly approved extension setup and read-only grants. Task 6 pins the added migration/testing packages in project manifests: `Npgsql.EntityFrameworkCore.PostgreSQL` `8.0.11`, EF Core packages `8.0.27`, `Testcontainers.PostgreSql` `4.11.0`, Python `pgvector` `0.4.2`, and Python `testcontainers[postgres]` `4.14.2`.
 
 **Evidence:** Verified on 2026-05-13 with `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, and `uv run mypy src tests`.
+
+## 2026-05-13 - Task 7 Auth Foundation
+
+**Context:** Task 7 implements the first authentication foundation across `.NET` and FastAPI: local user login, secure browser cookies, CSRF, chat-token issuance, and FastAPI chat-token validation. The earlier CSRF text mixed ASP.NET Core AntiForgery with a requirement that FastAPI validate the same CSRF token locally, which is not portable across services.
+
+**Options Considered:** Use ASP.NET Core Identity with a custom store, use a smaller local auth service over the existing `app.users` table, use ASP.NET Core AntiForgery only for `.NET`, or use a signed double-submit CSRF token that both `.NET` and FastAPI can validate.
+
+**Decision:** Use a local `.NET` auth service over `app.users`, cookie authentication with host-only `__Host-advanced-rag-session`, PBKDF2-SHA256 password hashes using `Rfc2898DeriveBytes`, signed double-submit CSRF tokens with `__Host-CSRF` plus `X-CSRF-Token`, and RS256 chat tokens signed by `.NET` with a `kid` header. FastAPI validates chat tokens locally with `pyjwt[crypto]` against configured public keys.
+
+**Rationale:** This keeps the MVP inside the approved local-user model without introducing the complexity of a full ASP.NET Core Identity custom store before user administration exists. The signed double-submit CSRF approach preserves the security goal while allowing both backend services to validate the same browser CSRF contract.
+
+**Tradeoffs:** The first auth foundation does not yet include password reset, lockout, rate limiting, revocation beyond short token TTLs, or full user administration flows. Those remain later tasks. Signed double-submit CSRF is simpler than framework AntiForgery but requires careful HMAC key handling through Compose secrets.
+
+**Consequences:** Future mutating browser endpoints must validate the CSRF cookie/header pair. FastAPI chat and feedback endpoints must use the same HMAC CSRF rule when those routes are implemented. Chat tokens carry `sub`, `role`, `groups`, `attributes`, `access_scope_hash`, `corpus`, `exp`, `iat`, `iss`, `aud`, and `jti`; FastAPI must not add per-request `.NET` introspection in the normal chat path.
+
+**Evidence:** Verified on 2026-05-13 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Auth`, `Set-Location services/rag-api; uv run pytest tests -k auth -q; Set-Location ..\..`, `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `uv build`.

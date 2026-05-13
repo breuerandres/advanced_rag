@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Finish Task 3 FastAPI RAG foundation and prepare the user-owned tooling check for Task 4 frontend foundations.
+- Finish Task 7 authentication foundation and prepare Task 8 users/groups/access-scope work.
 
 ## Completed
 
@@ -121,15 +121,21 @@
 - Added Task 6 FastAPI Alembic migration test against a disposable `pgvector/pgvector:pg16` Postgres container.
 - Implemented FastAPI Alembic foundation for the `rag` schema, including `vector` extension setup, `document_chunks.embedding vector(1536)`, RAG audit/cache/indexing/pricing tables, and lookup indexes.
 - Verified Task 6 backend migration work with `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, and `uv run mypy src tests`.
+- Created the Task 6 database foundation commit with message `feat: add initial database schemas`.
+- Added Task 7 .NET auth endpoint tests first and verified the expected RED state because the auth services and `AppDbContext` registration were missing.
+- Implemented the .NET authentication foundation: local user login against `app.users`, PBKDF2-SHA256 password hash verification, secure host-only session cookies, logout, session status, signed CSRF cookie/header issuance and validation, RS256 chat-token issuance, and JWKS exposure.
+- Added Task 7 FastAPI signed chat-token validation tests first and verified the expected RED state because `advanced_rag.auth` did not exist.
+- Implemented FastAPI local RS256 chat-token validation with issuer, audience, `kid`, expiration, and required claim checks. FastAPI continues to avoid per-request .NET introspection in the MVP chat path.
+- Updated `context/architecture.md`, `context/code-standards.md`, `context/code-patterns.md`, and `context/design-decisions.md` to record the Task 7 auth foundation, signed double-submit CSRF decision, `AUTH_TOKEN_INVALID`, and `CSRF_TOKEN_INVALID`.
+- Verified Task 7 backend auth work with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Auth`, `Set-Location services/rag-api; uv run pytest tests -k auth -q; Set-Location ..\..`, `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `uv build`.
 
 ## In Progress
 
-- Preparing the Task 6 scoped commit.
+- Task 7 authentication foundation is complete.
 
 ## Next Up
 
-- Commit Task 6 database foundations.
-- Start Task 7 authentication foundation after the Task 6 commit.
+- Start Task 8 users, groups, access scope, and AI budget configuration.
 
 ## Open Questions
 
@@ -178,9 +184,10 @@ Current state:
 - Task 3 FastAPI RAG foundation is complete and committed with the scoped foundation changes.
 - Task 4 frontend foundation is complete and committed with the scoped foundation changes.
 - Task 5 shared error, request ID, and frontend error parsing contracts are complete and committed with the scoped foundation changes.
-- Task 6 initial database schemas are implemented and verified, and are ready to commit with the scoped foundation changes.
+- Task 6 initial database schemas are complete and committed with the scoped foundation changes.
+- Task 7 authentication foundation is complete and committed with the scoped foundation changes.
 - The base architecture formal spec is written and approved as the basis for implementation: monorepo, Docker Compose, Caddy same-origin API routing, three React frontends, .NET management API, FastAPI RAG API, PostgreSQL with `app` and `rag` schemas, secure cookies, chat token flow, viewer exchange codes, document lifecycle, assisted imports, publishing blocked on successful indexing, semantic cache, AI usage budgets, audit, logs, secrets, health checks, operational defaults, UI foundation, and OpenAI model defaults.
 
 Next safe implementation work:
 
-- Commit Task 6, then begin Task 7 authentication foundation.
+- Begin Task 8 users, groups, access scope, and AI budget configuration.

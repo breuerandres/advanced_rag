@@ -97,9 +97,9 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | PDF extraction | `PdfPig` | Assisted import only. |
 | DOCX extraction | `DocumentFormat.OpenXml` | Assisted import only. |
 | HTML sanitization | `Ganss.Xss` (HtmlSanitizer) | Sanitize stored normalized instruction HTML and any review comment input that may render HTML. |
-| Authentication | ASP.NET Core Identity (custom user store over `app.users`) or hand-rolled password hashing using `Microsoft.AspNetCore.Cryptography.KeyDerivation` | Decided during Task 7 implementation; both options stay inside .NET. |
-| AntiForgery / CSRF | `Microsoft.AspNetCore.Antiforgery` (synchronizer token pattern) | See Auth section in `architecture.md`. |
-| JWT signing/validation | `System.IdentityModel.Tokens.Jwt` + `Microsoft.IdentityModel.Tokens` | RS256, `kid` header, two active keys for rotation. |
+| Authentication | Cookie authentication plus local users in `app.users`; hand-rolled PBKDF2-SHA256 password hashing using `Rfc2898DeriveBytes` | Decided during Task 7 implementation. Session cookies are host-only `__Host-advanced-rag-session` cookies. |
+| CSRF | Signed double-submit token using `__Host-CSRF` cookie plus `X-CSRF-Token` header | HMAC secret is shared with FastAPI through `csrf_signing_key`; see `architecture.md`. |
+| JWT signing/validation | `System.IdentityModel.Tokens.Jwt` `8.14.0` + `Microsoft.IdentityModel.Tokens` | RS256, `kid` header, two active keys for rotation. |
 | Testing | `xUnit` + `FluentAssertions` + `Microsoft.AspNetCore.Mvc.Testing` (`WebApplicationFactory`) + `Testcontainers.PostgreSql` | Integration tests hit a real Postgres container; no DB mocking. |
 
 ### FastAPI RAG Service
@@ -116,6 +116,7 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | OpenAI | `openai` (official Python SDK, async client) | Wrap behind a thin internal adapter that the rest of the service depends on. |
 | Vector DB | `pgvector` Postgres extension + `pgvector.asyncpg` integration registered through SQLAlchemy types | Column type `Vector(1536)`. |
 | Tokenization | `tiktoken` | Chunk sizing and token-cost calculations. |
+| JWT validation crypto | `pyjwt[crypto]` `2.12.1` | Required for RS256 chat-token validation; brings `cryptography` through the PyJWT crypto extra. |
 | Tracing/correlation | `asgi-correlation-id` | Reads/propagates `X-Request-ID`. |
 | Testing | `pytest` + `pytest-asyncio` + `httpx.AsyncClient` + `testcontainers[postgres]` | Integration tests hit a real Postgres container with `pgvector`. |
 

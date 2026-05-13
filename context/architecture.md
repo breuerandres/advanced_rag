@@ -110,11 +110,11 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 
 ## CSRF Strategy
 
-- Browser-facing mutating requests use the ASP.NET Core **AntiForgery synchronizer token pattern**.
-- `.NET` exposes `GET /api/csrf` (cookie-authenticated, non-mutating) that issues a request token in the response header `X-CSRF-Token` and sets a matching `__Host-CSRF` cookie (HttpOnly, Secure, SameSite=Strict, host-only).
+- Browser-facing mutating requests use a signed double-submit CSRF cookie/header pair shared by `.NET` and FastAPI.
+- `.NET` exposes `GET /api/csrf` (non-mutating) that issues a signed request token in the response header `X-CSRF-Token` and sets the same token in a host-only `__Host-CSRF` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`).
 - Frontends call `GET /api/csrf` on app boot and after each session change, store the response header value in memory (not localStorage), and send it as the `X-CSRF-Token` header on every state-changing request.
-- `.NET` validates the synchronizer token against the cookie on every mutating endpoint via `[ValidateAntiForgeryToken]` (or the equivalent attribute on a base controller).
-- `chat.client.com` mutating requests against FastAPI (e.g., `POST /api/chat`, `POST /api/feedback`) are also CSRF-protected by the same `__Host-CSRF` cookie + header pair. FastAPI validates the pair locally with the same secret used by .NET for token signing. The shared secret is delivered through a Compose secret `csrf_signing_key`.
+- `.NET` validates the HMAC-signed header token against the `__Host-CSRF` cookie on every mutating endpoint before route handling.
+- `chat.client.com` mutating requests against FastAPI (e.g., `POST /api/chat`, `POST /api/feedback`) are also CSRF-protected by the same `__Host-CSRF` cookie + header pair. FastAPI validates the pair locally with the same HMAC secret. The shared secret is delivered through the Compose secret `csrf_signing_key`.
 - SameSite=Strict on the auth/session cookies is treated as defense in depth, not the only CSRF defense.
 
 ## Local Development HTTPS
