@@ -878,7 +878,7 @@ Expected: commit succeeds.
 - Modify: `apps/manage-web` users/groups/budget screens
 - Test: `.NET` app/API tests and management UI tests
 
-- [ ] **Step 1: Write .NET use case tests for users/groups**
+- [x] **Step 1: Write .NET use case tests for users/groups**
 
 Cover:
 
@@ -890,11 +890,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 2: Implement users/groups/budget domain**
+- [x] **Step 2: Implement users/groups/budget domain**
 
 Implement use cases for user creation, role assignment, group assignment, activation/deactivation, and budget configuration. Persist budget in `app.user_ai_budget_limits`.
 
-- [ ] **Step 3: Write management UI tests**
+- [x] **Step 3: Write management UI tests**
 
 Cover:
 
@@ -905,11 +905,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 4: Implement users/groups/budget management UI**
+- [x] **Step 4: Implement users/groups/budget management UI**
 
 Build dense table/list layout with filters and edit dialogs using `shadcn/ui`.
 
-- [ ] **Step 5: Verify users/groups/budget**
+- [x] **Step 5: Verify users/groups/budget**
 
 Run:
 
@@ -920,7 +920,9 @@ pnpm --dir apps/manage-web test -- --run
 
 Expected: tests pass.
 
-- [ ] **Step 6: Commit users/groups/budget configuration**
+Checkpoint 2026-05-14: Task 8 verification passed with `docker version`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Users|Groups|Budget"`, `pnpm.cmd --dir apps\manage-web test -- --run`, `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, and `dotnet build services\dotnet-api\AdvancedRag.sln`. Earlier targeted Task 8 verification also passed with `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --filter UserAdministration` and `dotnet test services\dotnet-api\tests\AdvancedRag.Api.Tests\AdvancedRag.Api.Tests.csproj --filter UserAdministration`.
+
+- [x] **Step 6: Commit users/groups/budget configuration**
 
 Run:
 

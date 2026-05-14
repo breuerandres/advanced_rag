@@ -30,6 +30,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Viewer Access Token TTL](#2026-05-11---viewer-access-token-ttl)
 - [Viewer Access Token Reuse](#2026-05-11---viewer-access-token-reuse)
 - [Task 7 Auth Foundation](#2026-05-13---task-7-auth-foundation)
+- [Task 8 User Administration And Budget Configuration](#2026-05-14---task-8-user-administration-and-budget-configuration)
 
 ### Document Lifecycle And Versioning
 
@@ -75,6 +76,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Per-User AI Usage Budgets](#2026-05-11---per-user-ai-usage-budgets)
 - [AI Budget Enforcement Scope](#2026-05-11---ai-budget-enforcement-scope)
 - [Over-Budget Cache Behavior](#2026-05-11---over-budget-cache-behavior)
+- [Task 8 User Administration And Budget Configuration](#2026-05-14---task-8-user-administration-and-budget-configuration)
 
 ### Data Model And Operations
 
@@ -997,3 +999,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Future mutating browser endpoints must validate the CSRF cookie/header pair. FastAPI chat and feedback endpoints must use the same HMAC CSRF rule when those routes are implemented. Chat tokens carry `sub`, `role`, `groups`, `attributes`, `access_scope_hash`, `corpus`, `exp`, `iat`, `iss`, `aud`, and `jti`; FastAPI must not add per-request `.NET` introspection in the normal chat path.
 
 **Evidence:** Verified on 2026-05-13 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Auth`, `Set-Location services/rag-api; uv run pytest tests -k auth -q; Set-Location ..\..`, `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `uv build`.
+
+## 2026-05-14 - Task 8 User Administration And Budget Configuration
+
+**Context:** Task 8 turns the local-user model into administrator-operated user, group, access scope, and AI budget configuration. The implementation must preserve the boundary where `.NET` owns `app` configuration data while FastAPI later enforces paid RAG budget limits from audit data.
+
+**Options Considered:** Defer user administration until after document workflows, implement only budget editing, or implement the full users/groups/roles/status/budget management boundary now.
+
+**Decision:** Implement `.NET` user administration use cases and endpoints now. `Admin` users can list/create users, assign roles, assign groups, activate/deactivate users, set per-user AI budget limits, and create groups. `GET /api/groups` is also available to `DocumentManager` because document workflows need selectable groups, while group mutation remains `Admin` only. The `manage-web` Task 8 screen lists users, groups, status, monthly budget, current spend, and remaining budget, and supports search/status filters plus CSRF-protected budget edits.
+
+**Rationale:** User, group, and budget configuration are prerequisites for document access rules, chat authorization claims, and cost controls. Implementing them before document lifecycle work gives later tasks a stable access-scope and budget configuration surface.
+
+**Tradeoffs:** Task 8 reports `currentSpendUsd` as `0` until the later RAG audit and budget enforcement tasks connect `.NET` reporting to `rag.query_audit_events`. The management screen currently focuses on budget editing; broader user creation and role/group editing UI can build on the new API surface in later management iterations.
+
+**Consequences:** New users receive the default USD 5 monthly AI budget through `app.user_ai_budget_limits`. Role and group changes recompute the effective access scope hash used by chat tokens and future retrieval filtering. Mutating user/group endpoints rely on the Task 7 signed double-submit CSRF middleware. Frontend calls continue to use same-origin `/api/*`, credentials-included fetches, request IDs, and the shared error envelope.
+
+**Evidence:** Verified on 2026-05-14 with `docker version`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Users|Groups|Budget"`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web test -- --run`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. Earlier targeted verification also passed with `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --filter UserAdministration`, `dotnet test services\dotnet-api\tests\AdvancedRag.Api.Tests\AdvancedRag.Api.Tests.csproj --filter UserAdministration`, and `git diff --check`.

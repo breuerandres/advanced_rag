@@ -1,9 +1,12 @@
 using AdvancedRag.Api.Auth;
 using AdvancedRag.Api.Middleware;
 using AdvancedRag.Api.Security;
+using AdvancedRag.Api.Users;
 using AdvancedRag.App.Auth;
+using AdvancedRag.App.Users;
 using AdvancedRag.Infrastructure.Auth;
 using AdvancedRag.Infrastructure.Persistence;
+using AdvancedRag.Infrastructure.Users;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -39,6 +42,8 @@ builder.Services
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserAuthRepository, EfUserAuthRepository>();
+builder.Services.AddScoped<IUserAdministrationService, UserAdministrationService>();
+builder.Services.AddScoped<IUserAdministrationRepository, EfUserAdministrationRepository>();
 builder.Services.AddSingleton<IPasswordHashService, Pbkdf2PasswordHashService>();
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
 builder.Services.AddSingleton<JwtSigningKeyStore>();
@@ -68,6 +73,7 @@ app.MapGet("/health/ready", () => Results.Ok(new HealthResponse("ok")))
     .WithOpenApi();
 
 app.MapAuthEndpoints();
+app.MapUserAdministrationEndpoints();
 
 app.Run();
 

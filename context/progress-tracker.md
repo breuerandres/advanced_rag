@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Finish Task 7 authentication foundation and prepare Task 8 users/groups/access-scope work.
+- Start Task 9 document lifecycle and assisted imports after the completed Task 8 users/groups/budget commit.
 
 ## Completed
 
@@ -128,14 +128,22 @@
 - Implemented FastAPI local RS256 chat-token validation with issuer, audience, `kid`, expiration, and required claim checks. FastAPI continues to avoid per-request .NET introspection in the MVP chat path.
 - Updated `context/architecture.md`, `context/code-standards.md`, `context/code-patterns.md`, and `context/design-decisions.md` to record the Task 7 auth foundation, signed double-submit CSRF decision, `AUTH_TOKEN_INVALID`, and `CSRF_TOKEN_INVALID`.
 - Verified Task 7 backend auth work with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Auth`, `Set-Location services/rag-api; uv run pytest tests -k auth -q; Set-Location ..\..`, `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `uv build`.
+- Added Task 8 `.NET` user administration application tests for default USD 5 monthly AI budget, role assignment, group assignment, access scope hash changes, and budget validation.
+- Implemented Task 8 `.NET` user administration services, EF repository, and API endpoints for listing/creating users, assigning roles/groups, activation status, per-user AI budget limits, and group listing/creation.
+- Added Task 8 management UI tests for the users/budgets table, filters, non-negative budget validation, successful budget save, and safe API error display.
+- Implemented the Task 8 `manage-web` users and budgets screen with Spanish UI strings, a dense table, search/status filters, budget editing dialog, CSRF-backed budget mutation, and shared API error parsing.
+- Corrected `apps/manage-web` runtime React dependency drift back to React `18.3.1` so the Task 8 frontend remains aligned with the approved React 18 stack.
+- Verified targeted Task 8 work with `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --filter UserAdministration`, `dotnet test services\dotnet-api\tests\AdvancedRag.Api.Tests\AdvancedRag.Api.Tests.csproj --filter UserAdministration`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web test -- --run`, `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, and `git diff --check`.
+- Verified the exact Task 8 plan command after Docker Desktop was started: `docker version` succeeded and `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Users|Groups|Budget"` passed. Fresh frontend verification also passed with `pnpm.cmd --dir apps\manage-web test -- --run`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`.
+- Created the Task 8 users/groups/budget configuration commit with message `feat: add users groups and ai budget configuration`.
 
 ## In Progress
 
-- Task 7 authentication foundation is complete.
+- Task 8 users, groups, access scope, and AI budget configuration is complete.
 
 ## Next Up
 
-- Start Task 8 users, groups, access scope, and AI budget configuration.
+- Start Task 9 document lifecycle and assisted imports.
 
 ## Open Questions
 
@@ -186,8 +194,9 @@ Current state:
 - Task 5 shared error, request ID, and frontend error parsing contracts are complete and committed with the scoped foundation changes.
 - Task 6 initial database schemas are complete and committed with the scoped foundation changes.
 - Task 7 authentication foundation is complete and committed with the scoped foundation changes.
+- Task 8 users, groups, access scope, and AI budget configuration is complete and committed with the scoped foundation changes.
 - The base architecture formal spec is written and approved as the basis for implementation: monorepo, Docker Compose, Caddy same-origin API routing, three React frontends, .NET management API, FastAPI RAG API, PostgreSQL with `app` and `rag` schemas, secure cookies, chat token flow, viewer exchange codes, document lifecycle, assisted imports, publishing blocked on successful indexing, semantic cache, AI usage budgets, audit, logs, secrets, health checks, operational defaults, UI foundation, and OpenAI model defaults.
 
 Next safe implementation work:
 
-- Begin Task 8 users, groups, access scope, and AI budget configuration.
+- Begin Task 9 document lifecycle and assisted imports.
