@@ -10,7 +10,10 @@
 ## .NET API
 
 - .NET owns identity, users, roles, groups/departments, document lifecycle, assisted import extraction, viewer access tokens, management audit, and read-only management reporting.
+- Use MVC controllers as the default HTTP boundary for application routes. Minimal APIs are allowed only for very small infrastructure endpoints when they materially reduce ceremony, such as health checks, and should not be used for feature modules.
 - Keep controllers thin and move lifecycle, authorization, import extraction, and token logic into testable services/use cases.
+- Put browser-facing request/response DTOs under `AdvancedRag.Api/Models/<Feature>/`. Do not define feature DTOs inside controller files.
+- Keep application service interfaces beside their feature use cases in `AdvancedRag.App/<Feature>/` instead of a global `Interfaces` folder.
 - Use EF Core migrations for the `app` schema.
 - Use `DocumentFormat.OpenXml` for DOCX text extraction.
 - Use `PdfPig` for PDF text extraction.
@@ -24,6 +27,8 @@
 ## FastAPI RAG Service
 
 - FastAPI owns chat, retrieval, embeddings, semantic cache, RAG audit, model pricing, and indexing jobs.
+- Organize FastAPI HTTP boundaries with an MVC-like separation: `api/routers` for route/controller logic, `schemas` for Pydantic request/response models, feature services for business logic, and infrastructure adapters/repositories for database or provider access.
+- Keep FastAPI routers thin. Routers parse HTTP input, bind dependencies, call services, and return schemas; retrieval, budget, indexing, cache, and audit behavior belongs in testable service modules.
 - The FastAPI service targets Python 3.12. `services/rag-api/.python-version` must stay on the Python 3.12 line and `pyproject.toml` must constrain `requires-python` to `>=3.12,<3.13` unless the stack decision is updated.
 - FastAPI must not parse PDF/DOCX imports in the MVP.
 - Use Alembic migrations for the `rag` schema.
@@ -87,7 +92,7 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 
 | Concern | Library | Notes |
 | --- | --- | --- |
-| Web framework | ASP.NET Core 8 (Minimal API or MVC controllers) | Prefer controllers for testability; controllers stay thin. |
+| Web framework | ASP.NET Core 8 MVC controllers | Controllers are the default for feature modules. Minimal APIs are reserved for small infrastructure endpoints such as health checks. Controllers stay thin. |
 | ORM | EF Core 8 + `Npgsql.EntityFrameworkCore.PostgreSQL` | `app` schema only; never write `rag`. |
 | Migrations | EF Core Migrations | One DbContext owning `app` schema. |
 | Validation | `FluentValidation` + `FluentValidation.AspNetCore` | Returns shared error envelope, not raw `ValidationProblemDetails`. |

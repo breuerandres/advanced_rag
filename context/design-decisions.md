@@ -13,6 +13,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Monorepo Compose Product](#2026-05-11---monorepo-compose-product)
 - [Service Boundaries](#2026-05-11---service-boundaries)
 - [.NET API Foundation Shape](#2026-05-13---net-api-foundation-shape)
+- [Backend HTTP Organization](#2026-05-14---backend-http-organization)
 - [API Contract Granularity](#2026-05-11---api-contract-granularity)
 - [MVP API Contract Groups](#2026-05-11---mvp-api-contract-groups)
 - [Management Reporting Read Model](#2026-05-11---management-reporting-read-model)
@@ -1015,3 +1016,17 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** New users receive the default USD 5 monthly AI budget through `app.user_ai_budget_limits`. Role and group changes recompute the effective access scope hash used by chat tokens and future retrieval filtering. Mutating user/group endpoints rely on the Task 7 signed double-submit CSRF middleware. Frontend calls continue to use same-origin `/api/*`, credentials-included fetches, request IDs, and the shared error envelope.
 
 **Evidence:** Verified on 2026-05-14 with `docker version`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Users|Groups|Budget"`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web test -- --run`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. Earlier targeted verification also passed with `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --filter UserAdministration`, `dotnet test services\dotnet-api\tests\AdvancedRag.Api.Tests\AdvancedRag.Api.Tests.csproj --filter UserAdministration`, and `git diff --check`.
+
+## 2026-05-14 - Backend HTTP Organization
+
+**Context:** After Task 8, the `.NET` API used Minimal API endpoint files for auth and user administration. The user prefers a more familiar MVC-style backend structure with controllers, models, and explicit interfaces. The same maintainability preference should also guide FastAPI module organization without forcing Python into non-idiomatic ASP.NET naming.
+
+**Options Considered:** Continue with Minimal API endpoint modules, use global `Controllers`/`Models`/`Interfaces` folders everywhere, or use MVC controllers for `.NET` feature routes and an equivalent FastAPI separation through routers, schemas, services, and infrastructure adapters.
+
+**Decision:** Use ASP.NET Core MVC controllers as the default HTTP boundary for `.NET` feature routes. Feature DTOs live under `AdvancedRag.Api/Models/<Feature>/`, controllers stay thin, and business behavior remains in `AdvancedRag.App` services/use cases. Application service interfaces stay beside their feature use cases instead of a global `Interfaces` folder. Minimal APIs remain acceptable only for very small infrastructure endpoints such as health checks. FastAPI follows the analogous structure: `api/routers` for route/controller logic, `schemas` for Pydantic request/response models, feature services for business behavior, and infrastructure adapters/repositories for databases or external providers.
+
+**Rationale:** Controllers and explicit model folders improve navigability for the user and future contributors while preserving the existing clean layering. Keeping feature interfaces beside use cases avoids the common low-cohesion `Interfaces` folder problem. FastAPI routers/schemas/services match the same mental model without fighting Python conventions.
+
+**Tradeoffs:** Refactoring the existing Task 7 and Task 8 Minimal API files adds a small amount of ceremony and needs regression verification. The benefit is a clearer structure before the document lifecycle module adds many more routes and DTOs.
+
+**Consequences:** Before implementing Task 9 document lifecycle endpoints, refactor the current `.NET` HTTP boundary from endpoint files to MVC controllers and move request/response DTOs into API model folders. Future FastAPI chat, feedback, indexing, budget, and retrieval endpoints should be added through routers and schemas rather than defining route functions directly in `main.py`.
