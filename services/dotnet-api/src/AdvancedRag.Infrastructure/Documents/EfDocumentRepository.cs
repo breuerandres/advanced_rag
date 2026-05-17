@@ -139,8 +139,8 @@ public sealed class EfDocumentRepository : IDocumentRepository
         var groupIds = await _db.InstructionPermissions
             .AsNoTracking()
             .Where(permission => permission.InstructionId == instruction.Id && permission.GroupId != null)
+            .OrderBy(permission => permission.GroupId)
             .Select(permission => permission.GroupId!.Value)
-            .Order()
             .ToArrayAsync(ct);
 
         return new DocumentAggregate(
