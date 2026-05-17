@@ -144,6 +144,7 @@
 - Added `docs/troubleshooting.md` with the local Caddy Docker HTTPS root CA import procedure and linked it from the root README.
 - Fixed `AppDbContextFactory` so EF design-time commands read `ConnectionStrings__AppDatabase` from the environment instead of using the stale hardcoded local password.
 - User verified the local Compose/Postgres auth and user administration path manually: `GET /api/csrf`, `POST /api/auth/login`, `POST /api/users`, and `GET /api/users`.
+- Added .NET startup migration execution behind `Database__RunMigrationsOnStartup=true` in Compose so the `dotnet-api` container applies EF Core `app` schema migrations before serving requests.
 
 ## In Progress
 

@@ -49,6 +49,7 @@ services:
       CUSTOMER_TIMEZONE: ${CUSTOMER_TIMEZONE}
       AI_DEFAULT_MONTHLY_BUDGET_USD: ${AI_DEFAULT_MONTHLY_BUDGET_USD}
       TECH_LOG_RETENTION_DAYS: ${TECH_LOG_RETENTION_DAYS}
+      Database__RunMigrationsOnStartup: "true"
       Postgres__Host: postgres
       Postgres__Database: ${POSTGRES_DB}
       Postgres__Username: ${POSTGRES_APP_USER}

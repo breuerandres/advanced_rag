@@ -53,6 +53,11 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+if (ShouldRunDatabaseMigrations(app.Configuration))
+{
+    await RunAppDatabaseMigrationsAsync(app);
+}
+
 app.UseMiddleware<RequestIdMiddleware>();
 app.UseAuthentication();
 app.UseMiddleware<CsrfProtectionMiddleware>();
@@ -113,6 +118,22 @@ static string? ResolveAppDatabaseConnectionString(IConfiguration configuration)
     }
 
     return builder.ConnectionString;
+}
+
+static bool ShouldRunDatabaseMigrations(IConfiguration configuration)
+{
+    return configuration.GetValue("Database:RunMigrationsOnStartup", false);
+}
+
+static async Task RunAppDatabaseMigrationsAsync(WebApplication app)
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseMigrations");
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    logger.LogInformation("Applying app database migrations.");
+    await db.Database.MigrateAsync();
+    logger.LogInformation("App database migrations applied.");
 }
 
 internal sealed record HealthResponse(string Status);
