@@ -7,9 +7,12 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
 {
     public AppDbContext CreateDbContext(string[] args)
     {
+        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__AppDatabase")
+            ?? "Host=localhost;Database=advanced_rag;Username=app_owner;Password=local";
+
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(
-                "Host=localhost;Database=advanced_rag;Username=app_owner;Password=local",
+                connectionString,
                 npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", AppDbContext.Schema))
             .Options;
 

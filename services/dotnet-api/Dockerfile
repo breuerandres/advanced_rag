@@ -8,6 +8,7 @@ COPY src/AdvancedRag.Domain/AdvancedRag.Domain.csproj src/AdvancedRag.Domain/
 COPY src/AdvancedRag.Infrastructure/AdvancedRag.Infrastructure.csproj src/AdvancedRag.Infrastructure/
 COPY tests/AdvancedRag.Api.Tests/AdvancedRag.Api.Tests.csproj tests/AdvancedRag.Api.Tests/
 COPY tests/AdvancedRag.App.Tests/AdvancedRag.App.Tests.csproj tests/AdvancedRag.App.Tests/
+COPY tests/AdvancedRag.Infrastructure.Tests/AdvancedRag.Infrastructure.Tests.csproj tests/AdvancedRag.Infrastructure.Tests/
 
 RUN dotnet restore AdvancedRag.sln
 

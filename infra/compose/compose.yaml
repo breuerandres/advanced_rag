@@ -104,15 +104,18 @@ services:
 
   manage-web:
     build:
-      context: ../../apps/manage-web
+      context: ../../
+      dockerfile: apps/manage-web/Dockerfile
 
   chat-web:
     build:
-      context: ../../apps/chat-web
+      context: ../../
+      dockerfile: apps/chat-web/Dockerfile
 
   docs-web:
     build:
-      context: ../../apps/docs-web
+      context: ../../
+      dockerfile: apps/docs-web/Dockerfile
 
   caddy:
     image: caddy:2-alpine

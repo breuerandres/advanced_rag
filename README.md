@@ -21,3 +21,7 @@ The project is in implementation planning. The approved base architecture spec l
 
 Local setup commands are added as services are scaffolded.
 Real secrets must not be committed.
+
+## Troubleshooting
+
+- `docs/troubleshooting.md` - local operational fixes, including Caddy Docker HTTPS certificate trust.

@@ -87,6 +87,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Compose PostgreSQL Role Password Secrets](#2026-05-13---compose-postgresql-role-password-secrets)
 - [.NET SDK Selection With global.json](#2026-05-13---net-sdk-selection-with-globaljson)
 - [FastAPI Python And Packaging Foundation](#2026-05-13---fastapi-python-and-packaging-foundation)
+- [FastAPI Docker Base Image](#2026-05-14---fastapi-docker-base-image)
 - [MVP Operational Defaults](#2026-05-11---mvp-operational-defaults)
 - [Default OpenAI Models](#2026-05-11---default-openai-models)
 
@@ -952,6 +953,20 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** FastAPI commands should be run from `services/rag-api` through `uv`, and Docker builds should use a Python 3.12 uv base image. Moving to Python 3.13 or newer requires an explicit stack decision update.
 
 **Evidence:** Verified on 2026-05-13 with `uv run python --version`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `uv build`, and `docker build -f services/rag-api/Dockerfile services/rag-api`. The uv settings reference documents `[tool.uv.build-backend].module-name` as the way to set the module directory name when it differs from the package name.
+
+## 2026-05-14 - FastAPI Docker Base Image
+
+**Context:** The initial FastAPI container image used the `ghcr.io/astral-sh/uv` base image. That created an unnecessary dependency on GitHub Container Registry during local Compose builds and could block offline or restricted-network development.
+
+**Options Considered:** Keep the `ghcr.io/astral-sh/uv` base image, vendor a custom uv image, or start from `python:3.12-slim-bookworm` and install `uv` during image build.
+
+**Decision:** Use `python:3.12-slim-bookworm` as the FastAPI Docker base image and install `uv` with `pip` during the image build.
+
+**Rationale:** This removes the external GHCR dependency while keeping the service on the approved Python 3.12 stack and preserving the uv-managed dependency workflow.
+
+**Tradeoffs:** The image now does a small extra package install step during build. That cost is acceptable for the MVP because it improves portability and avoids the GHCR pull failure path.
+
+**Consequences:** Local Compose builds for `rag-api` should no longer depend on pulling the Astral uv base image from GHCR. The FastAPI Dockerfile should continue to use `uv sync` for locked dependency installation after bootstrapping `uv` in the image.
 
 ## 2026-05-13 - Frontend Scaffold Stack Alignment
 

@@ -1,4 +1,8 @@
 services:
+  postgres:
+    ports:
+      - "5432:5432"
+
   dotnet-api:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
@@ -10,3 +14,4 @@ services:
   caddy:
     environment:
       PUBLIC_DOMAIN: localhost
+

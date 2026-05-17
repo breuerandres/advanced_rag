@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Refactor backend HTTP organization to MVC-style boundaries before starting Task 9 document lifecycle and assisted imports.
+- Start Task 9 document lifecycle and assisted imports after the backend HTTP refactor.
 
 ## Completed
 
@@ -137,106 +137,46 @@
 - Verified the exact Task 8 plan command after Docker Desktop was started: `docker version` succeeded and `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Users|Groups|Budget"` passed. Fresh frontend verification also passed with `pnpm.cmd --dir apps\manage-web test -- --run`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`.
 - Created the Task 8 users/groups/budget configuration commit with message `feat: add users groups and ai budget configuration`.
 - Recorded the backend HTTP organization decision: `.NET` feature routes should use MVC controllers and API model folders; FastAPI should use the analogous routers, schemas, services, and infrastructure adapter structure.
+- Refactored the .NET HTTP boundary from Minimal API endpoint files to MVC controllers and moved request/response DTOs into `AdvancedRag.Api/Models/<Feature>/`.
+- Kept the existing routes, cookie behavior, authorization requirements, and error envelope intact during the refactor.
+- Verified the refactor with `dotnet build services/dotnet-api/AdvancedRag.sln` and `dotnet test services/dotnet-api/AdvancedRag.sln --filter "UserAdministration|Health|ErrorEnvelope"`.
+- Observed that `AuthEndpointTests` still depend on Docker/Testcontainers and could not be run in this environment because the Docker endpoint was unavailable.
+- Added `docs/troubleshooting.md` with the local Caddy Docker HTTPS root CA import procedure and linked it from the root README.
+- Fixed `AppDbContextFactory` so EF design-time commands read `ConnectionStrings__AppDatabase` from the environment instead of using the stale hardcoded local password.
+- User verified the local Compose/Postgres auth and user administration path manually: `GET /api/csrf`, `POST /api/auth/login`, `POST /api/users`, and `GET /api/users`.
 
 ## In Progress
 
-- Backend HTTP organization refactor is the next implementation checkpoint before Task 9.
+- Task 9 document lifecycle and assisted imports have not started yet.
 
 ## Next Up
 
-- Refactor existing `.NET` auth and user administration endpoint modules into MVC controllers with DTOs under `AdvancedRag.Api/Models/<Feature>/`.
-- Keep current tests as the regression safety net, then start Task 9 document lifecycle and assisted imports.
+- Implement Task 9 document lifecycle and assisted imports.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Backend HTTP MVC refactor before Task 9.
+- Task 9 document lifecycle and assisted imports.
 
 ### Why This Comes Next
 
-- The user decided that the `.NET` API should use a familiar MVC controller structure instead of feature endpoint modules.
-- `context/code-standards.md` now makes MVC controllers the default HTTP boundary for `.NET` feature routes.
-- The same maintainability preference applies to FastAPI through `api/routers`, `schemas`, services, and infrastructure adapters.
-- This refactor should happen before Task 9 because Task 9 will add document lifecycle and import endpoints; adding those on top of the old endpoint-module style would create more migration work later.
+- The backend HTTP refactor is complete and the .NET boundary now uses MVC controllers plus feature DTO folders.
+- Task 9 adds the first major document lifecycle endpoints, so it should build on the new controller structure rather than the old endpoint-module style.
 
 ### Scope
 
-- Refactor existing `.NET` HTTP boundary only.
-- Preserve all existing routes, request/response JSON shapes, status codes, cookies, CSRF behavior, authorization requirements, and shared error envelopes.
-- Do not change application service behavior, EF mappings, migrations, frontend behavior, or FastAPI behavior in this checkpoint.
-- Do not touch the existing untracked `services/dotnet-api/.github/` directory unless the user explicitly asks.
-
-### Agent-Owned Steps
-
-1. Inspect current `.NET` route files:
-   - `services/dotnet-api/src/AdvancedRag.Api/Auth/AuthEndpoints.cs`
-   - `services/dotnet-api/src/AdvancedRag.Api/Users/UserAdministrationEndpoints.cs`
-   - `services/dotnet-api/src/AdvancedRag.Api/Program.cs`
-2. Add MVC controller support in `Program.cs`:
-   - Register controllers with `builder.Services.AddControllers()`.
-   - Map controllers with `app.MapControllers()`.
-   - Keep minimal health endpoints unless there is a strong reason to move them.
-3. Replace endpoint modules with thin controllers:
-   - `AdvancedRag.Api/Controllers/AuthController.cs`
-   - `AdvancedRag.Api/Controllers/UsersController.cs`
-   - `AdvancedRag.Api/Controllers/GroupsController.cs`
-4. Move HTTP DTOs into API model folders:
-   - `AdvancedRag.Api/Models/Auth/`
-   - `AdvancedRag.Api/Models/Users/`
-   - `AdvancedRag.Api/Models/Groups/`
-5. Keep app-layer interfaces beside use cases:
-   - No global `Interfaces` folder.
-   - Do not move `IAuthService`, `IUserAdministrationService`, or repository interfaces unless a focused cleanup is clearly needed.
-6. Preserve route attributes exactly:
-   - `GET /api/csrf`
-   - `POST /api/auth/login`
-   - `POST /api/auth/logout`
-   - `POST /api/auth/chat-token`
-   - `GET /api/session`
-   - `GET /.well-known/jwks.json`
-   - `GET /api/users`
-   - `POST /api/users`
-   - `PUT /api/users/{id}/roles`
-   - `PUT /api/users/{id}/groups`
-   - `PATCH /api/users/{id}/status`
-   - `PUT /api/users/{id}/ai-budget`
-   - `GET /api/groups`
-   - `POST /api/groups`
-7. Update tests only if namespace/type moves require it. Prefer preserving behavior tests unchanged.
-8. Update `context/progress-tracker.md` after the refactor and `context/design-decisions.md` only if the implementation changes the already-recorded decision.
+- Implement Task 9 only.
+- Preserve the current shared error envelope, cookie behavior, authorization model, and service boundaries.
 
 ### User-Owned Steps
 
-- Keep Docker Desktop running before verification because existing `.NET` tests use Testcontainers.
-- If asked to verify locally, run:
-
-```powershell
-docker version
-dotnet test services\dotnet-api\AdvancedRag.sln --filter "Auth|Users|Groups|Budget|Health|ErrorEnvelope"
-```
-
-Expected result:
-
-- `docker version` shows both Client and Server.
-- `dotnet test` completes with zero failed tests.
+- Keep Docker Desktop running before verification because the .NET API tests use Testcontainers.
 
 ### Required Verification
 
-Run these before claiming the checkpoint is complete:
-
-```powershell
-dotnet test services\dotnet-api\AdvancedRag.sln --filter "Auth|Users|Groups|Budget|Health|ErrorEnvelope"
-dotnet build services\dotnet-api\AdvancedRag.sln
-```
-
-Optional broader verification if time permits:
-
-```powershell
-dotnet test services\dotnet-api\AdvancedRag.sln
-```
-
-### Expected Commit
+- `dotnet test services\dotnet-api\AdvancedRag.sln`
+- `dotnet build services\dotnet-api\AdvancedRag.sln`
 
 After verification passes, commit only the MVC refactor and context updates:
 
@@ -302,6 +242,11 @@ Current state:
 - Task 7 authentication foundation is complete and committed with the scoped foundation changes.
 - Task 8 users, groups, access scope, and AI budget configuration is complete and committed with the scoped foundation changes.
 - Backend HTTP organization has been decided: `.NET` feature routes move to MVC controllers and FastAPI feature routes use routers/schemas/services.
+- Fixed the Compose frontend build contexts to use the monorepo root so the existing workspace-aware frontend Dockerfiles can resolve `apps/*-web` paths correctly.
+- Fixed the Compose frontend build file paths so the root-level build contexts point at the app-local Dockerfiles explicitly.
+- Rebased the FastAPI Dockerfile onto `python:3.12-slim-bookworm` and installed `uv` with `pip` to remove the GHCR dependency from local Compose builds.
+- Added the missing `AdvancedRag.Infrastructure.Tests.csproj` copy step to the .NET Dockerfile so solution restore can see all referenced test projects.
+- Verified `docker compose --env-file infra\compose\.env.example -f infra\compose\compose.yaml up` starts successfully after the build-context and Dockerfile fixes.
 - The base architecture formal spec is written and approved as the basis for implementation: monorepo, Docker Compose, Caddy same-origin API routing, three React frontends, .NET management API, FastAPI RAG API, PostgreSQL with `app` and `rag` schemas, secure cookies, chat token flow, viewer exchange codes, document lifecycle, assisted imports, publishing blocked on successful indexing, semantic cache, AI usage budgets, audit, logs, secrets, health checks, operational defaults, UI foundation, and OpenAI model defaults.
 
 Next safe implementation work:

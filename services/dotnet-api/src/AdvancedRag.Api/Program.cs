@@ -1,7 +1,6 @@
-using AdvancedRag.Api.Auth;
+using AdvancedRag.Api.Controllers;
 using AdvancedRag.Api.Middleware;
 using AdvancedRag.Api.Security;
-using AdvancedRag.Api.Users;
 using AdvancedRag.App.Auth;
 using AdvancedRag.App.Users;
 using AdvancedRag.Infrastructure.Auth;
@@ -48,6 +47,7 @@ builder.Services.AddSingleton<IPasswordHashService, Pbkdf2PasswordHashService>()
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
 builder.Services.AddSingleton<JwtSigningKeyStore>();
 builder.Services.AddSingleton<IChatTokenIssuer, ChatTokenIssuer>();
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -72,8 +72,7 @@ app.MapGet("/health/ready", () => Results.Ok(new HealthResponse("ok")))
     .WithName("ReadyHealth")
     .WithOpenApi();
 
-app.MapAuthEndpoints();
-app.MapUserAdministrationEndpoints();
+app.MapControllers();
 
 app.Run();
 
