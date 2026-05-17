@@ -74,6 +74,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [RAG Chunk And Audit Table Shape](#2026-05-11---rag-chunk-and-audit-table-shape)
 - [Cost-First MVP Chat Model](#2026-05-17---cost-first-mvp-chat-model)
 - [Cost-First MVP Embedding Model](#2026-05-17---cost-first-mvp-embedding-model)
+- [Task 11 Chat RAG Core](#2026-05-17---task-11-chat-rag-core)
 
 ### Audit, Pricing, And Budgets
 
@@ -1114,6 +1115,22 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** FastAPI now owns the first executable internal indexing contract and uses a fakeable embedding provider in tests. `.NET` stores the returned indexing job id on the published version and preserves safe failure semantics. Compose must expose the internal service token file to FastAPI through `INTERNAL_SERVICE_TOKEN_FILE`.
 
 **Evidence:** Verified on 2026-05-17 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Indexing`, `Set-Location services/rag-api; uv run pytest tests -k indexing -q; Set-Location ..\..`, `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`.
+
+## 2026-05-17 - Task 11 Chat RAG Core
+
+**Context:** Task 11 turns the indexed published corpus into the first public chat/RAG path. The implementation must enforce document access in SQL, avoid treating `access_scope_hash` as authorization, record durable RAG audit evidence, support semantic cache partitioning and invalidation, and block paid provider work when a user's monthly AI budget is exhausted.
+
+**Options Considered:** Implement chat as a thin endpoint over provider calls, implement retrieval and budget enforcement as testable services, or defer cache and budget until after the chat frontend.
+
+**Decision:** Implement the FastAPI chat/RAG core now as a service behind `/api/chat`, with injectable embedding, chat completion, and chat-token validator dependencies for testability. Retrieval filters chunks at SQL level through `.NET`-owned `app.instruction_permissions`; viewers are forced to the `published` corpus. Query audit writes store citations, model/pricing/cost evidence, latency, request ID, corpus, prompt version, chunker version, and access scope hash. Semantic cache entries are keyed by corpus and `access_scope_hash`, track source instructions, and are invalidated through an internal service-token-protected endpoint. AI budget checks run before embedding or chat completion provider calls.
+
+**Rationale:** This preserves the approved service boundary while creating a verifiable RAG core before feedback, viewer citation exchange, and the chat frontend are layered on. Injected providers keep integration tests deterministic and avoid spending real OpenAI credits during verification.
+
+**Tradeoffs:** The first implementation streams the completed answer as one SSE `answer-token` event instead of token-by-token provider streaming. That is sufficient for the Task 11 backend contract and keeps Task 14 responsible for frontend streaming UX. Chat cost calculation records a single pricing snapshot id while using both embedding and chat pricing values to estimate total cost; a richer multi-pricing audit model can be added if reporting needs per-provider-line attribution later.
+
+**Consequences:** FastAPI now has the executable public chat boundary. Over-budget users receive `AI_BUDGET_EXCEEDED` before paid provider work. Cache reuse is partitioned by effective scope and never authorizes retrieval. The async SQLAlchemy engine uses `NullPool` to avoid cross-event-loop asyncpg connection reuse in Windows/TestClient integration tests.
+
+**Evidence:** Verified on 2026-05-17 with `uv run pytest tests/test_chat_rag.py -q` (`3 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`21 passed`).
 
 ## 2026-05-14 - Backend HTTP Organization
 

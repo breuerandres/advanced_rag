@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 import jwt
 
@@ -22,6 +22,11 @@ class ChatTokenClaims:
     groups: list[str]
     access_scope_hash: str
     corpus: str
+
+
+class ChatTokenValidatorProtocol(Protocol):
+    def validate(self, token: str) -> ChatTokenClaims:
+        pass
 
 
 class ChatTokenValidator:

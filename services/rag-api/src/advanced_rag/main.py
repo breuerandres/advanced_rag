@@ -8,7 +8,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
 from starlette.responses import Response
 
+from advanced_rag.api.routers.chat import router as chat_router
 from advanced_rag.api.routers.indexing import router as indexing_router
+from advanced_rag.auth.chat_tokens import (
+    ChatTokenValidationSettings,
+    ChatTokenValidator,
+    ChatTokenValidatorProtocol,
+)
 from advanced_rag.core.config import Settings
 from advanced_rag.core.errors import (
     ApiException,
@@ -18,6 +24,8 @@ from advanced_rag.core.errors import (
 )
 from advanced_rag.core.request_id import RequestIdMiddleware
 from advanced_rag.db.session import create_database_engine, create_session_factory
+from advanced_rag.rag.chat_completion import ChatCompletionProvider, OpenAIChatCompletionProvider
+from advanced_rag.rag.chat_service import ChatService
 from advanced_rag.rag.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
 from advanced_rag.rag.indexing_service import InternalIndexingService
 
@@ -32,6 +40,8 @@ ExceptionHandler = Callable[[Request, Exception], Response | Awaitable[Response]
 def create_app(
     settings: Settings | None = None,
     embedding_provider: EmbeddingProvider | None = None,
+    chat_completion_provider: ChatCompletionProvider | None = None,
+    chat_token_validator: ChatTokenValidatorProtocol | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Advanced RAG RAG API")
     app.state.settings = settings or Settings()
@@ -43,6 +53,22 @@ def create_app(
     app.state.internal_indexing_service = InternalIndexingService(
         app.state.session_factory,
         app.state.embedding_provider,
+        app.state.settings,
+    )
+    app.state.chat_completion_provider = chat_completion_provider or OpenAIChatCompletionProvider(
+        api_key=app.state.settings.resolved_openai_api_key
+    )
+    app.state.chat_token_validator = chat_token_validator or ChatTokenValidator(
+        ChatTokenValidationSettings(
+            issuer=app.state.settings.chat_token_issuer,
+            audience=app.state.settings.chat_token_audience,
+            public_keys_by_kid=app.state.settings.chat_token_public_keys_by_kid,
+        )
+    )
+    app.state.chat_service = ChatService(
+        app.state.session_factory,
+        app.state.embedding_provider,
+        app.state.chat_completion_provider,
         app.state.settings,
     )
     app.add_middleware(RequestIdMiddleware)
@@ -62,6 +88,7 @@ def create_app(
         return HealthResponse(status="ok")
 
     app.include_router(indexing_router)
+    app.include_router(chat_router)
 
     return app
 

@@ -1084,7 +1084,7 @@ Expected: commit succeeds.
 - Modify: `rag.semantic_cache_sources`
 - Test: FastAPI RAG tests
 
-- [ ] **Step 1: Write retrieval access tests**
+- [x] **Step 1: Write retrieval access tests**
 
 Cover:
 
@@ -1096,11 +1096,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 2: Implement retrieval service**
+- [x] **Step 2: Implement retrieval service**
 
 Implement vector similarity retrieval over `rag.document_chunks` with corpus filters, active-version filters, and read-only SQL permission filters against `app.instruction_permissions`. Do not trust `access_scope_hash` as authorization.
 
-- [ ] **Step 3: Write query audit tests**
+- [x] **Step 3: Write query audit tests**
 
 Cover:
 
@@ -1110,11 +1110,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 4: Implement audit and pricing**
+- [x] **Step 4: Implement audit and pricing**
 
 Implement versioned `rag.model_pricing`, mandatory seed/readiness checks for the configured chat and embedding models, price snapshot selection, and query audit writes in a transaction. Missing active pricing must fail readiness and return `RAG_PROVIDER_MISCONFIGURED` at runtime.
 
-- [ ] **Step 5: Write semantic cache tests**
+- [x] **Step 5: Write semantic cache tests**
 
 Cover:
 
@@ -1125,11 +1125,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 6: Implement semantic cache**
+- [x] **Step 6: Implement semantic cache**
 
 Implement cache lookup, write, TTL handling, source tracking, and invalidation hooks.
 
-- [ ] **Step 7: Write AI budget tests**
+- [x] **Step 7: Write AI budget tests**
 
 Cover:
 
@@ -1141,11 +1141,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 8: Implement AI budget enforcement**
+- [x] **Step 8: Implement AI budget enforcement**
 
 Implement budget check in FastAPI chat flow. Read `.NET`-owned `app.user_ai_budget_limits` through explicit read-only database grants and combine it with current-period spend from `rag.query_audit_events`. Do not create a FastAPI-owned budget configuration table and do not use stale JWT budget snapshots.
 
-- [ ] **Step 9: Verify chat/RAG behavior**
+- [x] **Step 9: Verify chat/RAG behavior**
 
 Run:
 
@@ -1157,7 +1157,7 @@ Set-Location ..\..
 
 Expected: tests pass.
 
-- [ ] **Step 10: Commit chat/RAG core**
+- [x] **Step 10: Commit chat/RAG core**
 
 Run:
 

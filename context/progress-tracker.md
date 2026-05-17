@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Finish Task 9 document lifecycle and assisted imports, then move to Task 10 internal indexing pipeline.
+- Finish Task 11 chat, retrieval, audit, cache, cost, and budget enforcement, then move to Task 12 feedback and management reporting.
 
 ## Completed
 
@@ -164,37 +164,38 @@
 - Verified the Task 10 startup fix with `uv run pytest tests/test_container_startup.py -q`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `docker build -f services/rag-api/Dockerfile services/rag-api`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`.
 - Fixed a second Task 10 RAG startup migration bug reported during manual Compose verification: Alembic was running as `rag_owner` but still tried to create the `rag` schema, which requires database-level `CREATE` privilege. Moved schema/extension ownership fully to `postgres-init` as intended and kept Alembic responsible only for objects inside the existing `rag` schema.
 - Added a regression test that runs Alembic as a runtime `rag_owner` role without database create privilege after bootstrapping the schema like `postgres-init`. Verified with `uv run pytest tests/test_migrations.py -q`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `docker build -f services/rag-api/Dockerfile services/rag-api`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`.
+- Implemented Task 11 FastAPI public chat/RAG core:
+  - Added `/api/chat` SSE response flow with signed chat-token claims, published-corpus enforcement for viewers, retrieval, citations, usage events, and shared error behavior.
+  - Added SQL-level retrieval filtering against `.NET`-owned `app.instruction_permissions` using signed group claims; `access_scope_hash` is used for cache partitioning and audit, not authorization.
+  - Added query audit writes to `rag.query_audit_events` and `rag.query_audit_citations`, including model IDs, embedding dimensions, token counts, pricing snapshot, estimated cost, latency, request ID, corpus, prompt version, and chunker version.
+  - Added semantic cache lookup/write keyed by `(corpus, access_scope_hash)` plus question embedding similarity, source tracking in `rag.semantic_cache_sources`, and internal cache invalidation at `/internal/cache-invalidations`.
+  - Added AI budget enforcement before paid embedding/chat provider calls by reading `app.user_ai_budget_limits` and current-period spend from `rag.query_audit_events`.
+  - Added FastAPI configuration for semantic cache defaults, customer timezone, default monthly AI budget, chat-token validation settings, and injectable providers for testability.
+- Verified Task 11 with `uv run pytest tests/test_chat_rag.py -q` (`3 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`21 passed`).
 
 ## In Progress
 
-- Task 10 internal indexing pipeline is complete, verified, and committed with message `feat: add internal indexing pipeline`.
-- RAG detail refinement is in progress before Task 11. The cost-first MVP defaults are now `gpt-4.1-nano` for chat and `text-embedding-3-small` with native 1536 dimensions for embeddings. The user confirmed a real local OpenAI API key has been added to the ignored Compose secret file.
-- Updated the FastAPI configuration defaults, Compose example, active MVP plan, RAG context, and relevant tests for the cost-first model defaults.
-- Verified the model-default changes with `uv run pytest tests/test_config.py -q`, `uv run pytest tests/test_indexing.py -q`, and the combined final command `uv run pytest tests/test_config.py tests/test_indexing.py -q`, which passed with `3 passed`.
-- Closed Task 11 RAG design decisions before implementation:
-  - FastAPI enforces AI budgets by reading `.NET`-owned `app.user_ai_budget_limits` through explicit read-only database grants and combining that with current-period spend in `rag.query_audit_events`.
-  - `rag.model_pricing` must contain active rows for the configured chat and embedding models; readiness fails when pricing is missing, and runtime chat returns `RAG_PROVIDER_MISCONFIGURED` instead of estimating zero cost.
-  - Retrieval uses signed chat-token scope claims as inputs but filters chunks in SQL against `app.instruction_permissions` through read-only grants. `access_scope_hash` partitions cache/audit and is not an authorization mechanism.
+- Task 11 chat/RAG core is implemented and verified. Commit is pending in the current session.
 
 ## Next Up
 
-- Implement Task 11 chat, retrieval, audit, cache, cost, and budget enforcement.
+- Implement Task 12 feedback submission and management reporting.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Task 11 chat, retrieval, audit, cache, cost, and budget enforcement.
+- Task 12 feedback submission and management reporting.
 
 ### Why This Comes Next
 
-- Task 10 code and verification are complete.
-- The next safe step is to implement public chat/RAG over the indexed corpus, including retrieval, audit, semantic cache, cost snapshots, and budget enforcement.
+- Task 11 code and verification are complete.
+- The next safe step is to implement feedback submission tied to query audit and management reporting over FastAPI-owned RAG views through the .NET API.
 
 ### Scope
 
-- Implement Task 11 only.
-- Preserve service boundaries: FastAPI owns chat, retrieval, semantic cache, query audit, citations, model pricing, and budget enforcement; `.NET` owns user budget configuration and management reporting.
+- Implement Task 12 only.
+- Preserve service boundaries: FastAPI owns chat feedback storage on RAG audit rows; `.NET` owns management reporting endpoints over read-only RAG views.
 
 ### User-Owned Steps
 
@@ -202,12 +203,15 @@
 
 ### Required Verification
 
-- Task 11 verification commands will be defined from the implementation plan before coding.
+- `Set-Location services/rag-api; uv run pytest tests -k feedback -q; Set-Location ..\..`
+- `dotnet test services/dotnet-api/AdvancedRag.sln --filter Reporting`
+- `pnpm --dir apps/chat-web test -- --run`
+- `pnpm --dir apps/manage-web test -- --run`
 
 Expected result:
 
-- Task 11 starts from the verified internal indexing baseline and approved RAG design.
-- Public chat retrieves only published indexed chunks and records query audit evidence.
+- Task 12 starts from the verified public chat/RAG core.
+- Feedback can be attached to generated/cached chat answers and reviewed through management reporting.
 
 ## Open Questions
 
