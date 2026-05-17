@@ -183,10 +183,12 @@
 - Verified the JWKS fix with `uv run pytest tests/test_auth_tokens.py -q` (`8 passed`), `uv run pytest tests/test_chat_rag.py tests/test_auth_tokens.py -q` (`11 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`23 passed`).
 - Diagnosed local Postman `/api/chat` failure after JWKS fix: FastAPI connected as `rag_owner` and received `permission denied for schema app` when reading `.NET`-owned permission/budget tables. Added `postgres-init` grants for `rag_owner` to use schema `app` and select only `app.instruction_permissions` and `app.user_ai_budget_limits`.
 - Verified the RAG read-grant fix with `uv run pytest tests/test_migrations.py -q` (`3 passed`), `uv run pytest tests/test_chat_rag.py tests/test_migrations.py -q` (`6 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`24 passed`).
+- Diagnosed local document publication failure during pre-publication indexing: `.NET` received `401` from FastAPI's internal indexing endpoint because Windows PowerShell 5 wrote `internal_service_token.txt` with a UTF-8 BOM. .NET consumed the BOM while FastAPI preserved it, so the logical token values differed. Updated FastAPI secret reading to ignore a leading UTF-8 BOM and updated `New-LocalDevSecrets.ps1` to write future generated secret files as UTF-8 without BOM.
+- Verified the internal service token BOM fix with `uv run pytest tests/test_config.py -q` (`2 passed`), `uv run pytest -q` (`25 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and PowerShell parser validation for `infra/compose/New-LocalDevSecrets.ps1`.
 
 ## In Progress
 
-- Task 11 chat/RAG core is implemented and verified. Commit is pending in the current session.
+- Task 11 chat/RAG core is implemented and verified. Local Compose/Postman hardening is in progress as manual end-to-end testing surfaces environment-specific issues.
 
 ## Next Up
 

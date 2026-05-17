@@ -54,4 +54,4 @@ def _read_secret_file(path: str) -> str:
     if not path:
         return ""
     with open(path, encoding="utf-8") as secret_file:
-        return secret_file.read().strip()
+        return secret_file.read().lstrip("\ufeff").strip()

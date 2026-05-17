@@ -35,7 +35,8 @@ function Write-SecretFile {
         return
     }
 
-    Set-Content -NoNewline -Path $path -Value $Value -Encoding UTF8
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($path, $Value, $utf8NoBom)
     Write-Host "Wrote $Name"
 }
 
