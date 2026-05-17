@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     chat_token_issuer: str = "advanced-rag-dotnet-api"
     chat_token_audience: str = "advanced-rag-chat"
     chat_token_public_keys_by_kid: dict[str, str] = {}
+    dotnet_jwks_url: str = ""
 
     @property
     def resolved_rag_database_url(self) -> str:

@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from advanced_rag.auth.chat_tokens import (
     ChatTokenValidationSettings,
     ChatTokenValidator,
+    JwksChatTokenValidator,
 )
 from advanced_rag.core.errors import ApiException
 
@@ -106,6 +107,42 @@ def test_unknown_key_id_is_rejected() -> None:
     assert exception.value.http_status == 401
 
 
+def test_jwks_chat_token_validator_accepts_current_dotnet_signing_key() -> None:
+    key_pair = _rsa_key_pair()
+    token = _encode_chat_token(key_pair.private_key_pem)
+    validator = JwksChatTokenValidator(
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        jwks_url="http://dotnet-api:8080/.well-known/jwks.json",
+        jwks_client=FakeJwksClient({"test-key": key_pair.public_key_pem}),
+    )
+
+    claims = validator.validate(token)
+
+    assert claims.user_id == USER_ID
+    assert claims.role == "Viewer"
+    assert claims.groups == [GROUP_ID]
+    assert claims.access_scope_hash == "scope-hash"
+    assert claims.corpus == "published"
+
+
+def test_jwks_chat_token_validator_rejects_retired_key_id() -> None:
+    key_pair = _rsa_key_pair()
+    token = _encode_chat_token(key_pair.private_key_pem, kid="retired-key")
+    validator = JwksChatTokenValidator(
+        issuer=ISSUER,
+        audience=AUDIENCE,
+        jwks_url="http://dotnet-api:8080/.well-known/jwks.json",
+        jwks_client=FakeJwksClient({"test-key": key_pair.public_key_pem}),
+    )
+
+    with pytest.raises(ApiException) as exception:
+        validator.validate(token)
+
+    assert exception.value.code == "AUTH_TOKEN_INVALID_KEY"
+    assert exception.value.http_status == 401
+
+
 def _validator(public_key_pem: str) -> ChatTokenValidator:
     return ChatTokenValidator(
         ChatTokenValidationSettings(
@@ -168,3 +205,20 @@ class RsaKeyPair:
     def __init__(self, *, private_key_pem: str, public_key_pem: str) -> None:
         self.private_key_pem = private_key_pem
         self.public_key_pem = public_key_pem
+
+
+class FakeJwksClient:
+    def __init__(self, public_keys_by_kid: dict[str, str]) -> None:
+        self._public_keys_by_kid = public_keys_by_kid
+
+    def get_signing_key_from_jwt(self, token: str) -> FakeSigningKey:
+        kid = jwt.get_unverified_header(token).get("kid")
+        key = self._public_keys_by_kid.get(str(kid))
+        if key is None:
+            raise jwt.PyJWKClientError("Unable to find a signing key that matches")
+        return FakeSigningKey(key)
+
+
+class FakeSigningKey:
+    def __init__(self, key: str) -> None:
+        self.key = key

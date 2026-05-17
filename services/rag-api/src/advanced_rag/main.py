@@ -14,6 +14,7 @@ from advanced_rag.auth.chat_tokens import (
     ChatTokenValidationSettings,
     ChatTokenValidator,
     ChatTokenValidatorProtocol,
+    JwksChatTokenValidator,
 )
 from advanced_rag.core.config import Settings
 from advanced_rag.core.errors import (
@@ -58,13 +59,7 @@ def create_app(
     app.state.chat_completion_provider = chat_completion_provider or OpenAIChatCompletionProvider(
         api_key=app.state.settings.resolved_openai_api_key
     )
-    app.state.chat_token_validator = chat_token_validator or ChatTokenValidator(
-        ChatTokenValidationSettings(
-            issuer=app.state.settings.chat_token_issuer,
-            audience=app.state.settings.chat_token_audience,
-            public_keys_by_kid=app.state.settings.chat_token_public_keys_by_kid,
-        )
-    )
+    app.state.chat_token_validator = chat_token_validator or _create_chat_token_validator(app.state.settings)
     app.state.chat_service = ChatService(
         app.state.session_factory,
         app.state.embedding_provider,
@@ -91,6 +86,23 @@ def create_app(
     app.include_router(chat_router)
 
     return app
+
+
+def _create_chat_token_validator(settings: Settings) -> ChatTokenValidatorProtocol:
+    if settings.dotnet_jwks_url:
+        return JwksChatTokenValidator(
+            issuer=settings.chat_token_issuer,
+            audience=settings.chat_token_audience,
+            jwks_url=settings.dotnet_jwks_url,
+        )
+
+    return ChatTokenValidator(
+        ChatTokenValidationSettings(
+            issuer=settings.chat_token_issuer,
+            audience=settings.chat_token_audience,
+            public_keys_by_kid=settings.chat_token_public_keys_by_kid,
+        )
+    )
 
 
 app = create_app()

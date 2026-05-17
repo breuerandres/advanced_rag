@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 import jwt
+from jwt import PyJWKClient
 
 from advanced_rag.core.errors import ApiException
 
@@ -79,6 +80,57 @@ class ChatTokenValidator:
             raise ApiException("AUTH_TOKEN_INVALID_KEY", 401, "Chat token key is invalid.")
 
         return public_key
+
+
+class JwksChatTokenValidator:
+    def __init__(
+        self,
+        *,
+        issuer: str,
+        audience: str,
+        jwks_url: str,
+        jwks_client: Any | None = None,
+    ) -> None:
+        self._issuer = issuer
+        self._audience = audience
+        self._jwks_client = jwks_client or PyJWKClient(jwks_url)
+
+    def validate(self, token: str) -> ChatTokenClaims:
+        try:
+            signing_key = self._jwks_client.get_signing_key_from_jwt(token)
+        except jwt.PyJWKClientError as exc:
+            raise ApiException("AUTH_TOKEN_INVALID_KEY", 401, "Chat token key is invalid.") from exc
+        except jwt.InvalidTokenError as exc:
+            raise ApiException("AUTH_TOKEN_INVALID", 401, "Chat token invalid.") from exc
+
+        try:
+            payload = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["RS256"],
+                issuer=self._issuer,
+                audience=self._audience,
+                options={
+                    "require": [
+                        "iss",
+                        "aud",
+                        "sub",
+                        "role",
+                        "groups",
+                        "access_scope_hash",
+                        "corpus",
+                        "exp",
+                        "iat",
+                        "jti",
+                    ]
+                },
+            )
+        except jwt.ExpiredSignatureError as exc:
+            raise ApiException("AUTH_TOKEN_EXPIRED", 401, "Chat token expired.") from exc
+        except jwt.InvalidTokenError as exc:
+            raise ApiException("AUTH_TOKEN_INVALID", 401, "Chat token invalid.") from exc
+
+        return _claims_from_payload(payload)
 
 
 def _claims_from_payload(payload: dict[str, Any]) -> ChatTokenClaims:

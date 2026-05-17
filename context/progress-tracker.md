@@ -178,6 +178,9 @@
 - Corrected the local secret generator so it never creates, overwrites, or rotates `openai_api_key.txt`; the OpenAI API key remains a developer/operator-managed external secret. The script now only warns if the file is missing.
 - Fixed the local secret generator for Windows PowerShell 5.1 compatibility by replacing `RandomNumberGenerator.Fill(...)` with `RandomNumberGenerator.Create().GetBytes(...)`. Verified parser syntax and random secret generation without writing local secret files.
 - Diagnosed a local `postgres-init` failure after secret overwrite: `postgres_admin_password.txt` was rotated while the existing `postgres-data` volume still had the previous `postgres` password. Updated the local secret generator so it creates the Postgres admin password only when missing and never overwrites it automatically.
+- Diagnosed local Postman `/api/chat` failure after successful chat-token issuance: FastAPI returned `AUTH_TOKEN_INVALID_KEY` because the RAG service accepted `DOTNET_JWKS_URL` in Compose but did not use it to load `.NET` public signing keys.
+- Implemented FastAPI JWKS-backed chat token validation using PyJWT's `PyJWKClient` when `DOTNET_JWKS_URL` is configured, while preserving the static public-key validator for tests and non-Compose configuration.
+- Verified the JWKS fix with `uv run pytest tests/test_auth_tokens.py -q` (`8 passed`), `uv run pytest tests/test_chat_rag.py tests/test_auth_tokens.py -q` (`11 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`23 passed`).
 
 ## In Progress
 
