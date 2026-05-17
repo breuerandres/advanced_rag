@@ -172,6 +172,9 @@
   - Added AI budget enforcement before paid embedding/chat provider calls by reading `app.user_ai_budget_limits` and current-period spend from `rag.query_audit_events`.
   - Added FastAPI configuration for semantic cache defaults, customer timezone, default monthly AI budget, chat-token validation settings, and injectable providers for testability.
 - Verified Task 11 with `uv run pytest tests/test_chat_rag.py -q` (`3 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`21 passed`).
+- Diagnosed local Postman `/api/auth/chat-token` failure: the request is routed to `.NET`, not FastAPI, and `.NET` logged `No current JWT signing key is configured.` The local `jwt_signing_keys.json` secret still needs a valid `current` RS256 key.
+- Added `infra/compose/New-LocalDevSecrets.ps1` to generate valid ignored local Compose secrets for development, including Postgres role passwords, CSRF signing key, internal service token, RS256 JWT signing keys, and optional OpenAI API key. Updated `infra/compose/secrets/README.md` with the recommended local setup and JWT signing key format.
+- Verified the local secrets generator syntax without writing secrets using `[scriptblock]::Create(...)`, which returned `PowerShell syntax OK`.
 
 ## In Progress
 
