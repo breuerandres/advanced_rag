@@ -9,6 +9,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from advanced_rag.core.config import Settings
+
 config = context.config
 
 if config.config_file_name is not None:
@@ -49,6 +51,8 @@ def do_run_migrations(connection: Connection) -> None:
 async def run_async_migrations() -> None:
     section = config.get_section(config.config_ini_section, {})
     section["sqlalchemy.url"] = config.get_main_option("sqlalchemy.url")
+    if section["sqlalchemy.url"] == "postgresql+asyncpg://postgres:postgres@localhost:5432/advanced_rag":
+        section["sqlalchemy.url"] = Settings().resolved_rag_database_url
     connectable = async_engine_from_config(
         section,
         prefix="sqlalchemy.",

@@ -160,6 +160,8 @@
   - Aligned Compose environment variables for the FastAPI internal service token file.
 - Verified Task 10 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Indexing`, `Set-Location services/rag-api; uv run pytest tests -k indexing -q; Set-Location ..\..`, `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`.
 - Created the Task 10 internal indexing pipeline commit with message `feat: add internal indexing pipeline`.
+- Fixed a Task 10 local Compose startup bug reported during manual Postman verification: the `rag-api` container started `uvicorn` directly and did not run Alembic migrations, so publishing failed with `relation "rag.indexing_jobs" does not exist`. Added a container entrypoint that runs `alembic upgrade head` before starting `uvicorn`, copied Alembic files into the image, and updated Alembic runtime URL resolution to use container environment settings.
+- Verified the Task 10 startup fix with `uv run pytest tests/test_container_startup.py -q`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `docker build -f services/rag-api/Dockerfile services/rag-api`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`.
 
 ## In Progress
 

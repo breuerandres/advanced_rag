@@ -13,8 +13,12 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --locked --no-dev --no-install-project
 
 COPY src ./src
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN uv sync --locked --no-dev
+RUN chmod +x ./docker-entrypoint.sh
 
 EXPOSE 8000
 
-CMD ["uvicorn", "advanced_rag.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./docker-entrypoint.sh"]
