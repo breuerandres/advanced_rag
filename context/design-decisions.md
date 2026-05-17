@@ -72,6 +72,8 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Chat Feedback Update Behavior](#2026-05-11---chat-feedback-update-behavior)
 - [Chat Feedback Review UI](#2026-05-11---chat-feedback-review-ui)
 - [RAG Chunk And Audit Table Shape](#2026-05-11---rag-chunk-and-audit-table-shape)
+- [Cost-First MVP Chat Model](#2026-05-17---cost-first-mvp-chat-model)
+- [Cost-First MVP Embedding Model](#2026-05-17---cost-first-mvp-embedding-model)
 
 ### Audit, Pricing, And Budgets
 
@@ -865,6 +867,38 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Model IDs must be configurable through `OPENAI_CHAT_MODEL` and `OPENAI_EMBEDDING_MODEL`, and embedding dimensions must be configurable through `OPENAI_EMBEDDING_DIMENSIONS`. The RAG audit must persist actual model IDs, embedding dimensions, token usage, latency, estimated cost, and the model pricing snapshot used. Revisit the defaults after retrieval and answer-quality evaluations.
 
 **Evidence:** Verified against OpenAI documentation on 2026-05-11. The OpenAI data residency/model support table lists `gpt-4.1-mini-2025-04-14` for `/v1/chat/completions` and `/v1/responses`, and lists `text-embedding-3-large` for `/v1/embeddings`. The embeddings guide states that `text-embedding-3-large` produces 3072-dimensional vectors by default and supports reducing dimensions with the `dimensions` parameter. pgvector documentation states that `vector` supports up to 2000 dimensions, so the MVP uses 1536 dimensions for compatibility with `vector(1536)`.
+
+## 2026-05-17 - Cost-First MVP Chat Model
+
+**Context:** During Task 10/Task 11 RAG refinement, the user identified that model choice, API key handling, pricing, and RAG quality/cost tradeoffs were not reviewed with enough detail before paid provider calls became possible.
+
+**Options Considered:** Keep `gpt-4.1-mini`, move to a GPT-5.x model through the Responses API, or lower the MVP chat default to `gpt-4.1-nano` until the MVP is running end to end.
+
+**Decision:** Use `gpt-4.1-nano` as the MVP default chat model and keep the current Chat Completions API path for the MVP.
+
+**Rationale:** The immediate goal is to get the MVP working end to end with controlled cost. `gpt-4.1-nano` is cheaper than the previous default and lets the team gather real latency, cost, citation, and feedback evidence before improving response quality. Keeping Chat Completions avoids coupling a model downgrade with an API migration.
+
+**Tradeoffs:** Answer quality may be weaker than `gpt-4.1-mini` or newer GPT-5.x models. That is acceptable for the MVP only if RAG audit, citation quality, user feedback, and cost metrics are captured and used to evaluate a later upgrade.
+
+**Consequences:** `OPENAI_CHAT_MODEL` defaults should move to `gpt-4.1-nano` in the implementation and documentation. Task 11 must keep model IDs configurable and persist the actual model used per query. A post-MVP evaluation should compare answer quality, citation accuracy, latency, and cost before changing the default upward.
+
+**Evidence:** Checked OpenAI developer documentation on 2026-05-17. The current OpenAI guidance identifies GPT-5.5 as the latest model and recommends the Responses API for new projects, while the model support listing still includes GPT-4.1 family models for Chat Completions. The project intentionally chooses a lower-cost MVP default and defers the Responses API migration until after MVP validation.
+
+## 2026-05-17 - Cost-First MVP Embedding Model
+
+**Context:** The previous RAG default used `text-embedding-3-large` with `dimensions=1536`. The user correctly pointed out that `text-embedding-3-large` is natively 3072 dimensions, while 1536 is the native size for `text-embedding-3-small`.
+
+**Options Considered:** Keep `text-embedding-3-large` reduced to 1536 dimensions, use native `text-embedding-3-large` at 3072 dimensions, or switch the MVP default to `text-embedding-3-small` at native 1536 dimensions.
+
+**Decision:** Use `text-embedding-3-small` with `OPENAI_EMBEDDING_DIMENSIONS=1536` as the MVP default embedding model.
+
+**Rationale:** The MVP goal is to control provider cost until the end-to-end product is running. `text-embedding-3-small` aligns with the existing `vector(1536)` schema without a migration and avoids the confusing large-model-with-reduced-dimensions default.
+
+**Tradeoffs:** Retrieval quality may be lower than `text-embedding-3-large`, especially on nuanced or long internal instructions. This is acceptable for the MVP only if retrieval quality, citation relevance, user feedback, and answer quality are reviewed before production rollout.
+
+**Consequences:** `OPENAI_EMBEDDING_MODEL` defaults should move to `text-embedding-3-small`, while `OPENAI_EMBEDDING_DIMENSIONS` remains `1536`. The existing `rag.document_chunks.embedding vector(1536)` and `rag.semantic_cache_entries.question_embedding vector(1536)` schema remains valid. A future upgrade to `text-embedding-3-large` at 3072 dimensions requires an explicit data/model migration plan and reindexing.
+
+**Evidence:** Checked OpenAI developer documentation on 2026-05-17. The embeddings guide states that `text-embedding-3-small` defaults to 1536 dimensions and `text-embedding-3-large` defaults to 3072 dimensions, and that text-embedding-3 models support the `dimensions` parameter for shortening embeddings.
 
 ## 2026-05-13 - Human-In-The-Loop Implementation Protocol
 

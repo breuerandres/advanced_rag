@@ -38,7 +38,7 @@ Advanced RAG Instruction Platform is a single-tenant corporate instruction manag
 - Public chat frontend that talks directly to FastAPI.
 - FastAPI validates short-lived signed chat access tokens issued by .NET.
 - Chat access tokens are issued or renewed by .NET from the main secure session, stored only as host-only `HttpOnly` cookies on `chat.client.com`, and validated locally by FastAPI.
-- Default MVP OpenAI models are `gpt-4.1-mini` for chat and `text-embedding-3-large` for embeddings with 1536 configured dimensions, configurable per deployment.
+- Default MVP OpenAI models are `gpt-4.1-nano` for chat and `text-embedding-3-small` for embeddings with native 1536 dimensions to reduce cost until the MVP is running end to end. Models remain configurable per deployment.
 - Published-only retrieval for normal viewers and internal preview retrieval for authorized management users.
 - Semantic cache with `access_scope_hash`, conservative default similarity threshold, TTL, citations, and source-document invalidation.
 - Thumbs up/down answer feedback with optional comment tied to RAG query audit.

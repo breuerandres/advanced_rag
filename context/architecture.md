@@ -277,7 +277,7 @@ Non-sensitive runtime configuration uses environment variables, including intern
 
 OpenAI models are configurable with environment variables such as `OPENAI_CHAT_MODEL`, `OPENAI_EMBEDDING_MODEL`, and `OPENAI_EMBEDDING_DIMENSIONS`. Model prices are stored in the database.
 
-The MVP default chat model is `gpt-4.1-mini`. The MVP default embedding model is `text-embedding-3-large` with `OPENAI_EMBEDDING_DIMENSIONS=1536` so embeddings fit the pgvector `vector(1536)` column. These defaults remain runtime configuration values, not hardcoded business logic. Chat response speed is a product quality attribute and must be tracked through latency metrics in RAG query audit and logs.
+The MVP default chat model is `gpt-4.1-nano` to minimize cost while the MVP is being validated. The MVP default embedding model is `text-embedding-3-small` with its native `OPENAI_EMBEDDING_DIMENSIONS=1536` so embeddings fit the pgvector `vector(1536)` column without a schema migration. These defaults remain runtime configuration values, not hardcoded business logic. Chat response speed, answer quality, and cost are product quality attributes and must be tracked through latency, feedback, and cost metrics in RAG query audit and logs.
 
 ## Operational Defaults
 

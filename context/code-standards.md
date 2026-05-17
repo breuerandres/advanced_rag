@@ -39,7 +39,7 @@
 - Block over-budget semantic cache lookups in the MVP because lookup requires paid embedding generation. Exact no-cost cache lookup is out of scope.
 - Validate short-lived signed access tokens issued by the .NET API locally for public chat requests; do not add a .NET introspection call to the normal chat path.
 - Do not implement a separate FastAPI refresh token for the MVP. Chat token renewal is a .NET-owned route based on the main secure session.
-- Read OpenAI model IDs and embedding dimensions from configuration. Do not hardcode `gpt-4.1-mini`, `text-embedding-3-large`, embedding dimensions, or future model IDs in business logic.
+- Read OpenAI model IDs and embedding dimensions from configuration. Do not hardcode `gpt-4.1-nano`, `text-embedding-3-small`, embedding dimensions, or future model IDs in business logic.
 - Persist the actual chat model, embedding model, token usage, latency, estimated cost, and model pricing snapshot used for each audited RAG query.
 
 ## TypeScript Frontends

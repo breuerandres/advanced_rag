@@ -64,7 +64,7 @@ def test_valid_indexing_request_persists_job_chunks_and_embedding_dimensions() -
             Settings(
                 rag_database_url=async_url,
                 internal_service_token=INTERNAL_TOKEN,
-                openai_embedding_model="text-embedding-3-large",
+                openai_embedding_model="text-embedding-3-small",
                 openai_embedding_dimensions=1536,
             ),
             embedding_provider=embedding_provider,
@@ -82,7 +82,7 @@ def test_valid_indexing_request_persists_job_chunks_and_embedding_dimensions() -
         assert body["status"] == "Succeeded"
         assert body["chunkCount"] >= 1
         assert embedding_provider.calls == [
-            EmbeddingCall(model="text-embedding-3-large", dimensions=1536)
+            EmbeddingCall(model="text-embedding-3-small", dimensions=1536)
         ]
         state = asyncio.run(_read_indexing_state(asyncpg_dsn, UUID(body["jobId"])))
 

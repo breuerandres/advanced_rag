@@ -20,7 +20,7 @@
 - Captured current architecture decisions in `context/architecture.md`.
 - Created `context/design-decisions.md` to avoid losing brainstorming decisions.
 - Persisted the rule that meaningful decisions must be written to context files during brainstorming.
-- Selected OpenAI MVP defaults: `gpt-4.1-mini` for chat and `text-embedding-3-large` for embeddings with configured dimension reduction to 1536 for pgvector compatibility.
+- Previously selected OpenAI MVP defaults: `gpt-4.1-mini` for chat and `text-embedding-3-large` for embeddings with configured dimension reduction to 1536 for pgvector compatibility. This was superseded on 2026-05-17 by the cost-first defaults recorded below.
 - Selected secure browser session strategy: use `HttpOnly`, `Secure`, `SameSite` cookies with CSRF protection, and prohibit credential-bearing tokens in browser storage.
 - Selected browser API topology: route frontend requests through same-origin `/api/*` Caddy paths with host-only `__Host-` cookies; avoid broad parent-domain cookies in the MVP.
 - Selected FastAPI auth validation strategy: locally validate short-lived signed access tokens issued by .NET for chat requests instead of introspecting .NET on every chat request.
@@ -162,14 +162,19 @@
 - Created the Task 10 internal indexing pipeline commit with message `feat: add internal indexing pipeline`.
 - Fixed a Task 10 local Compose startup bug reported during manual Postman verification: the `rag-api` container started `uvicorn` directly and did not run Alembic migrations, so publishing failed with `relation "rag.indexing_jobs" does not exist`. Added a container entrypoint that runs `alembic upgrade head` before starting `uvicorn`, copied Alembic files into the image, and updated Alembic runtime URL resolution to use container environment settings.
 - Verified the Task 10 startup fix with `uv run pytest tests/test_container_startup.py -q`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `docker build -f services/rag-api/Dockerfile services/rag-api`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`.
+- Fixed a second Task 10 RAG startup migration bug reported during manual Compose verification: Alembic was running as `rag_owner` but still tried to create the `rag` schema, which requires database-level `CREATE` privilege. Moved schema/extension ownership fully to `postgres-init` as intended and kept Alembic responsible only for objects inside the existing `rag` schema.
+- Added a regression test that runs Alembic as a runtime `rag_owner` role without database create privilege after bootstrapping the schema like `postgres-init`. Verified with `uv run pytest tests/test_migrations.py -q`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `docker build -f services/rag-api/Dockerfile services/rag-api`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`.
 
 ## In Progress
 
 - Task 10 internal indexing pipeline is complete, verified, and committed with message `feat: add internal indexing pipeline`.
+- RAG detail refinement is in progress before Task 11. The cost-first MVP defaults are now `gpt-4.1-nano` for chat and `text-embedding-3-small` with native 1536 dimensions for embeddings. The user confirmed a real local OpenAI API key has been added to the ignored Compose secret file.
+- Updated the FastAPI configuration defaults, Compose example, active MVP plan, RAG context, and relevant tests for the cost-first model defaults.
+- Verified the model-default changes with `uv run pytest tests/test_config.py -q`, `uv run pytest tests/test_indexing.py -q`, and the combined final command `uv run pytest tests/test_config.py tests/test_indexing.py -q`, which passed with `3 passed`.
 
 ## Next Up
 
-- Implement Task 11 chat, retrieval, audit, cache, cost, and budget enforcement.
+- Finish RAG detail decisions before implementing Task 11 chat, retrieval, audit, cache, cost, and budget enforcement.
 
 ## Next Implementation Checkpoint
 
@@ -180,11 +185,11 @@
 ### Why This Comes Next
 
 - Task 10 code and verification are complete.
-- The next safe step is to implement public chat/RAG over the indexed corpus, including retrieval, audit, semantic cache, cost snapshots, and budget enforcement.
+- The next safe step is to close RAG design gaps before implementing public chat/RAG over the indexed corpus, including retrieval, audit, semantic cache, cost snapshots, and budget enforcement.
 
 ### Scope
 
-- Implement Task 11 only.
+- Refine and document Task 11 RAG design decisions before coding.
 - Preserve service boundaries: FastAPI owns chat, retrieval, semantic cache, query audit, citations, model pricing, and budget enforcement; `.NET` owns user budget configuration and management reporting.
 
 ### User-Owned Steps
@@ -197,12 +202,14 @@
 
 Expected result:
 
-- Task 11 starts from the verified internal indexing baseline.
+- Task 11 starts from the verified internal indexing baseline and an approved RAG design.
 - Public chat retrieves only published indexed chunks and records query audit evidence.
 
 ## Open Questions
 
-- None for the current checkpoint.
+- Decide the Task 11 budget read path: FastAPI read-only access to `app.user_ai_budget_limits`, a signed claim snapshot, or an internal `.NET` budget endpoint.
+- Decide the `rag.model_pricing` seed and failure behavior when a configured model has no active pricing row.
+- Resolve the retrieval-scope ambiguity between trusting chat-token claims and reading `app.instruction_permissions` from FastAPI.
 
 ## Architecture Decisions
 

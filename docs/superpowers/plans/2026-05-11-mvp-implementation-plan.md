@@ -6,7 +6,7 @@
 
 **Architecture:** The system is a monorepo with three React TypeScript frontends, a .NET 8 management API, a FastAPI RAG service, PostgreSQL with `app` and `rag` schemas, Caddy same-origin routing, Docker Compose deployment, secure cookie-based browser sessions, and OpenAI-backed chat/embeddings. Implementation is split into independently verifiable phases so each service boundary is tested before dependent workflows are layered on.
 
-**Tech Stack:** React TypeScript, Tailwind CSS, `shadcn/ui`, `lucide-react`, .NET 8, EF Core, FastAPI, `uv`, Alembic, PostgreSQL with pgvector, Docker Compose, Caddy, OpenAI `gpt-4.1-mini`, OpenAI `text-embedding-3-large` with `OPENAI_EMBEDDING_DIMENSIONS=1536`.
+**Tech Stack:** React TypeScript, Tailwind CSS, `shadcn/ui`, `lucide-react`, .NET 8, EF Core, FastAPI, `uv`, Alembic, PostgreSQL with pgvector, Docker Compose, Caddy, OpenAI `gpt-4.1-nano`, OpenAI `text-embedding-3-small` with native `OPENAI_EMBEDDING_DIMENSIONS=1536`.
 
 ---
 
@@ -306,8 +306,8 @@ CUSTOMER_TIMEZONE=UTC
 POSTGRES_DB=advanced_rag
 POSTGRES_APP_USER=advanced_rag_app
 POSTGRES_RAG_USER=advanced_rag_rag
-OPENAI_CHAT_MODEL=gpt-4.1-mini
-OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+OPENAI_CHAT_MODEL=gpt-4.1-nano
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 OPENAI_EMBEDDING_DIMENSIONS=1536
 RAG_SEMANTIC_CACHE_TTL_HOURS=24
 RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD=0.90

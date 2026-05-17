@@ -6,8 +6,8 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 
 ## Models And Provider
 
-- Chat: OpenAI `gpt-4.1-mini` via `/v1/chat/completions`. Configured by `OPENAI_CHAT_MODEL`.
-- Embeddings: OpenAI `text-embedding-3-large` with `dimensions=1536`. Configured by `OPENAI_EMBEDDING_MODEL` and `OPENAI_EMBEDDING_DIMENSIONS`.
+- Chat: OpenAI `gpt-4.1-nano` via `/v1/chat/completions`. Configured by `OPENAI_CHAT_MODEL`.
+- Embeddings: OpenAI `text-embedding-3-small` with its native `dimensions=1536`. Configured by `OPENAI_EMBEDDING_MODEL` and `OPENAI_EMBEDDING_DIMENSIONS`.
 - SDK: official `openai` Python SDK, async client, with `max_retries=2` and `timeout=30` seconds at the SDK level. Service-level retry/circuit-breaker is added with `tenacity` only for transient errors (`APIConnectionError`, `RateLimitError`, `APIStatusError` with 5xx).
 - Every paid call (`embeddings.create`, `chat.completions.create`) records the actual model id, usage tokens, latency, and pricing snapshot in `rag.query_audit_events`.
 
