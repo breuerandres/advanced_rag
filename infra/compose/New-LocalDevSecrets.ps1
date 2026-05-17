@@ -1,5 +1,4 @@
 param(
-    [string] $OpenAiApiKey = "",
     [switch] $Overwrite
 )
 
@@ -41,15 +40,12 @@ Write-SecretFile -Name "postgres_reporting_password.txt" -Value (New-Base64UrlSe
 Write-SecretFile -Name "csrf_signing_key.txt" -Value (New-Base64UrlSecret -Bytes 32)
 Write-SecretFile -Name "internal_service_token.txt" -Value (New-Base64UrlSecret -Bytes 32)
 
-if ($OpenAiApiKey.Trim().Length -gt 0) {
-    Write-SecretFile -Name "openai_api_key.txt" -Value $OpenAiApiKey.Trim()
-}
-elseif (-not (Test-Path (Join-Path $secretsDir "openai_api_key.txt")) -or $Overwrite) {
-    Write-SecretFile -Name "openai_api_key.txt" -Value "replace-with-local-openai-key"
-    Write-Warning "openai_api_key.txt contains a placeholder. Replace it before testing real chat/embedding calls."
+$openAiKeyPath = Join-Path $secretsDir "openai_api_key.txt"
+if (Test-Path $openAiKeyPath) {
+    Write-Host "Keeping existing openai_api_key.txt"
 }
 else {
-    Write-Host "Keeping existing openai_api_key.txt"
+    Write-Warning "openai_api_key.txt is missing. Create it manually with your local OpenAI API key before testing real chat/embedding calls."
 }
 
 $jwtPath = Join-Path $secretsDir "jwt_signing_keys.json"

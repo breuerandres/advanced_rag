@@ -18,13 +18,13 @@ Do not commit secret values. This directory is ignored except for this README.
 From the repository root, run:
 
 ```powershell
-.\infra\compose\New-LocalDevSecrets.ps1 -OpenAiApiKey "sk-proj-replace-with-your-local-key"
+.\infra\compose\New-LocalDevSecrets.ps1
 ```
 
-If you want to rotate every local secret, run:
+If you want to rotate local stack-owned secrets, run:
 
 ```powershell
-.\infra\compose\New-LocalDevSecrets.ps1 -OpenAiApiKey "sk-proj-replace-with-your-local-key" -Overwrite
+.\infra\compose\New-LocalDevSecrets.ps1 -Overwrite
 ```
 
 The script generates:
@@ -33,7 +33,14 @@ The script generates:
 - A random CSRF HMAC signing key.
 - A random internal service token shared by `.NET` and FastAPI.
 - A valid RS256 `jwt_signing_keys.json` document with one `current` key.
-- `openai_api_key.txt` from the value you provide.
+
+The script never creates, overwrites, or rotates `openai_api_key.txt`. That file contains the external OpenAI API key and must be created or updated manually by the developer/operator.
+
+To create the OpenAI key file manually:
+
+```powershell
+Set-Content -NoNewline -Path infra/compose/secrets/openai_api_key.txt -Value "sk-proj-replace-with-your-local-key"
+```
 
 After changing secrets, recreate or restart the services that read them:
 
