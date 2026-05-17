@@ -13,7 +13,13 @@ function New-Base64UrlSecret {
     param([int] $Bytes = 32)
 
     $buffer = [byte[]]::new($Bytes)
-    [System.Security.Cryptography.RandomNumberGenerator]::Fill($buffer)
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($buffer)
+    }
+    finally {
+        $rng.Dispose()
+    }
     return [Convert]::ToBase64String($buffer).TrimEnd("=").Replace("+", "-").Replace("/", "_")
 }
 

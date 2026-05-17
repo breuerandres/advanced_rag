@@ -176,6 +176,7 @@
 - Added `infra/compose/New-LocalDevSecrets.ps1` to generate valid ignored local Compose secrets for development, including Postgres role passwords, CSRF signing key, internal service token, RS256 JWT signing keys, and optional OpenAI API key. Updated `infra/compose/secrets/README.md` with the recommended local setup and JWT signing key format.
 - Verified the local secrets generator syntax without writing secrets using `[scriptblock]::Create(...)`, which returned `PowerShell syntax OK`.
 - Corrected the local secret generator so it never creates, overwrites, or rotates `openai_api_key.txt`; the OpenAI API key remains a developer/operator-managed external secret. The script now only warns if the file is missing.
+- Fixed the local secret generator for Windows PowerShell 5.1 compatibility by replacing `RandomNumberGenerator.Fill(...)` with `RandomNumberGenerator.Create().GetBytes(...)`. Verified parser syntax and random secret generation without writing local secret files.
 
 ## In Progress
 
