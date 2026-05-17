@@ -11,6 +11,7 @@ from testcontainers.postgres import PostgresContainer  # type: ignore[import-unt
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = SERVICE_ROOT.parents[1]
 POSTGRES_IMAGE = "pgvector/pgvector:pg16"
 POSTGRES_USER = "postgres"
 POSTGRES_PASSWORD = "postgres"
@@ -90,6 +91,16 @@ def test_alembic_migration_runs_as_runtime_rag_owner_without_database_create_pri
 
     assert state["rag_tables"] == EXPECTED_TABLES
     assert state["vector_extension_exists"] is True
+
+
+def test_postgres_init_grants_rag_owner_read_only_access_to_approved_app_tables() -> None:
+    init_sql = (REPO_ROOT / "infra" / "compose" / "postgres-init" / "init.sql").read_text(
+        encoding="utf-8"
+    )
+
+    assert "GRANT USAGE ON SCHEMA app TO %I" in init_sql
+    assert "GRANT SELECT ON app.instruction_permissions TO %I" in init_sql
+    assert "GRANT SELECT ON app.user_ai_budget_limits TO %I" in init_sql
 
 
 def _async_sqlalchemy_url(host: str, port: str | int) -> str:

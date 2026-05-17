@@ -181,6 +181,8 @@
 - Diagnosed local Postman `/api/chat` failure after successful chat-token issuance: FastAPI returned `AUTH_TOKEN_INVALID_KEY` because the RAG service accepted `DOTNET_JWKS_URL` in Compose but did not use it to load `.NET` public signing keys.
 - Implemented FastAPI JWKS-backed chat token validation using PyJWT's `PyJWKClient` when `DOTNET_JWKS_URL` is configured, while preserving the static public-key validator for tests and non-Compose configuration.
 - Verified the JWKS fix with `uv run pytest tests/test_auth_tokens.py -q` (`8 passed`), `uv run pytest tests/test_chat_rag.py tests/test_auth_tokens.py -q` (`11 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`23 passed`).
+- Diagnosed local Postman `/api/chat` failure after JWKS fix: FastAPI connected as `rag_owner` and received `permission denied for schema app` when reading `.NET`-owned permission/budget tables. Added `postgres-init` grants for `rag_owner` to use schema `app` and select only `app.instruction_permissions` and `app.user_ai_budget_limits`.
+- Verified the RAG read-grant fix with `uv run pytest tests/test_migrations.py -q` (`3 passed`), `uv run pytest tests/test_chat_rag.py tests/test_migrations.py -q` (`6 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`24 passed`).
 
 ## In Progress
 

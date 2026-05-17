@@ -370,7 +370,8 @@ Readiness must verify critical dependencies such as DB connectivity and required
      - `app_reporting_reader` (read-only across the FastAPI-owned reporting views, used by `.NET` for management reporting)
   4. Sets or updates those role passwords from Compose secret files.
   5. Creates the schemas `app` and `rag` with the right owners.
-  6. Grants schema USAGE to the reporting reader role.
+    6. Grants schema USAGE to the reporting reader role.
+    7. Grants FastAPI's `rag_owner` read-only access to the approved `.NET` tables needed for RAG: `app.instruction_permissions` and `app.user_ai_budget_limits`.
 - `postgres-init` exits 0 once the script completes. Compose's `depends_on: service_completed_successfully` gates `dotnet-api` and `rag-api` on this.
 
 ### Migration Order
