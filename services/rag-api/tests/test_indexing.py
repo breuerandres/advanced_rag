@@ -56,6 +56,7 @@ def test_valid_indexing_request_persists_job_chunks_and_embedding_dimensions() -
         port = postgres.get_exposed_port(5432)
         async_url = _async_sqlalchemy_url(host, port)
         asyncpg_dsn = _asyncpg_dsn(host, port)
+        asyncio.run(_bootstrap_rag_schema(asyncpg_dsn))
         _run_migrations(async_url)
 
         embedding_provider = FakeEmbeddingProvider()
@@ -158,6 +159,15 @@ async def _read_indexing_state(dsn: str, job_id: UUID) -> dict[str, Any]:
         "active_chunk_count_for_version": active_count,
         "embedding_type": embedding_type,
     }
+
+
+async def _bootstrap_rag_schema(dsn: str) -> None:
+    connection = await asyncpg.connect(dsn)
+    try:
+        await connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        await connection.execute("CREATE SCHEMA rag")
+    finally:
+        await connection.close()
 
 
 class EmbeddingCall:

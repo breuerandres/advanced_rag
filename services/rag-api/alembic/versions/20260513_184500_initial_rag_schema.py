@@ -13,9 +13,6 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE SCHEMA IF NOT EXISTS rag")
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-
     op.create_table(
         "model_pricing",
         sa.Column("id", sa.Uuid(), primary_key=True),
@@ -302,4 +299,3 @@ def downgrade() -> None:
     op.drop_table("document_chunks", schema="rag")
     op.drop_table("indexing_jobs", schema="rag")
     op.drop_table("model_pricing", schema="rag")
-    op.execute("DROP SCHEMA IF EXISTS rag")

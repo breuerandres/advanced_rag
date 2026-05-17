@@ -50,6 +50,8 @@ def test_initial_alembic_migration_creates_owned_rag_schema() -> None:
         async_url = _async_sqlalchemy_url(host, port)
         asyncpg_dsn = _asyncpg_dsn(host, port)
 
+        asyncio.run(_bootstrap_superuser_rag_schema(asyncpg_dsn))
+
         config = Config(str(SERVICE_ROOT / "alembic.ini"))
         config.set_main_option("sqlalchemy.url", async_url)
 
@@ -64,12 +66,65 @@ def test_initial_alembic_migration_creates_owned_rag_schema() -> None:
     assert EXPECTED_INDEXES.issubset(state["indexes"])
 
 
+def test_alembic_migration_runs_as_runtime_rag_owner_without_database_create_privilege() -> None:
+    with PostgresContainer(
+        image=POSTGRES_IMAGE,
+        username=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+        dbname=POSTGRES_DB,
+    ) as postgres:
+        host = postgres.get_container_host_ip()
+        port = postgres.get_exposed_port(5432)
+        superuser_dsn = _asyncpg_dsn(host, port)
+        runtime_url = _runtime_sqlalchemy_url(host, port)
+        asyncpg_dsn = _runtime_asyncpg_dsn(host, port)
+
+        asyncio.run(_bootstrap_runtime_rag_schema(superuser_dsn))
+
+        config = Config(str(SERVICE_ROOT / "alembic.ini"))
+        config.set_main_option("sqlalchemy.url", runtime_url)
+
+        command.upgrade(config, "head")
+
+        state = asyncio.run(_read_database_state(asyncpg_dsn))
+
+    assert state["rag_tables"] == EXPECTED_TABLES
+    assert state["vector_extension_exists"] is True
+
+
 def _async_sqlalchemy_url(host: str, port: str | int) -> str:
     return f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{host}:{port}/{POSTGRES_DB}"
 
 
 def _asyncpg_dsn(host: str, port: str | int) -> str:
     return f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{host}:{port}/{POSTGRES_DB}"
+
+
+def _runtime_sqlalchemy_url(host: str, port: str | int) -> str:
+    return f"postgresql+asyncpg://rag_owner:rag-password@{host}:{port}/{POSTGRES_DB}"
+
+
+def _runtime_asyncpg_dsn(host: str, port: str | int) -> str:
+    return f"postgresql://rag_owner:rag-password@{host}:{port}/{POSTGRES_DB}"
+
+
+async def _bootstrap_runtime_rag_schema(dsn: str) -> None:
+    connection = await asyncpg.connect(dsn)
+    try:
+        await connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        await connection.execute("CREATE ROLE rag_owner LOGIN PASSWORD 'rag-password'")
+        await connection.execute("CREATE SCHEMA rag AUTHORIZATION rag_owner")
+    finally:
+        await connection.close()
+
+
+async def _bootstrap_superuser_rag_schema(dsn: str) -> None:
+    connection = await asyncpg.connect(dsn)
+    try:
+        await connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        await connection.execute("CREATE SCHEMA rag")
+    finally:
+        await connection.close()
 
 
 async def _read_database_state(dsn: str) -> dict[str, Any]:
