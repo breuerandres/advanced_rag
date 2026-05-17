@@ -152,52 +152,51 @@
 - Verified Task 9 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Document|Import|Lifecycle"`, `pnpm.cmd --dir apps\manage-web test -- --run`, `dotnet test services\dotnet-api\AdvancedRag.sln`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. Verification passed; .NET commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`.
 - Fixed a Task 9 EF migration discovery bug: `20260517090000_AddInstructionVersionIndexingStatus` was missing the EF migration metadata designer partial, so startup migrations did not add `app.instruction_versions.indexing_status` in local Compose. Added a migration test assertion for the column and verified it with `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter EfMigration_CreatesOnlyAppSchemaTables`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Migration|Document|Import|Lifecycle"`, and `dotnet build services\dotnet-api\AdvancedRag.sln`.
 - Fixed a Task 9 EF query translation bug in `EfDocumentRepository.BuildAggregateAsync`: Npgsql could not translate ordering after projecting nullable `GroupId.Value`. Added a Postgres-backed repository regression test and changed the query to order by `GroupId` before projecting. Verified with `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter FindAsync_LoadsAllowedGroupIdsFromPostgres`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Document|Import|Lifecycle|Repository"`, and `dotnet build services\dotnet-api\AdvancedRag.sln`.
+- Implemented Task 10 internal indexing pipeline:
+  - Added `.NET` publish/index integration through `IInternalIndexingClient` and `FastApiInternalIndexingClient`.
+  - Publish requests now call FastAPI's Docker-network-only `/internal/indexing-jobs` endpoint with the internal service token.
+  - Successful indexing transitions the draft version to `Published`; failed indexing leaves the document `In Review` with safe `INDEXING_FAILED` behavior.
+  - Added FastAPI internal indexing route, service-token validation, deterministic HTML block chunking, OpenAI embedding provider abstraction, and storage into `rag.indexing_jobs` and `rag.document_chunks`.
+  - Aligned Compose environment variables for the FastAPI internal service token file.
+- Verified Task 10 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Indexing`, `Set-Location services/rag-api; uv run pytest tests -k indexing -q; Set-Location ..\..`, `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`.
+- Created the Task 10 internal indexing pipeline commit with message `feat: add internal indexing pipeline`.
 
 ## In Progress
 
-- Task 9 document lifecycle and assisted imports are complete, verified, and committed with message `feat: add document lifecycle and assisted imports`.
+- Task 10 internal indexing pipeline is complete, verified, and committed with message `feat: add internal indexing pipeline`.
 
 ## Next Up
 
-- Implement Task 10 internal indexing pipeline.
+- Implement Task 11 chat, retrieval, audit, cache, cost, and budget enforcement.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Task 10 internal indexing pipeline.
+- Task 11 chat, retrieval, audit, cache, cost, and budget enforcement.
 
 ### Why This Comes Next
 
-- Task 9 code, verification, and commit are complete.
-- The next safe step is to implement the internal indexing pipeline that turns pending publish requests into successful indexed publication.
+- Task 10 code and verification are complete.
+- The next safe step is to implement public chat/RAG over the indexed corpus, including retrieval, audit, semantic cache, cost snapshots, and budget enforcement.
 
 ### Scope
 
-- Implement Task 10 only.
-- Preserve service boundaries: `.NET` requests indexing and FastAPI owns `rag.indexing_jobs`, chunking, embeddings, and `rag.document_chunks`.
+- Implement Task 11 only.
+- Preserve service boundaries: FastAPI owns chat, retrieval, semantic cache, query audit, citations, model pricing, and budget enforcement; `.NET` owns user budget configuration and management reporting.
 
 ### User-Owned Steps
 
-- Keep Docker Desktop running before verification because both `.NET` and FastAPI tests use Testcontainers.
+- Keep Docker Desktop running before verification because backend integration tests use Testcontainers.
 
 ### Required Verification
 
-- `dotnet test services\dotnet-api\AdvancedRag.sln --filter Indexing`
-- `Set-Location services/rag-api; uv run pytest tests -k indexing -q; Set-Location ..\..`
-
-After verification passes, commit only Task 10 and context updates:
-
-```powershell
-git add services/dotnet-api services/rag-api context/progress-tracker.md context/design-decisions.md docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md
-git commit -m "feat: add internal indexing pipeline"
-```
+- Task 11 verification commands will be defined from the implementation plan before coding.
 
 Expected result:
 
-- Commit succeeds.
-- Commit succeeds.
-- Documents can move from publish-request pending status to successful indexed publication through the internal FastAPI contract.
+- Task 11 starts from the verified internal indexing baseline.
+- Public chat retrieves only published indexed chunks and records query audit evidence.
 
 ## Open Questions
 

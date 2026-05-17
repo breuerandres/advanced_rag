@@ -70,20 +70,50 @@ public sealed class DocumentLifecycleServiceTests
     }
 
     [Fact]
-    public async Task RequestPublishAsync_AdminMarksVersionAsIndexingPending()
+    public async Task RequestPublishAsync_IndexingSuccessPublishesVersion()
     {
         var repository = new InMemoryDocumentRepository();
         repository.Documents[DocumentId] = ValidInReview();
-        var service = new DocumentLifecycleService(repository);
+        var indexing = new RecordingIndexingClient();
+        var service = new DocumentLifecycleService(repository, indexingClient: indexing);
 
         var document = await service.RequestPublishAsync(
             new RequestPublishCommand(DocumentId, ActorId, ["Admin"], "request-4"),
             CancellationToken.None);
 
-        document.State.Should().Be(InstructionState.InReview);
-        document.CurrentDraftVersion!.IndexingStatus.Should().Be(IndexingStatus.Pending);
+        document.State.Should().Be(InstructionState.Published);
+        document.CurrentDraftVersion.Should().BeNull();
+        document.CurrentPublishedVersion!.IndexingStatus.Should().Be(IndexingStatus.Succeeded);
+        document.CurrentPublishedVersion.IndexingJobId.Should().Be(indexing.JobId);
+        indexing.Requests.Should().ContainSingle(request =>
+            request.InstructionId == DocumentId
+            && request.InstructionVersionId == VersionId
+            && request.CorpusMode == "published"
+            && request.ContentHtml == "<p>Wear protective equipment.</p>");
         repository.AuditEvents.Should().ContainSingle(audit =>
             audit.EventType == "instruction.publish_requested");
+        repository.AuditEvents.Should().ContainSingle(audit =>
+            audit.EventType == "instruction.published");
+    }
+
+    [Fact]
+    public async Task RequestPublishAsync_WhenIndexingFailsLeavesDocumentInReviewWithSafeFailure()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = ValidInReview();
+        var service = new DocumentLifecycleService(
+            repository,
+            indexingClient: new FailingIndexingClient());
+
+        var act = () => service.RequestPublishAsync(
+            new RequestPublishCommand(DocumentId, ActorId, ["Admin"], "request-index-fail"),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<DocumentLifecycleException>()
+            .Where(error => error.Code == "INDEXING_FAILED");
+        repository.Documents[DocumentId].State.Should().Be(InstructionState.InReview);
+        repository.Documents[DocumentId].CurrentDraftVersion!.IndexingStatus.Should().Be(IndexingStatus.Failed);
     }
 
     [Fact]
@@ -228,7 +258,8 @@ public sealed class DocumentLifecycleServiceTests
             null,
             DateTimeOffset.UtcNow,
             ActorId,
-            IndexingStatus.Succeeded);
+            IndexingStatus.Succeeded,
+            null);
 
         return new DocumentAggregate(
             DocumentId,
@@ -280,6 +311,38 @@ public sealed class DocumentLifecycleServiceTests
         public string Sanitize(string html)
         {
             return html.Replace("<script>alert(1)</script>", string.Empty, StringComparison.Ordinal);
+        }
+    }
+
+    private sealed class RecordingIndexingClient : IInternalIndexingClient
+    {
+        public Guid JobId { get; } = Guid.Parse("55555555-5555-5555-5555-555555555555");
+
+        public List<InternalIndexingRequest> Requests { get; } = [];
+
+        public Task<InternalIndexingResult> CreateIndexingJobAsync(
+            InternalIndexingRequest request,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            return Task.FromResult(new InternalIndexingResult(JobId, "Succeeded", 3, null, null));
+        }
+    }
+
+    private sealed class FailingIndexingClient : IInternalIndexingClient
+    {
+        public Task<InternalIndexingResult> CreateIndexingJobAsync(
+            InternalIndexingRequest request,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(new InternalIndexingResult(
+                Guid.Parse("66666666-6666-6666-6666-666666666666"),
+                "Failed",
+                0,
+                "INDEXING_NO_CONTENT",
+                "Indexing failed."));
         }
     }
 }

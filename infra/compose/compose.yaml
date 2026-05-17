@@ -91,7 +91,7 @@ services:
       RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD: ${RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD}
       DOTNET_JWKS_URL: http://dotnet-api:8080/.well-known/jwks.json
       Csrf__SigningKeyFile: /run/secrets/csrf_signing_key
-      InternalServiceTokenFile: /run/secrets/internal_service_token
+      INTERNAL_SERVICE_TOKEN_FILE: /run/secrets/internal_service_token
     depends_on:
       postgres-init:
         condition: service_completed_successfully

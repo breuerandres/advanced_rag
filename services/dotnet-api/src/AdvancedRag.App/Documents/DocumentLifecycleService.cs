@@ -28,13 +28,16 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     private static readonly Regex HtmlTagPattern = new("<[^>]+>", RegexOptions.Compiled);
 
     private readonly IDocumentRepository _repository;
+    private readonly IInternalIndexingClient _indexingClient;
     private readonly IInstructionHtmlSanitizer _htmlSanitizer;
 
     public DocumentLifecycleService(
         IDocumentRepository repository,
-        IInstructionHtmlSanitizer? htmlSanitizer = null)
+        IInstructionHtmlSanitizer? htmlSanitizer = null,
+        IInternalIndexingClient? indexingClient = null)
     {
         _repository = repository;
+        _indexingClient = indexingClient ?? new UnavailableInternalIndexingClient();
         _htmlSanitizer = htmlSanitizer ?? new PassthroughInstructionHtmlSanitizer();
     }
 
@@ -105,7 +108,8 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 null,
                 null,
                 null,
-                IndexingStatus.None);
+                IndexingStatus.None,
+                null);
         }
         else
         {
@@ -124,6 +128,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 Audience = normalizedAudience,
                 ContentHtml = normalizedContent,
                 IndexingStatus = IndexingStatus.None,
+                IndexingJobId = null,
             };
         }
 
@@ -230,19 +235,78 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 "Only in-review drafts can be submitted for publication.");
         }
 
-        var updated = document with
+        var pending = document with
         {
             CurrentDraftVersion = draft with { IndexingStatus = IndexingStatus.Pending },
             UpdatedAt = DateTimeOffset.UtcNow,
         };
 
         await _repository.SaveAsync(
-            updated,
+            pending,
             [],
             [Audit(command.ActorUserId, "instruction.publish_requested", document.Id, command.RequestId)],
             ct);
 
-        return updated;
+        var result = await _indexingClient.CreateIndexingJobAsync(
+            new InternalIndexingRequest(
+                document.Id,
+                draft.Id,
+                draft.ContentHtml,
+                "published",
+                Retry: draft.IndexingStatus == IndexingStatus.Failed),
+            ct);
+
+        if (!string.Equals(result.Status, "Succeeded", StringComparison.Ordinal))
+        {
+            var failed = pending with
+            {
+                CurrentDraftVersion = draft with
+                {
+                    IndexingStatus = IndexingStatus.Failed,
+                    IndexingJobId = result.JobId,
+                },
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            await _repository.SaveAsync(
+                failed,
+                [],
+                [Audit(command.ActorUserId, "instruction.indexing_failed", document.Id, command.RequestId)],
+                ct);
+            throw new DocumentLifecycleException(
+                "INDEXING_FAILED",
+                502,
+                "Pre-publication indexing failed.",
+                new Dictionary<string, object?>
+                {
+                    ["indexingJobId"] = result.JobId,
+                    ["errorCode"] = result.ErrorCode,
+                });
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var publishedVersion = draft with
+        {
+            State = InstructionVersionState.Published,
+            PublishedAt = now,
+            PublishedByUserId = command.ActorUserId,
+            IndexingStatus = IndexingStatus.Succeeded,
+            IndexingJobId = result.JobId,
+        };
+        var published = pending with
+        {
+            State = InstructionState.Published,
+            CurrentDraftVersion = null,
+            CurrentPublishedVersion = publishedVersion,
+            UpdatedAt = now,
+        };
+
+        await _repository.SaveAsync(
+            published,
+            [],
+            [Audit(command.ActorUserId, "instruction.published", document.Id, command.RequestId)],
+            ct);
+
+        return published;
     }
 
     public async Task<DocumentAggregate> ArchiveAsync(ArchiveInstructionCommand command, CancellationToken ct)
@@ -308,11 +372,12 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             source?.Audience ?? string.Empty,
             source?.ContentHtml ?? string.Empty,
             now,
-            null,
-            null,
-            null,
-            null,
-            IndexingStatus.None);
+                null,
+                null,
+                null,
+                null,
+                IndexingStatus.None,
+                null);
         var updated = document with
         {
             State = InstructionState.Draft,
@@ -439,5 +504,21 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             documentId,
             requestId,
             new Dictionary<string, object?> { ["instructionId"] = documentId });
+    }
+}
+
+internal sealed class UnavailableInternalIndexingClient : IInternalIndexingClient
+{
+    public Task<InternalIndexingResult> CreateIndexingJobAsync(
+        InternalIndexingRequest request,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(new InternalIndexingResult(
+            Guid.Empty,
+            "Failed",
+            0,
+            "INDEXING_CLIENT_NOT_CONFIGURED",
+            "Internal indexing client is not configured."));
     }
 }

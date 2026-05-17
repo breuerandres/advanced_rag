@@ -51,6 +51,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Review Return Authority](#2026-05-11---review-return-authority)
 - [Indexing Ownership](#2026-05-11---indexing-ownership)
 - [Task 9 Document Lifecycle And Assisted Imports](#2026-05-17---task-9-document-lifecycle-and-assisted-imports)
+- [Task 10 Internal Indexing Pipeline](#2026-05-17---task-10-internal-indexing-pipeline)
 
 ### Imports
 
@@ -1048,6 +1049,22 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** The `.NET` app schema now tracks `instruction_versions.indexing_status`. The document service sanitizes stored instruction HTML through `Ganss.Xss` `HtmlSanitizer` `9.0.892`, extracts DOCX text with `DocumentFormat.OpenXml` `3.5.1`, and extracts PDF text with `PdfPig` `0.1.14`. Management document UI strings are Spanish, while code and project context remain English.
 
 **Evidence:** Verified on 2026-05-17 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Document|Import|Lifecycle"`, `pnpm.cmd --dir apps\manage-web test -- --run`, `dotnet test services\dotnet-api\AdvancedRag.sln`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. .NET verification emitted NU1900 vulnerability-metadata warnings because NuGet could not fetch `https://api.nuget.org/v3/index.json`; tests and builds still passed.
+
+## 2026-05-17 - Task 10 Internal Indexing Pipeline
+
+**Context:** Task 10 connects `.NET` publish requests to the FastAPI-owned indexing pipeline. The implementation must preserve service ownership: `.NET` owns document lifecycle state in `app`, while FastAPI owns `rag.indexing_jobs`, chunking, embeddings, and `rag.document_chunks`.
+
+**Options Considered:** Keep Task 9's pending-only publish behavior, add a callback/status polling protocol, or keep pre-publication indexing synchronous from `.NET`'s perspective by awaiting the internal FastAPI indexing result during the publish request.
+
+**Decision:** Implement synchronous pre-publication indexing for the MVP. `.NET` calls FastAPI's Docker-network-only `POST /internal/indexing-jobs` endpoint with `X-Internal-Service-Token`. FastAPI validates the token, creates an indexing job, chunks saved normalized HTML, requests embeddings through an embedding provider abstraction with configured dimensions, stores active chunks in `rag.document_chunks`, and returns a safe job result. `.NET` transitions the version to `Published` only on `Succeeded`; failed indexing leaves the document `In Review` with `IndexingStatus.Failed` and exposes safe `INDEXING_FAILED` behavior.
+
+**Rationale:** The architecture already requires publication to be blocked until successful pre-publication indexing. Synchronous indexing is simpler for the MVP than a callback or poller and keeps all public retrieval dependent on successfully indexed published versions.
+
+**Tradeoffs:** Publish requests can take longer while chunking and embeddings run. This is acceptable for the MVP because publishing is an administrative workflow, not a high-volume public chat path. A later background worker can preserve the same internal contract while changing execution mechanics.
+
+**Consequences:** FastAPI now owns the first executable internal indexing contract and uses a fakeable embedding provider in tests. `.NET` stores the returned indexing job id on the published version and preserves safe failure semantics. Compose must expose the internal service token file to FastAPI through `INTERNAL_SERVICE_TOKEN_FILE`.
+
+**Evidence:** Verified on 2026-05-17 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Indexing`, `Set-Location services/rag-api; uv run pytest tests -k indexing -q; Set-Location ..\..`, `dotnet test services/dotnet-api/AdvancedRag.sln`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`.
 
 ## 2026-05-14 - Backend HTTP Organization
 

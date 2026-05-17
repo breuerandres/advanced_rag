@@ -1020,7 +1020,7 @@ Expected: commit succeeds.
 - Modify: `rag.indexing_jobs`, `rag.document_chunks`
 - Test: .NET integration tests and FastAPI indexing tests
 
-- [ ] **Step 1: Write .NET publish integration tests**
+- [x] **Step 1: Write .NET publish integration tests**
 
 Cover:
 
@@ -1032,7 +1032,7 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 2: Write FastAPI internal indexing tests**
+- [x] **Step 2: Write FastAPI internal indexing tests**
 
 Cover:
 
@@ -1044,15 +1044,15 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 3: Implement indexing contract**
+- [x] **Step 3: Implement indexing contract**
 
 Implement Docker-network-only endpoint in FastAPI and .NET client. Use idempotent document/version references so retry does not duplicate active chunks.
 
-- [ ] **Step 4: Implement chunking and embedding storage**
+- [x] **Step 4: Implement chunking and embedding storage**
 
 Implement deterministic chunking, embedding call abstraction, and storage in `rag.document_chunks`. Tests should use fake embedding provider returning 1536-dimensional vectors.
 
-- [ ] **Step 5: Verify indexing pipeline**
+- [x] **Step 5: Verify indexing pipeline**
 
 Run:
 
@@ -1063,7 +1063,7 @@ Set-Location services/rag-api; uv run pytest tests -k indexing -q; Set-Location 
 
 Expected: tests pass.
 
-- [ ] **Step 6: Commit indexing pipeline**
+- [x] **Step 6: Commit indexing pipeline**
 
 Run:
 

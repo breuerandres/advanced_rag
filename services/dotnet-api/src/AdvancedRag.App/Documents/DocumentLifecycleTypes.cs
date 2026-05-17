@@ -75,7 +75,8 @@ public sealed record DocumentVersionRecord(
     Guid? SubmittedForReviewByUserId,
     DateTimeOffset? PublishedAt,
     Guid? PublishedByUserId,
-    IndexingStatus IndexingStatus);
+    IndexingStatus IndexingStatus,
+    Guid? IndexingJobId);
 
 public sealed record DocumentAggregate(
     Guid Id,
@@ -117,7 +118,8 @@ public sealed record DocumentAggregate(
                 null,
                 null,
                 null,
-                IndexingStatus.None),
+                IndexingStatus.None,
+                null),
             null,
             allowedGroupIds,
             actorUserId,
@@ -170,6 +172,27 @@ public interface IDocumentRepository
         DocumentAggregate document,
         IReadOnlyList<ReviewCommentRecord> comments,
         IReadOnlyList<DocumentAuditEvent> auditEvents,
+        CancellationToken ct);
+}
+
+public sealed record InternalIndexingRequest(
+    Guid InstructionId,
+    Guid InstructionVersionId,
+    string ContentHtml,
+    string CorpusMode,
+    bool Retry);
+
+public sealed record InternalIndexingResult(
+    Guid JobId,
+    string Status,
+    int ChunkCount,
+    string? ErrorCode,
+    string? ErrorMessage);
+
+public interface IInternalIndexingClient
+{
+    Task<InternalIndexingResult> CreateIndexingJobAsync(
+        InternalIndexingRequest request,
         CancellationToken ct);
 }
 

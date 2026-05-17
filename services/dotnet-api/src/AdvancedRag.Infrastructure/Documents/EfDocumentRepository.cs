@@ -175,6 +175,7 @@ public sealed class EfDocumentRepository : IDocumentRepository
                 SubmittedForReviewByUserId = version.SubmittedForReviewByUserId,
                 PublishedAt = version.PublishedAt,
                 PublishedByUserId = version.PublishedByUserId,
+                IndexingJobId = version.IndexingJobId,
                 IndexingStatus = ToStorage(version.IndexingStatus),
             });
             return;
@@ -189,6 +190,7 @@ public sealed class EfDocumentRepository : IDocumentRepository
         existing.SubmittedForReviewByUserId = version.SubmittedForReviewByUserId;
         existing.PublishedAt = version.PublishedAt;
         existing.PublishedByUserId = version.PublishedByUserId;
+        existing.IndexingJobId = version.IndexingJobId;
         existing.IndexingStatus = ToStorage(version.IndexingStatus);
     }
 
@@ -208,7 +210,8 @@ public sealed class EfDocumentRepository : IDocumentRepository
             version.SubmittedForReviewByUserId,
             version.PublishedAt,
             version.PublishedByUserId,
-            ParseEnum<IndexingStatus>(version.IndexingStatus));
+            ParseEnum<IndexingStatus>(version.IndexingStatus),
+            version.IndexingJobId);
     }
 
     private static TEnum ParseEnum<TEnum>(string value)

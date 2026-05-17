@@ -48,6 +48,26 @@ builder.Services.AddScoped<IUserAdministrationRepository, EfUserAdministrationRe
 builder.Services.AddScoped<IDocumentLifecycleService, DocumentLifecycleService>();
 builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
 builder.Services.AddScoped<IDocumentImportExtractionService, DocumentImportExtractionService>();
+builder.Services.AddHttpClient("InternalIndexing", (services, client) =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var baseUrl = configuration["RagApi:InternalBaseUrl"]
+        ?? configuration["Rag:InternalBaseUrl"]
+        ?? "http://rag-api:8000";
+    client.BaseAddress = new Uri(baseUrl);
+});
+builder.Services.AddScoped<IInternalIndexingClient>(services =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var http = services.GetRequiredService<IHttpClientFactory>().CreateClient("InternalIndexing");
+    var token = SecretConfiguration.Read(
+        configuration,
+        "InternalService:Token",
+        configuration["InternalService:TokenFile"] is null
+            ? "InternalServiceTokenFile"
+            : "InternalService:TokenFile");
+    return new FastApiInternalIndexingClient(http, token);
+});
 builder.Services.AddSingleton<IInstructionHtmlSanitizer, GanssInstructionHtmlSanitizer>();
 builder.Services.AddSingleton<IPasswordHashService, Pbkdf2PasswordHashService>();
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
