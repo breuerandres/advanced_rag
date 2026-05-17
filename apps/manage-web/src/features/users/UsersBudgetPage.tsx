@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/button'
 type LoadState = 'loading' | 'ready' | 'error'
 type UserStatusFilter = 'all' | 'active' | 'inactive'
 
-export function UsersBudgetPage() {
+export function UsersBudgetPage({ onOpenDocuments }: { onOpenDocuments?: () => void }) {
   const [users, setUsers] = useState<UserSummary[]>([])
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -79,6 +79,17 @@ export function UsersBudgetPage() {
           <span>Advanced RAG</span>
         </div>
         <nav>
+          <a
+            className="nav-link"
+            href="#documentos"
+            onClick={(event) => {
+              event.preventDefault()
+              onOpenDocuments?.()
+            }}
+          >
+            <Pencil size={18} />
+            <span>Documentos</span>
+          </a>
           <a className="nav-link nav-link-active" href="#usuarios">
             <Users size={18} />
             <span>Usuarios</span>

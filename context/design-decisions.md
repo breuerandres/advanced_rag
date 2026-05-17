@@ -50,6 +50,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Review Comments](#2026-05-11---review-comments)
 - [Review Return Authority](#2026-05-11---review-return-authority)
 - [Indexing Ownership](#2026-05-11---indexing-ownership)
+- [Task 9 Document Lifecycle And Assisted Imports](#2026-05-17---task-9-document-lifecycle-and-assisted-imports)
 
 ### Imports
 
@@ -1031,6 +1032,22 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** New users receive the default USD 5 monthly AI budget through `app.user_ai_budget_limits`. Role and group changes recompute the effective access scope hash used by chat tokens and future retrieval filtering. Mutating user/group endpoints rely on the Task 7 signed double-submit CSRF middleware. Frontend calls continue to use same-origin `/api/*`, credentials-included fetches, request IDs, and the shared error envelope.
 
 **Evidence:** Verified on 2026-05-14 with `docker version`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Users|Groups|Budget"`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web test -- --run`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. Earlier targeted verification also passed with `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --filter UserAdministration`, `dotnet test services\dotnet-api\tests\AdvancedRag.Api.Tests\AdvancedRag.Api.Tests.csproj --filter UserAdministration`, and `git diff --check`.
+
+## 2026-05-17 - Task 9 Document Lifecycle And Assisted Imports
+
+**Context:** Task 9 adds the first production document management workflow after the `.NET` HTTP boundary moved to MVC controllers. The implementation must support draft editing, review transitions, assisted PDF/DOCX text extraction, archive/restore actions, audit events, safe error envelopes, and management UI states without implementing the FastAPI indexing pipeline early.
+
+**Options Considered:** Implement publish end-to-end with FastAPI indexing during Task 9, keep Task 9 focused on `.NET` lifecycle plus import extraction, or defer document UI until after indexing.
+
+**Decision:** Keep Task 9 focused on `.NET` document lifecycle, import extraction, management UI, and pre-indexing status. Publish requests mark the current draft version as indexing `Pending`; the actual internal FastAPI indexing endpoint, chunking, embeddings, and publish-on-success behavior remain Task 10 scope.
+
+**Rationale:** The implementation plan separates lifecycle/import work from internal indexing. Preserving that boundary keeps Task 9 verifiable without introducing a partial FastAPI indexing contract or mixing `app` and `rag` responsibilities.
+
+**Tradeoffs:** The management UI can show pending indexing status, but a document is not fully published until Task 10 implements the indexing pipeline and success transition. This is acceptable because public chat retrieval is not implemented yet.
+
+**Consequences:** The `.NET` app schema now tracks `instruction_versions.indexing_status`. The document service sanitizes stored instruction HTML through `Ganss.Xss` `HtmlSanitizer` `9.0.892`, extracts DOCX text with `DocumentFormat.OpenXml` `3.5.1`, and extracts PDF text with `PdfPig` `0.1.14`. Management document UI strings are Spanish, while code and project context remain English.
+
+**Evidence:** Verified on 2026-05-17 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Document|Import|Lifecycle"`, `pnpm.cmd --dir apps\manage-web test -- --run`, `dotnet test services\dotnet-api\AdvancedRag.sln`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. .NET verification emitted NU1900 vulnerability-metadata warnings because NuGet could not fetch `https://api.nuget.org/v3/index.json`; tests and builds still passed.
 
 ## 2026-05-14 - Backend HTTP Organization
 

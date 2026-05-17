@@ -111,6 +111,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(item => item.PublishedAt).HasColumnName("published_at");
             entity.Property(item => item.PublishedByUserId).HasColumnName("published_by_user_id");
             entity.Property(item => item.IndexingJobId).HasColumnName("indexing_job_id");
+            entity.Property(item => item.IndexingStatus).HasColumnName("indexing_status").HasMaxLength(32).HasDefaultValue("None").IsRequired();
             entity.HasOne<Instruction>().WithMany().HasForeignKey(item => item.InstructionId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.SubmittedForReviewByUserId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.PublishedByUserId).OnDelete(DeleteBehavior.Restrict);

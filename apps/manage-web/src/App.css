@@ -327,10 +327,25 @@ input[type='number'] {
 }
 
 input[type='search'],
+input[type='text'],
 select {
   min-height: 38px;
   color: #111827;
   font: inherit;
+}
+
+input[type='text'],
+textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #111827;
+  font: inherit;
+}
+
+textarea {
+  min-height: 140px;
+  resize: vertical;
 }
 
 select {
@@ -338,6 +353,21 @@ select {
   border-radius: 6px;
   background: #ffffff;
   padding: 8px 10px;
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.document-dialog {
+  width: min(760px, 100%);
+}
+
+.document-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
 }
 
 .dialog-actions {

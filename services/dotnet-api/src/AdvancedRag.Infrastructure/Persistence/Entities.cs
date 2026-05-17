@@ -62,6 +62,7 @@ public sealed class InstructionVersion
     public DateTimeOffset? PublishedAt { get; set; }
     public Guid? PublishedByUserId { get; set; }
     public Guid? IndexingJobId { get; set; }
+    public required string IndexingStatus { get; set; }
 }
 
 public sealed class InstructionPermission

@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Start Task 9 document lifecycle and assisted imports after the backend HTTP refactor.
+- Finish Task 9 document lifecycle and assisted imports, then move to Task 10 internal indexing pipeline.
 
 ## Completed
 
@@ -145,52 +145,57 @@
 - Fixed `AppDbContextFactory` so EF design-time commands read `ConnectionStrings__AppDatabase` from the environment instead of using the stale hardcoded local password.
 - User verified the local Compose/Postgres auth and user administration path manually: `GET /api/csrf`, `POST /api/auth/login`, `POST /api/users`, and `GET /api/users`.
 - Added .NET startup migration execution behind `Database__RunMigrationsOnStartup=true` in Compose so the `dotnet-api` container applies EF Core `app` schema migrations before serving requests.
+- Added Task 9 document lifecycle application tests for review readiness validation, send-to-review, publish request authorization, return-to-draft comments, edit-after-publish draft creation, archive rules, restore behavior, and server-side HTML sanitization.
+- Implemented Task 9 `.NET` document lifecycle use cases, EF repository, MVC documents controller, API DTOs, and `app.instruction_versions.indexing_status` migration column. Publish requests now mark the draft version as indexing `Pending`; the actual FastAPI indexing pipeline remains Task 10 scope.
+- Added Task 9 assisted import extraction tests and adapters using `DocumentFormat.OpenXml` `3.5.1` for DOCX, `PdfPig` `0.1.14` for PDF, and `HtmlSanitizer` `9.0.892` for stored instruction HTML sanitization.
+- Added the management document UI with document list filters, indexing status display, draft editor dirty state, import loading/success/error behavior, review validation, and archive/restore actions.
+- Verified Task 9 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Document|Import|Lifecycle"`, `pnpm.cmd --dir apps\manage-web test -- --run`, `dotnet test services\dotnet-api\AdvancedRag.sln`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. Verification passed; .NET commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`.
 
 ## In Progress
 
-- Task 9 document lifecycle and assisted imports have not started yet.
+- Task 9 document lifecycle and assisted imports are complete, verified, and committed with message `feat: add document lifecycle and assisted imports`.
 
 ## Next Up
 
-- Implement Task 9 document lifecycle and assisted imports.
+- Implement Task 10 internal indexing pipeline.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Task 9 document lifecycle and assisted imports.
+- Task 10 internal indexing pipeline.
 
 ### Why This Comes Next
 
-- The backend HTTP refactor is complete and the .NET boundary now uses MVC controllers plus feature DTO folders.
-- Task 9 adds the first major document lifecycle endpoints, so it should build on the new controller structure rather than the old endpoint-module style.
+- Task 9 code, verification, and commit are complete.
+- The next safe step is to implement the internal indexing pipeline that turns pending publish requests into successful indexed publication.
 
 ### Scope
 
-- Implement Task 9 only.
-- Preserve the current shared error envelope, cookie behavior, authorization model, and service boundaries.
+- Implement Task 10 only.
+- Preserve service boundaries: `.NET` requests indexing and FastAPI owns `rag.indexing_jobs`, chunking, embeddings, and `rag.document_chunks`.
 
 ### User-Owned Steps
 
-- Keep Docker Desktop running before verification because the .NET API tests use Testcontainers.
+- Keep Docker Desktop running before verification because both `.NET` and FastAPI tests use Testcontainers.
 
 ### Required Verification
 
-- `dotnet test services\dotnet-api\AdvancedRag.sln`
-- `dotnet build services\dotnet-api\AdvancedRag.sln`
+- `dotnet test services\dotnet-api\AdvancedRag.sln --filter Indexing`
+- `Set-Location services/rag-api; uv run pytest tests -k indexing -q; Set-Location ..\..`
 
-After verification passes, commit only the MVC refactor and context updates:
+After verification passes, commit only Task 10 and context updates:
 
 ```powershell
-git add services/dotnet-api/src/AdvancedRag.Api context/code-standards.md context/design-decisions.md context/progress-tracker.md
-git commit -m "refactor: move dotnet api routes to mvc controllers"
+git add services/dotnet-api services/rag-api context/progress-tracker.md context/design-decisions.md docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md
+git commit -m "feat: add internal indexing pipeline"
 ```
 
 Expected result:
 
 - Commit succeeds.
-- Public API behavior remains unchanged.
-- Next safe work becomes Task 9 document lifecycle and assisted imports.
+- Commit succeeds.
+- Documents can move from publish-request pending status to successful indexed publication through the internal FastAPI contract.
 
 ## Open Questions
 

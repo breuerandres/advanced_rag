@@ -99,9 +99,9 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | Logging | `Serilog` + `Serilog.Sinks.File` (JSON formatter) + `Serilog.AspNetCore` | Daily rolling JSON files mounted on volume. Use `Serilog.Enrichers.CorrelationId` for `X-Request-ID`. |
 | HTTP client | `HttpClient` via `IHttpClientFactory` + `Microsoft.Extensions.Http.Polly` | Retry with jitter and circuit breaker for `.NET → FastAPI` internal calls. |
 | OpenAI | Not used directly from .NET in the MVP | All AI provider calls live in FastAPI. |
-| PDF extraction | `PdfPig` | Assisted import only. |
-| DOCX extraction | `DocumentFormat.OpenXml` | Assisted import only. |
-| HTML sanitization | `Ganss.Xss` (HtmlSanitizer) | Sanitize stored normalized instruction HTML and any review comment input that may render HTML. |
+| PDF extraction | `PdfPig` `0.1.14` | Assisted import only. |
+| DOCX extraction | `DocumentFormat.OpenXml` `3.5.1` | Assisted import only. |
+| HTML sanitization | `Ganss.Xss` via `HtmlSanitizer` `9.0.892` | Sanitize stored normalized instruction HTML and any review comment input that may render HTML. |
 | Authentication | Cookie authentication plus local users in `app.users`; hand-rolled PBKDF2-SHA256 password hashing using `Rfc2898DeriveBytes` | Decided during Task 7 implementation. Session cookies are host-only `__Host-advanced-rag-session` cookies. |
 | CSRF | Signed double-submit token using `__Host-CSRF` cookie plus `X-CSRF-Token` header | HMAC secret is shared with FastAPI through `csrf_signing_key`; see `architecture.md`. |
 | JWT signing/validation | `System.IdentityModel.Tokens.Jwt` `8.14.0` + `Microsoft.IdentityModel.Tokens` | RS256, `kid` header, two active keys for rotation. |

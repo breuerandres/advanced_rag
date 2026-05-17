@@ -940,7 +940,7 @@ Expected: commit succeeds.
 - Modify: `apps/manage-web` document screens
 - Test: `.NET` lifecycle/import tests and management UI tests
 
-- [ ] **Step 1: Write lifecycle domain tests**
+- [x] **Step 1: Write lifecycle domain tests**
 
 Cover:
 
@@ -953,11 +953,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 2: Implement lifecycle use cases**
+- [x] **Step 2: Implement lifecycle use cases**
 
 Implement state transitions in application services with authorization checks, validation errors, audit events, and request IDs.
 
-- [ ] **Step 3: Write import extraction tests**
+- [x] **Step 3: Write import extraction tests**
 
 Cover:
 
@@ -969,11 +969,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 4: Implement assisted import adapters**
+- [x] **Step 4: Implement assisted import adapters**
 
 Use `DocumentFormat.OpenXml` for DOCX and `PdfPig` for PDF. Return extracted text and safe metadata. Do not persist file bytes.
 
-- [ ] **Step 5: Write management document UI tests**
+- [x] **Step 5: Write management document UI tests**
 
 Cover:
 
@@ -986,11 +986,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 6: Implement management document UI**
+- [x] **Step 6: Implement management document UI**
 
 Build document list, detail, editor, import control, lifecycle actions, and audit/status panels.
 
-- [ ] **Step 7: Verify document lifecycle**
+- [x] **Step 7: Verify document lifecycle**
 
 Run:
 
@@ -1001,7 +1001,7 @@ pnpm --dir apps/manage-web test -- --run
 
 Expected: tests pass.
 
-- [ ] **Step 8: Commit document lifecycle**
+- [x] **Step 8: Commit document lifecycle**
 
 Run:
 

@@ -19,6 +19,46 @@ const usersResponse = [
   },
 ]
 
+const documentsResponse = [
+  {
+    id: '55555555-5555-5555-5555-555555555555',
+    title: 'Politica de seguridad',
+    state: 'Draft',
+    draftVersionNumber: 1,
+    publishedVersionNumber: null,
+    indexingStatus: 'None',
+    updatedAt: '2026-05-17T12:00:00Z',
+  },
+  {
+    id: '66666666-6666-6666-6666-666666666666',
+    title: 'Procedimiento de compras',
+    state: 'In Review',
+    draftVersionNumber: 2,
+    publishedVersionNumber: 1,
+    indexingStatus: 'Pending',
+    updatedAt: '2026-05-17T13:00:00Z',
+  },
+]
+
+const documentDetail = {
+  id: '55555555-5555-5555-5555-555555555555',
+  title: 'Politica de seguridad',
+  state: 'Draft',
+  currentDraftVersion: {
+    id: '77777777-7777-7777-7777-777777777777',
+    versionNumber: 1,
+    state: 'Draft',
+    title: 'Politica de seguridad',
+    instructionType: 'Politica',
+    audience: 'Todos',
+    contentHtml: '<p>Usar credencial visible.</p>',
+    indexingStatus: 'None',
+  },
+  currentPublishedVersion: null,
+  allowedGroupIds: ['22222222-2222-2222-2222-222222222222'],
+  updatedAt: '2026-05-17T12:00:00Z',
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -181,6 +221,163 @@ describe('management users and budgets', () => {
     expect(
       await screen.findByText('No se pudo actualizar el presupuesto. Referencia: request-123.'),
     ).toBeInTheDocument()
+  })
+})
+
+describe('management documents', () => {
+  test('shows document list filters and indexing status', async () => {
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, [{ id: '22222222-2222-2222-2222-222222222222', name: 'Operaciones' }]),
+      jsonResponse(200, documentsResponse),
+    ])
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('link', { name: 'Documentos' }))
+
+    expect(await screen.findByText('Politica de seguridad')).toBeInTheDocument()
+    expect(screen.getByText('Procedimiento de compras')).toBeInTheDocument()
+    expect(screen.getByText('Indexacion pendiente')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Estado del documento' }), 'Draft')
+
+    expect(screen.getByText('Politica de seguridad')).toBeInTheDocument()
+    expect(screen.queryByText('Procedimiento de compras')).not.toBeInTheDocument()
+  })
+
+  test('opens editor, tracks dirty state, and sends a valid draft to review', async () => {
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, [{ id: '22222222-2222-2222-2222-222222222222', name: 'Operaciones' }]),
+      jsonResponse(200, documentsResponse),
+      jsonResponse(200, documentDetail),
+      csrfResponse(),
+      jsonResponse(200, { ...documentDetail, title: 'Politica actualizada' }),
+      csrfResponse(),
+      jsonResponse(200, { ...documentDetail, state: 'In Review' }),
+    ])
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('link', { name: 'Documentos' }))
+    await user.click(await screen.findByRole('button', { name: 'Editar Politica de seguridad' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Titulo' }))
+    await user.type(screen.getByRole('textbox', { name: 'Titulo' }), 'Politica actualizada')
+
+    expect(screen.getByText('Cambios sin guardar')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Guardar borrador' }))
+    expect(await screen.findByText('Borrador guardado.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Enviar a revision' }))
+    expect(await screen.findByText('Documento enviado a revision.')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/documents/55555555-5555-5555-5555-555555555555/send-to-review',
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  test('shows review validation errors before send to review', async () => {
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, documentsResponse),
+      jsonResponse(200, { ...documentDetail, allowedGroupIds: [], currentDraftVersion: { ...documentDetail.currentDraftVersion, title: '', contentHtml: '' } }),
+    ])
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('link', { name: 'Documentos' }))
+    await user.click(await screen.findByRole('button', { name: 'Editar Politica de seguridad' }))
+    await user.click(await screen.findByRole('button', { name: 'Enviar a revision' }))
+
+    expect(screen.getByText('Completa titulo, tipo, audiencia, grupos y contenido antes de enviar a revision.')).toBeInTheDocument()
+  })
+
+  test('imports extracted text and shows safe import errors', async () => {
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, documentsResponse),
+      jsonResponse(200, documentDetail),
+      csrfResponse(),
+      jsonResponse(200, {
+        text: 'Contenido importado',
+        metadata: {
+          originalFilename: 'manual.docx',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          sizeBytes: 2048,
+          sha256Hash: 'hash',
+          extractionStatus: 'Extracted',
+        },
+      }),
+      csrfResponse(),
+      jsonResponse(422, {
+        error: {
+          code: 'IMPORT_TEXT_NOT_EXTRACTABLE',
+          message: 'Uploaded file has no extractable text.',
+          details: null,
+          requestId: 'request-import',
+        },
+      }),
+    ])
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('link', { name: 'Documentos' }))
+    await user.click(await screen.findByRole('button', { name: 'Editar Politica de seguridad' }))
+    await user.upload(
+      await screen.findByLabelText('Importar PDF o DOCX'),
+      new File(['docx'], 'manual.docx', {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      }),
+    )
+
+    expect(await screen.findByDisplayValue('Contenido importado')).toBeInTheDocument()
+    expect(screen.getByText('Texto importado desde manual.docx.')).toBeInTheDocument()
+
+    await user.upload(
+      screen.getByLabelText('Importar PDF o DOCX'),
+      new File(['pdf'], 'scan.pdf', { type: 'application/pdf' }),
+    )
+
+    expect(
+      await screen.findByText('No se pudo extraer texto del archivo. Referencia: request-import.'),
+    ).toBeInTheDocument()
+  })
+
+  test('archives and restores documents from the list', async () => {
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, [
+        documentsResponse[0],
+        { ...documentsResponse[1], id: '88888888-8888-8888-8888-888888888888', state: 'Archived' },
+      ]),
+      csrfResponse(),
+      jsonResponse(200, { ...documentDetail, state: 'Archived' }),
+      csrfResponse(),
+      jsonResponse(200, { ...documentDetail, id: '88888888-8888-8888-8888-888888888888', state: 'Draft' }),
+    ])
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('link', { name: 'Documentos' }))
+    await user.click(await screen.findByRole('button', { name: 'Archivar Politica de seguridad' }))
+    expect(await screen.findByText('Documento archivado.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Restaurar Procedimiento de compras' }))
+    expect(await screen.findByText('Documento restaurado.')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/documents/88888888-8888-8888-8888-888888888888/restore',
+      expect.objectContaining({ method: 'POST' }),
+    )
   })
 })
 

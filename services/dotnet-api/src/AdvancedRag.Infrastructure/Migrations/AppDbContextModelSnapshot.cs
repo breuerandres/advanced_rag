@@ -297,6 +297,13 @@ namespace AdvancedRag.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("indexing_job_id");
 
+                    b.Property<string>("IndexingStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("indexing_status")
+                        .HasDefaultValue("None");
+
                     b.Property<Guid>("InstructionId")
                         .HasColumnType("uuid")
                         .HasColumnName("instruction_id");
