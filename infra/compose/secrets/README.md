@@ -29,12 +29,15 @@ If you want to rotate local stack-owned secrets, run:
 
 The script generates:
 
-- Four random Postgres role passwords.
+- The Postgres admin password only when `postgres_admin_password.txt` does not already exist.
+- Three random runtime Postgres role passwords.
 - A random CSRF HMAC signing key.
 - A random internal service token shared by `.NET` and FastAPI.
 - A valid RS256 `jwt_signing_keys.json` document with one `current` key.
 
 The script never creates, overwrites, or rotates `openai_api_key.txt`. That file contains the external OpenAI API key and must be created or updated manually by the developer/operator.
+
+`postgres_admin_password.txt` is intentionally not overwritten once it exists. A running Postgres volume stores the superuser password internally; changing only the Compose secret file breaks `postgres-init` authentication. For a local throwaway reset, remove the Compose volume and generate fresh secrets. For a data-preserving rotation, update the database password with `ALTER ROLE postgres WITH PASSWORD ...` before changing the secret file.
 
 To create the OpenAI key file manually:
 

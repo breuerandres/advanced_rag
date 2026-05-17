@@ -177,6 +177,7 @@
 - Verified the local secrets generator syntax without writing secrets using `[scriptblock]::Create(...)`, which returned `PowerShell syntax OK`.
 - Corrected the local secret generator so it never creates, overwrites, or rotates `openai_api_key.txt`; the OpenAI API key remains a developer/operator-managed external secret. The script now only warns if the file is missing.
 - Fixed the local secret generator for Windows PowerShell 5.1 compatibility by replacing `RandomNumberGenerator.Fill(...)` with `RandomNumberGenerator.Create().GetBytes(...)`. Verified parser syntax and random secret generation without writing local secret files.
+- Diagnosed a local `postgres-init` failure after secret overwrite: `postgres_admin_password.txt` was rotated while the existing `postgres-data` volume still had the previous `postgres` password. Updated the local secret generator so it creates the Postgres admin password only when missing and never overwrites it automatically.
 
 ## In Progress
 

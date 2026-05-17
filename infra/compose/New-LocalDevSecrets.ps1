@@ -39,7 +39,13 @@ function Write-SecretFile {
     Write-Host "Wrote $Name"
 }
 
-Write-SecretFile -Name "postgres_admin_password.txt" -Value (New-Base64UrlSecret -Bytes 32)
+$postgresAdminPasswordPath = Join-Path $secretsDir "postgres_admin_password.txt"
+if (Test-Path $postgresAdminPasswordPath) {
+    Write-Host "Keeping existing postgres_admin_password.txt"
+}
+else {
+    Write-SecretFile -Name "postgres_admin_password.txt" -Value (New-Base64UrlSecret -Bytes 32)
+}
 Write-SecretFile -Name "postgres_app_password.txt" -Value (New-Base64UrlSecret -Bytes 32)
 Write-SecretFile -Name "postgres_rag_password.txt" -Value (New-Base64UrlSecret -Bytes 32)
 Write-SecretFile -Name "postgres_reporting_password.txt" -Value (New-Base64UrlSecret -Bytes 32)
