@@ -66,8 +66,19 @@ public sealed class AppDbContextMigrationTests
                 order by table_name
                 """)
             .ToListAsync();
+        var instructionVersionColumns = await db.Database
+            .SqlQueryRaw<string>(
+                """
+                select column_name::text as "Value"
+                from information_schema.columns
+                where table_schema = 'app'
+                  and table_name = 'instruction_versions'
+                order by column_name
+                """)
+            .ToListAsync();
 
         schemas.Should().BeEquivalentTo(["app"]);
         appTables.Should().BeEquivalentTo(ExpectedAppTables);
+        instructionVersionColumns.Should().Contain("indexing_status");
     }
 }

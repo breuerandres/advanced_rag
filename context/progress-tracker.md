@@ -150,6 +150,7 @@
 - Added Task 9 assisted import extraction tests and adapters using `DocumentFormat.OpenXml` `3.5.1` for DOCX, `PdfPig` `0.1.14` for PDF, and `HtmlSanitizer` `9.0.892` for stored instruction HTML sanitization.
 - Added the management document UI with document list filters, indexing status display, draft editor dirty state, import loading/success/error behavior, review validation, and archive/restore actions.
 - Verified Task 9 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Document|Import|Lifecycle"`, `pnpm.cmd --dir apps\manage-web test -- --run`, `dotnet test services\dotnet-api\AdvancedRag.sln`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. Verification passed; .NET commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`.
+- Fixed a Task 9 EF migration discovery bug: `20260517090000_AddInstructionVersionIndexingStatus` was missing the EF migration metadata designer partial, so startup migrations did not add `app.instruction_versions.indexing_status` in local Compose. Added a migration test assertion for the column and verified it with `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter EfMigration_CreatesOnlyAppSchemaTables`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Migration|Document|Import|Lifecycle"`, and `dotnet build services\dotnet-api\AdvancedRag.sln`.
 
 ## In Progress
 
