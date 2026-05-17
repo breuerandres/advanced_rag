@@ -1089,7 +1089,8 @@ Expected: commit succeeds.
 Cover:
 
 - Public chat retrieves only `Published` corpus.
-- Retrieval filters by `access_scope_hash`.
+- Retrieval filters in SQL against `app.instruction_permissions` using signed chat-token scope claims as inputs.
+- `access_scope_hash` is used for cache partitioning and audit, not authorization.
 - Cache reuse requires matching `access_scope_hash`.
 - Preview corpus is not used for normal viewer chat.
 
@@ -1097,7 +1098,7 @@ Expected before implementation: tests fail.
 
 - [ ] **Step 2: Implement retrieval service**
 
-Implement vector similarity retrieval over `rag.document_chunks` with corpus and access-scope filters.
+Implement vector similarity retrieval over `rag.document_chunks` with corpus filters, active-version filters, and read-only SQL permission filters against `app.instruction_permissions`. Do not trust `access_scope_hash` as authorization.
 
 - [ ] **Step 3: Write query audit tests**
 
@@ -1111,7 +1112,7 @@ Expected before implementation: tests fail.
 
 - [ ] **Step 4: Implement audit and pricing**
 
-Implement versioned `rag.model_pricing`, price snapshot selection, and query audit writes in a transaction.
+Implement versioned `rag.model_pricing`, mandatory seed/readiness checks for the configured chat and embedding models, price snapshot selection, and query audit writes in a transaction. Missing active pricing must fail readiness and return `RAG_PROVIDER_MISCONFIGURED` at runtime.
 
 - [ ] **Step 5: Write semantic cache tests**
 
@@ -1142,7 +1143,7 @@ Expected before implementation: tests fail.
 
 - [ ] **Step 8: Implement AI budget enforcement**
 
-Implement budget check in FastAPI chat flow. Use `.NET`-owned budget configuration through an approved read path or internal budget snapshot contract. Do not create a FastAPI-owned budget configuration table.
+Implement budget check in FastAPI chat flow. Read `.NET`-owned `app.user_ai_budget_limits` through explicit read-only database grants and combine it with current-period spend from `rag.query_audit_events`. Do not create a FastAPI-owned budget configuration table and do not use stale JWT budget snapshots.
 
 - [ ] **Step 9: Verify chat/RAG behavior**
 

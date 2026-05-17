@@ -236,7 +236,7 @@ Cache invalidation rules:
 
 The MVP supports per-user monthly AI usage budgets configured in monetary value, initially USD. The default monthly budget is USD 5 per user unless an `Admin` configures another value. Budget periods use the customer deployment's configured timezone and reset by calendar month, from the first day through the last day of that month. `Admin` users can set and adjust a user's monthly budget from the management app. Budget configuration is owned by the .NET API in the `app` schema and changes are captured in management audit.
 
-FastAPI enforces the budget before starting new paid AI work for chat. Enforcement uses the user's configured budget plus the user's current-period spend calculated from `rag.query_audit_events`, where each query stores the actual model IDs, token usage, pricing snapshot, and estimated cost. Budget checks must happen before embeddings or LLM generation when possible so over-budget users do not keep generating cost.
+FastAPI enforces the budget before starting new paid AI work for chat. Enforcement reads `.NET`-owned `app.user_ai_budget_limits` through an explicitly granted read-only database path, then combines the configured budget with the user's current-period spend calculated from `rag.query_audit_events`, where each query stores the actual model IDs, token usage, pricing snapshot, and estimated cost. Budget checks must happen before semantic cache lookup, embeddings, or LLM generation so over-budget users do not keep generating cost.
 
 When a user reaches the configured budget, chat returns the shared error envelope with a stable code such as `AI_BUDGET_EXCEEDED`. The management app can increase the user's budget, disable the budget, or wait for the next monthly period depending on the configured policy. Blocked attempts should be auditable without adding model cost.
 
@@ -256,6 +256,7 @@ Rate limits and AI usage budgets are separate controls. Rate limits protect serv
 - The feedback review view is served by the .NET API through read-only reporting views created in the `rag` schema by FastAPI migrations and granted to the .NET reporting connection as read-only access. The management frontend does not call FastAPI directly.
 - The MVP feedback review filters are negative feedback, cited document, user, and date range.
 - Pricing lives in versioned `rag.model_pricing`; each query audit stores the pricing snapshot used.
+- FastAPI readiness fails if `rag.model_pricing` lacks active rows for the configured `OPENAI_CHAT_MODEL` or `OPENAI_EMBEDDING_MODEL`. Runtime chat requests must fail safely with `RAG_PROVIDER_MISCONFIGURED` rather than estimating provider cost as zero.
 - Technical logs are structured JSON files, rotated daily per service on mounted volumes.
 - HTTP errors use the shared envelope: `{ "error": { "code", "message", "details", "requestId" } }`.
 - Technical details are logged, not exposed to users.
@@ -311,6 +312,7 @@ Rate limit exceedances must use stable safe error codes and must not expose inte
 - .NET uses EF Core migrations for the `app` schema.
 - FastAPI uses Alembic migrations for the `rag` schema.
 - Services must not modify tables outside their owned schema except through explicitly granted read permissions or internal API contracts.
+- FastAPI may read `.NET`-owned `app.instruction_permissions` for retrieval permission filtering and `app.user_ai_budget_limits` for budget enforcement through explicit read-only grants. FastAPI must not write to any `app` table.
 
 ## Initial Database Entities
 

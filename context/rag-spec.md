@@ -50,7 +50,7 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 
 - Default `k = 8` chunks per query.
 - Similarity metric: cosine distance (`<=>` in pgvector). HNSW index is built on `embedding` with `vector_cosine_ops`.
-- Filtering: applied **at SQL level** before similarity ranking. The retrieval query joins `rag.document_chunks` against an `effective_documents` filter computed from the user's role, groups, and attributes (`.NET` exposes the effective document id list to FastAPI via a signed claim in the chat access token; see Access Claim below).
+- Filtering: applied **at SQL level** before similarity ranking. The retrieval query joins `rag.document_chunks` against allowed instruction records resolved from `.NET`-owned `app.instruction_permissions` through read-only database grants. FastAPI uses the signed chat-token claims (`role`, `groups`, `attributes`, `corpus`) as the user's scope inputs, but it does not receive or trust a precomputed document-id allow list in the token.
 - Only chunks belonging to the latest successfully indexed version of each allowed document are eligible (a `rag.document_chunks.is_active` boolean defaulted to `true` and flipped to `false` when a newer version supersedes the prior version's chunks).
 - No reranking step in the MVP. A future cross-encoder rerank stage is the natural next optimization once retrieval quality metrics exist.
 - The retrieved chunks plus their `heading_path` and a short context window (chunk index ±0; no neighbor expansion in MVP) are fed to the chat completion.
@@ -65,8 +65,9 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
   - `access_scope_hash` (hex SHA-256, see below)
   - `corpus` (one of `published`, `preview`)
   - `exp`, `iat`, `iss`, `aud`, `jti`, `kid` (header)
-- FastAPI never recomputes effective scope from the database. It trusts the claims and uses `access_scope_hash` for cache matching and `role` + `groups` + `attributes` + `corpus` for the SQL filter.
-- For the MVP, the SQL filter resolves group/attribute rules directly against `app.instruction_permissions` through a read-only grant; this is the only `app` read from FastAPI and is documented as such in `architecture.md` Operations.
+- FastAPI validates and trusts the signed claims as the user's scope inputs. It uses `access_scope_hash` for cache partitioning and audit, and uses `role` + `groups` + `attributes` + `corpus` for the SQL permission filter.
+- `access_scope_hash` is not an authorization mechanism and must never be used by itself to decide whether a chunk is retrievable.
+- For the MVP, the retrieval SQL filter resolves group/attribute rules directly against `app.instruction_permissions` through read-only grants. FastAPI may also read `app.user_ai_budget_limits` for budget enforcement through a read-only grant. These are the only approved FastAPI reads from the `app` schema and are documented in `architecture.md` Operations.
 
 ## `access_scope_hash` Algorithm
 
@@ -175,6 +176,9 @@ Rules:
   - `feedback_value` (nullable), `feedback_comment` (nullable), `feedback_updated_at` (nullable)
 - Citations are stored in `rag.query_audit_citations` keyed by `query_audit_event_id`.
 - Cost calculation reads the active `rag.model_pricing` row for each model id, snapshots its primary key into the audit row, then computes `cost = input_tokens * input_price + cached_tokens * cached_price + output_tokens * output_price`.
+- FastAPI migrations or startup seed logic must ensure active `rag.model_pricing` rows exist for the configured `OPENAI_CHAT_MODEL` and `OPENAI_EMBEDDING_MODEL`.
+- FastAPI readiness fails if no active pricing row exists for either configured model. Runtime chat requests also fail safely with `RAG_PROVIDER_MISCONFIGURED` rather than estimating cost as zero or writing incomplete budget evidence.
+- Budget enforcement reads `.NET`-owned `app.user_ai_budget_limits` through a read-only database grant and combines it with current-period spend from `rag.query_audit_events`. Budget checks run before semantic cache lookup, query embedding, or chat generation.
 
 ## pgvector Index
 

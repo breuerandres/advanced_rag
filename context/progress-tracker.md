@@ -171,10 +171,14 @@
 - RAG detail refinement is in progress before Task 11. The cost-first MVP defaults are now `gpt-4.1-nano` for chat and `text-embedding-3-small` with native 1536 dimensions for embeddings. The user confirmed a real local OpenAI API key has been added to the ignored Compose secret file.
 - Updated the FastAPI configuration defaults, Compose example, active MVP plan, RAG context, and relevant tests for the cost-first model defaults.
 - Verified the model-default changes with `uv run pytest tests/test_config.py -q`, `uv run pytest tests/test_indexing.py -q`, and the combined final command `uv run pytest tests/test_config.py tests/test_indexing.py -q`, which passed with `3 passed`.
+- Closed Task 11 RAG design decisions before implementation:
+  - FastAPI enforces AI budgets by reading `.NET`-owned `app.user_ai_budget_limits` through explicit read-only database grants and combining that with current-period spend in `rag.query_audit_events`.
+  - `rag.model_pricing` must contain active rows for the configured chat and embedding models; readiness fails when pricing is missing, and runtime chat returns `RAG_PROVIDER_MISCONFIGURED` instead of estimating zero cost.
+  - Retrieval uses signed chat-token scope claims as inputs but filters chunks in SQL against `app.instruction_permissions` through read-only grants. `access_scope_hash` partitions cache/audit and is not an authorization mechanism.
 
 ## Next Up
 
-- Finish RAG detail decisions before implementing Task 11 chat, retrieval, audit, cache, cost, and budget enforcement.
+- Implement Task 11 chat, retrieval, audit, cache, cost, and budget enforcement.
 
 ## Next Implementation Checkpoint
 
@@ -185,11 +189,11 @@
 ### Why This Comes Next
 
 - Task 10 code and verification are complete.
-- The next safe step is to close RAG design gaps before implementing public chat/RAG over the indexed corpus, including retrieval, audit, semantic cache, cost snapshots, and budget enforcement.
+- The next safe step is to implement public chat/RAG over the indexed corpus, including retrieval, audit, semantic cache, cost snapshots, and budget enforcement.
 
 ### Scope
 
-- Refine and document Task 11 RAG design decisions before coding.
+- Implement Task 11 only.
 - Preserve service boundaries: FastAPI owns chat, retrieval, semantic cache, query audit, citations, model pricing, and budget enforcement; `.NET` owns user budget configuration and management reporting.
 
 ### User-Owned Steps
@@ -202,14 +206,12 @@
 
 Expected result:
 
-- Task 11 starts from the verified internal indexing baseline and an approved RAG design.
+- Task 11 starts from the verified internal indexing baseline and approved RAG design.
 - Public chat retrieves only published indexed chunks and records query audit evidence.
 
 ## Open Questions
 
-- Decide the Task 11 budget read path: FastAPI read-only access to `app.user_ai_budget_limits`, a signed claim snapshot, or an internal `.NET` budget endpoint.
-- Decide the `rag.model_pricing` seed and failure behavior when a configured model has no active pricing row.
-- Resolve the retrieval-scope ambiguity between trusting chat-token claims and reading `app.instruction_permissions` from FastAPI.
+- None for the current checkpoint.
 
 ## Architecture Decisions
 

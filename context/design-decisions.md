@@ -81,6 +81,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Per-User AI Usage Budgets](#2026-05-11---per-user-ai-usage-budgets)
 - [AI Budget Enforcement Scope](#2026-05-11---ai-budget-enforcement-scope)
 - [Over-Budget Cache Behavior](#2026-05-11---over-budget-cache-behavior)
+- [Task 11 RAG Enforcement Boundaries](#2026-05-17---task-11-rag-enforcement-boundaries)
 - [Task 8 User Administration And Budget Configuration](#2026-05-14---task-8-user-administration-and-budget-configuration)
 
 ### Data Model And Operations
@@ -899,6 +900,20 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** `OPENAI_EMBEDDING_MODEL` defaults should move to `text-embedding-3-small`, while `OPENAI_EMBEDDING_DIMENSIONS` remains `1536`. The existing `rag.document_chunks.embedding vector(1536)` and `rag.semantic_cache_entries.question_embedding vector(1536)` schema remains valid. A future upgrade to `text-embedding-3-large` at 3072 dimensions requires an explicit data/model migration plan and reindexing.
 
 **Evidence:** Checked OpenAI developer documentation on 2026-05-17. The embeddings guide states that `text-embedding-3-small` defaults to 1536 dimensions and `text-embedding-3-large` defaults to 3072 dimensions, and that text-embedding-3 models support the `dimensions` parameter for shortening embeddings.
+
+## 2026-05-17 - Task 11 RAG Enforcement Boundaries
+
+**Context:** Before implementing Task 11, three RAG details remained ambiguous: how FastAPI reads `.NET`-owned AI budget configuration, what happens when `rag.model_pricing` lacks pricing for the configured models, and whether retrieval authorization should trust token claims, `access_scope_hash`, or database permissions.
+
+**Options Considered:** Put budget values in the chat token, call an internal `.NET` budget endpoint on every chat request, or let FastAPI read budget configuration through read-only database grants. Allow missing pricing with zero-cost estimates, warn and continue, or fail readiness/runtime safely. Authorize retrieval from token-provided document ids, `access_scope_hash`, or SQL filtering against `.NET`-owned permissions.
+
+**Decision:** FastAPI reads `app.user_ai_budget_limits` through explicit read-only database grants and combines it with `rag.query_audit_events` spend. `rag.model_pricing` active rows are mandatory for the configured chat and embedding models; readiness fails when pricing is missing and runtime chat returns `RAG_PROVIDER_MISCONFIGURED`. Retrieval uses signed chat-token scope claims as inputs, but filters in SQL against `app.instruction_permissions` through read-only grants. `access_scope_hash` is only for cache partitioning and audit, not authorization.
+
+**Rationale:** Budgets can change during a chat-token lifetime, so putting the budget only in JWT claims would make enforcement stale. An internal `.NET` call on every chat request would add latency and a synchronous service dependency to the chat path. Read-only database access preserves `.NET` write ownership while keeping budget checks local to FastAPI. Missing pricing makes budget enforcement unreliable, so failing explicitly is safer than writing false zero-cost audit rows. Retrieval authorization must use current document permissions and cannot rely on a hash alone.
+
+**Tradeoffs:** FastAPI now has approved read-only access to two `.NET`-owned app tables, which is a controlled exception to strict schema ownership. This must stay narrow and tested. Read-only SQL filtering is more complex than token-only filtering, but avoids oversized or stale document-id claims and keeps cache partitioning separate from authorization.
+
+**Consequences:** Task 11 must add migration/init grants for `app.user_ai_budget_limits` and `app.instruction_permissions`, pricing seed/readiness checks, and retrieval tests proving that different permission scopes cannot retrieve unauthorized chunks or reuse each other's cache. FastAPI must not write to any `app` table.
 
 ## 2026-05-13 - Human-In-The-Loop Implementation Protocol
 
