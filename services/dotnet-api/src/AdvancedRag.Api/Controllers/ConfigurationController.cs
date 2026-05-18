@@ -47,10 +47,22 @@ public sealed class ConfigurationController : ControllerBase
             ImportMaxFileSizeMb: 10,
             Secrets:
             [
-                SecretStatus("OpenAI API key", "OpenAI:ApiKey", "OpenAI:ApiKeyFile"),
-                SecretStatus("JWT signing keys", "Jwt:SigningKeysJson", "Jwt:SigningKeysFile"),
-                SecretStatus("CSRF signing key", "Csrf:SigningKey", "Csrf:SigningKeyFile"),
-                SecretStatus("Internal service token", "InternalService:Token", "InternalService:TokenFile"),
+                SecretStatus(
+                    "OpenAI API key",
+                    ["OPENAI_API_KEY", "OpenAI:ApiKey"],
+                    ["OPENAI_API_KEY_FILE", "OpenAI:ApiKeyFile"]),
+                SecretStatus(
+                    "JWT signing keys",
+                    ["JWT_SIGNING_KEYS_JSON", "Jwt:SigningKeysJson"],
+                    ["JWT_SIGNING_KEYS_FILE", "Jwt:SigningKeysFile"]),
+                SecretStatus(
+                    "CSRF signing key",
+                    ["CSRF_SIGNING_KEY", "Csrf:SigningKey"],
+                    ["CSRF_SIGNING_KEY_FILE", "Csrf:SigningKeyFile"]),
+                SecretStatus(
+                    "Internal service token",
+                    ["INTERNAL_SERVICE_TOKEN", "InternalService:Token"],
+                    ["INTERNAL_SERVICE_TOKEN_FILE", "InternalService:TokenFile"]),
             ]);
 
         return Ok(response);
@@ -72,20 +84,25 @@ public sealed class ConfigurationController : ControllerBase
 
     private SecretConfigurationStatusResponse SecretStatus(
         string name,
-        string valueKey,
-        string fileKey)
+        IReadOnlyList<string> valueKeys,
+        IReadOnlyList<string> fileKeys)
     {
-        if (!string.IsNullOrWhiteSpace(_configuration[valueKey]))
+        if (valueKeys.Any(valueKey => !string.IsNullOrWhiteSpace(_configuration[valueKey])))
         {
             return new SecretConfigurationStatusResponse(name, "Configured");
         }
 
-        string? filePath = _configuration[fileKey];
-        if (!string.IsNullOrWhiteSpace(filePath) && System.IO.File.Exists(filePath))
+        if (fileKeys.Any(FileKeyExists))
         {
             return new SecretConfigurationStatusResponse(name, "Configured");
         }
 
         return new SecretConfigurationStatusResponse(name, "Missing");
+    }
+
+    private bool FileKeyExists(string fileKey)
+    {
+        string? filePath = _configuration[fileKey];
+        return !string.IsNullOrWhiteSpace(filePath) && System.IO.File.Exists(filePath);
     }
 }

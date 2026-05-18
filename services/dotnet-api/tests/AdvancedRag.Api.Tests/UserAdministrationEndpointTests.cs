@@ -190,10 +190,13 @@ public sealed class UserAdministrationWebApplicationFactory : WebApplicationFact
 {
     private readonly FakeAuthService _auth = new();
     private readonly FakeUserAdministrationService _users;
+    private readonly string _openAiApiKeyFile;
 
     public UserAdministrationWebApplicationFactory()
     {
         _users = new FakeUserAdministrationService(_auth);
+        _openAiApiKeyFile = Path.GetTempFileName();
+        File.WriteAllText(_openAiApiKeyFile, "configured-openai-key-placeholder");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -213,7 +216,7 @@ public sealed class UserAdministrationWebApplicationFactory : WebApplicationFact
                 ["DEFAULT_MONTHLY_AI_BUDGET_USD"] = "5",
                 ["RAG_SEMANTIC_CACHE_TTL_HOURS"] = "24",
                 ["RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD"] = "0.90",
-                ["OpenAI:ApiKey"] = "configured-openai-key-placeholder",
+                ["OPENAI_API_KEY_FILE"] = _openAiApiKeyFile,
                 ["Jwt:SigningKeysJson"] = "configured-jwt-placeholder",
             });
         });

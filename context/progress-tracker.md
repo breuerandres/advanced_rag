@@ -227,6 +227,8 @@
   - Added `.NET` `GET /api/configuration` and configuration UI tests for a read-only operational configuration screen that displays non-sensitive defaults, model configuration, budget defaults, cache settings, import limits, and secret-backed setting statuses without exposing secret values.
   - Added a basic audit workspace with filters and an empty state to preserve the management information architecture for Task 16+ read models.
 - Verified Task 15 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Configuration` (`1 passed` in API tests), `pnpm.cmd --dir apps/manage-web test -- --run` (`18 passed`), `pnpm.cmd --dir apps/manage-web typecheck`, and `pnpm.cmd --dir apps/manage-web build`.
+- Fixed the Task 15 configuration endpoint secret status detection so `.NET` recognizes Compose-style environment variables such as `OPENAI_API_KEY_FILE` in addition to hierarchical `.NET` keys. This corrected the management configuration view reporting the OpenAI API key as `Missing` when the Compose secret file is configured.
+- Verified the configuration secret-status fix with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Configuration` (`1 passed` in API tests).
 
 ## In Progress
 
