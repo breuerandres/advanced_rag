@@ -263,7 +263,7 @@ Rate limits and AI usage budgets are separate controls. Rate limits protect serv
 
 ## Configuration And Secrets
 
-Sensitive values use Docker Compose secrets mounted as files, including OpenAI API key, Postgres passwords, JWT signing/private key sets, CSRF signing key, and internal service tokens.
+Sensitive values use Docker Compose secrets mounted as files, including OpenAI API key, Postgres passwords, JWT signing/private key sets, CSRF signing key, and internal service tokens. The management configuration endpoint may check secret file presence from `.NET` for status reporting, but it must never return secret values to the browser.
 
 Postgres uses separate Compose secret files for the admin/superuser password and each service role password:
 

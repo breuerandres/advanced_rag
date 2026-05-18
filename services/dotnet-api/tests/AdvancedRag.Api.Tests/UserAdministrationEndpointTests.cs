@@ -191,12 +191,15 @@ public sealed class UserAdministrationWebApplicationFactory : WebApplicationFact
     private readonly FakeAuthService _auth = new();
     private readonly FakeUserAdministrationService _users;
     private readonly string _openAiApiKeyFile;
+    private readonly string _internalServiceTokenFile;
 
     public UserAdministrationWebApplicationFactory()
     {
         _users = new FakeUserAdministrationService(_auth);
         _openAiApiKeyFile = Path.GetTempFileName();
+        _internalServiceTokenFile = Path.GetTempFileName();
         File.WriteAllText(_openAiApiKeyFile, "configured-openai-key-placeholder");
+        File.WriteAllText(_internalServiceTokenFile, "configured-internal-service-token-placeholder");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -217,6 +220,7 @@ public sealed class UserAdministrationWebApplicationFactory : WebApplicationFact
                 ["RAG_SEMANTIC_CACHE_TTL_HOURS"] = "24",
                 ["RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD"] = "0.90",
                 ["OPENAI_API_KEY_FILE"] = _openAiApiKeyFile,
+                ["INTERNAL_SERVICE_TOKEN_FILE"] = _internalServiceTokenFile,
                 ["Jwt:SigningKeysJson"] = "configured-jwt-placeholder",
             });
         });

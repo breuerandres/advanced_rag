@@ -58,7 +58,8 @@ services:
       Postgres__ReportingPasswordFile: /run/secrets/postgres_reporting_password
       Jwt__SigningKeysFile: /run/secrets/jwt_signing_keys
       Csrf__SigningKeyFile: /run/secrets/csrf_signing_key
-      InternalServiceTokenFile: /run/secrets/internal_service_token
+      OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      InternalService__TokenFile: /run/secrets/internal_service_token
       Rag__InternalBaseUrl: http://rag-api:8000
     depends_on:
       postgres-init:
@@ -66,6 +67,7 @@ services:
     secrets:
       - postgres_app_password
       - postgres_reporting_password
+      - openai_api_key
       - jwt_signing_keys
       - csrf_signing_key
       - internal_service_token

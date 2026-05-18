@@ -1228,3 +1228,5 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** `apps/manage-web` now has a shared navigation component, a typed operational configuration client, a configuration screen, an audit screen, and document indexing retry UI. `.NET` exposes the corresponding read-only management configuration route. Management frontend service boundaries remain intact because all calls are same-origin `.NET` API routes.
 
 **Evidence:** Verified on 2026-05-18 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Configuration` (`1 passed` in API tests), `pnpm.cmd --dir apps/manage-web test -- --run` (`18 passed`), `pnpm.cmd --dir apps/manage-web typecheck`, and `pnpm.cmd --dir apps/manage-web build`.
+
+**Follow-up:** The configuration screen reports whether secret-backed settings are configured by checking file presence from `.NET`. Therefore, Compose must mount the relevant status-only secret files into `dotnet-api` as well as their primary runtime services. The endpoint remains read-only and must return only `Configured`/`Missing`, never secret values.

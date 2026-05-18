@@ -38,6 +38,7 @@ public sealed class ConfigurationEndpointTests
         body.SemanticCacheTtlHours.Should().Be(24);
         body.SemanticCacheSimilarityThreshold.Should().Be(0.90m);
         body.Secrets.Should().Contain(secret => secret.Name == "OpenAI API key" && secret.Status == "Configured");
+        body.Secrets.Should().Contain(secret => secret.Name == "Internal service token" && secret.Status == "Configured");
         string rawBody = await response.Content.ReadAsStringAsync();
         rawBody.Should().NotContain("sk-");
     }

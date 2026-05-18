@@ -62,7 +62,7 @@ public sealed class ConfigurationController : ControllerBase
                 SecretStatus(
                     "Internal service token",
                     ["INTERNAL_SERVICE_TOKEN", "InternalService:Token"],
-                    ["INTERNAL_SERVICE_TOKEN_FILE", "InternalService:TokenFile"]),
+                    ["INTERNAL_SERVICE_TOKEN_FILE", "InternalService:TokenFile", "InternalServiceTokenFile"]),
             ]);
 
         return Ok(response);
