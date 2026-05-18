@@ -143,7 +143,7 @@ public sealed class DocumentsController : ControllerBase
         [FromBody] SendToReviewRequest body,
         CancellationToken ct)
     {
-        var result = await _lifecycle.SendToReviewAsync(id, body.Comment, User.GetUserId(), ct);
+        LifecycleTransitionResult result = await _lifecycle.SendToReviewAsync(id, body.Comment, User.GetUserId(), ct);
         return Ok(new SendToReviewResponse(result.NewState, result.VersionNumber));
     }
 }
@@ -178,7 +178,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         Guid actorUserId,
         CancellationToken ct)
     {
-        var instruction = await _db.Instructions
+        Instruction instruction = await _db.Instructions
             .Include(i => i.CurrentDraftVersion)
             .FirstOrDefaultAsync(i => i.Id == instructionId, ct)
             ?? throw new ApiException("NOT_FOUND", 404, "Instruction not found.");
@@ -362,20 +362,20 @@ public sealed class DocumentLifecycleTests : IClassFixture<PostgresWebApplicatio
     [Fact]
     public async Task SendToReview_FromDraft_TransitionsToInReview()
     {
-        var client = _factory.CreateClient();
+        HttpClient client = _factory.CreateClient();
         await client.AuthenticateAsAsync(role: "DocumentManager");
-        var draftId = await client.SeedDraftInstructionAsync();
+        Guid draftId = await client.SeedDraftInstructionAsync();
 
-        var response = await client.PostAsJsonAsync(
+        HttpResponseMessage response = await client.PostAsJsonAsync(
             $"/api/documents/{draftId}/send-to-review",
             new { Comment = "ready for review" });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<SendToReviewResponse>();
+        SendToReviewResponse? body = await response.Content.ReadFromJsonAsync<SendToReviewResponse>();
         body!.NewState.Should().Be("InReview");
 
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        using IServiceScope scope = _factory.Services.CreateScope();
+        AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         (await db.AuditEvents.Where(a => a.EventType == "instruction.send_to_review").CountAsync())
             .Should().Be(1);
     }

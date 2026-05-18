@@ -1,23 +1,25 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Protocol
 
 import jwt
 from jwt import PyJWKClient
+from pydantic import BaseModel, ConfigDict
 
 from advanced_rag.core.errors import ApiException
 
 
-@dataclass(frozen=True)
-class ChatTokenValidationSettings:
+class ChatTokenValidationSettings(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     issuer: str
     audience: str
     public_keys_by_kid: dict[str, str]
 
 
-@dataclass(frozen=True)
-class ChatTokenClaims:
+class ChatTokenClaims(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     user_id: str
     role: str
     groups: list[str]

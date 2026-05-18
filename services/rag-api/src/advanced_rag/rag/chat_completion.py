@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from typing import Any, Protocol
 from uuid import UUID
 
 from openai import AsyncOpenAI
+from pydantic import BaseModel, ConfigDict
 
 
-@dataclass(frozen=True)
-class ChatCompletionResult:
+class ChatCompletionResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     answer: str
     cited_chunk_ids: list[UUID]
     input_tokens: int

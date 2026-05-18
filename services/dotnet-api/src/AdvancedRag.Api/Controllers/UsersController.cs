@@ -20,8 +20,8 @@ public sealed class UsersController : ApiControllerBase
     [HttpGet]
     public async Task<IActionResult> ListUsersAsync(CancellationToken ct)
     {
-        var result = await _users.ListUsersAsync(ct);
-        return Ok(result.Select(UserResponse.FromUser).ToArray());
+        IReadOnlyList<UserManagementUser> users = await _users.ListUsersAsync(ct);
+        return Ok(users.Select(UserResponse.FromUser).ToArray());
     }
 
     [HttpPost]
@@ -29,7 +29,7 @@ public sealed class UsersController : ApiControllerBase
     {
         try
         {
-            var created = await _users.CreateUserAsync(
+            UserManagementUser created = await _users.CreateUserAsync(
                 new CreateUserCommand(
                     request.Email,
                     request.DisplayName,
@@ -54,7 +54,7 @@ public sealed class UsersController : ApiControllerBase
     {
         try
         {
-            var updated = await _users.SetUserRolesAsync(
+            UserManagementUser updated = await _users.SetUserRolesAsync(
                 new SetUserRolesCommand(id, request.Roles ?? [], ActorUserId()),
                 ct);
             return Ok(UserResponse.FromUser(updated));
@@ -73,7 +73,7 @@ public sealed class UsersController : ApiControllerBase
     {
         try
         {
-            var updated = await _users.SetUserGroupsAsync(
+            UserManagementUser updated = await _users.SetUserGroupsAsync(
                 new SetUserGroupsCommand(id, request.GroupIds ?? [], ActorUserId()),
                 ct);
             return Ok(UserResponse.FromUser(updated));
@@ -92,7 +92,7 @@ public sealed class UsersController : ApiControllerBase
     {
         try
         {
-            var updated = await _users.SetUserActiveStatusAsync(
+            UserManagementUser updated = await _users.SetUserActiveStatusAsync(
                 new SetUserActiveStatusCommand(id, request.IsActive, ActorUserId()),
                 ct);
             return Ok(UserResponse.FromUser(updated));
@@ -111,7 +111,7 @@ public sealed class UsersController : ApiControllerBase
     {
         try
         {
-            var updated = await _users.SetUserAiBudgetAsync(
+            UserManagementUser updated = await _users.SetUserAiBudgetAsync(
                 new SetUserAiBudgetCommand(
                     id,
                     request.MonthlyBudgetUsd,

@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Finish Task 11 chat, retrieval, audit, cache, cost, and budget enforcement, then move to Task 12 feedback and management reporting.
+- Complete Task 11.5 backend readability refactor audit, then move to Task 12 feedback and management reporting.
 
 ## Completed
 
@@ -185,10 +185,20 @@
 - Verified the RAG read-grant fix with `uv run pytest tests/test_migrations.py -q` (`3 passed`), `uv run pytest tests/test_chat_rag.py tests/test_migrations.py -q` (`6 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`24 passed`).
 - Diagnosed local document publication failure during pre-publication indexing: `.NET` received `401` from FastAPI's internal indexing endpoint because Windows PowerShell 5 wrote `internal_service_token.txt` with a UTF-8 BOM. .NET consumed the BOM while FastAPI preserved it, so the logical token values differed. Updated FastAPI secret reading to ignore a leading UTF-8 BOM and updated `New-LocalDevSecrets.ps1` to write future generated secret files as UTF-8 without BOM.
 - Verified the internal service token BOM fix with `uv run pytest tests/test_config.py -q` (`2 passed`), `uv run pytest -q` (`25 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and PowerShell parser validation for `infra/compose/New-LocalDevSecrets.ps1`.
+- Recorded the pre-Task 12 backend readability rules in `context/code-standards.md` and `context/design-decisions.md`: prefer explicit `.NET` local variable types when they improve readability, keep `var` allowed when clearer or necessary, require Pydantic for FastAPI boundary/contracts/config, allow simple internal Python classes or dataclasses only for private implementation details, and include a concise Postman checklist in final task messages when API endpoints are added or changed.
+- Added Task 11.5 to `docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md` as a controlled backend readability refactor audit before Task 12. The task inventories `.NET var` usage and FastAPI dataclasses, classifies what should be refactored, avoids broad mechanical churn, verifies touched backend modules, and records deferred cases.
+- Completed Task 11.5 backend readability refactor audit:
+  - Refactored selected `.NET` controller and document lifecycle locals to explicit concrete types where the type improves route/use-case readability.
+  - Updated `context/code-patterns.md` examples to reflect the explicit-type preference for future copies.
+  - Converted FastAPI cross-module value objects to frozen Pydantic models: `ChatTokenValidationSettings`, `ChatTokenClaims`, `ChatCompletionResult`, `DocumentChunk`, `RetrievedChunk`, `Citation`, `ChatAnswer`, `PricingSnapshot`, and `IndexingJobResult`.
+  - Removed the test-only chat completion dataclass by returning the production `ChatCompletionResult` in the fake provider.
+  - Deferred broad `.NET var` cleanup in tests, EF/LINQ projections, `using var` disposables, tuple/deconstruction cases, initializer-obvious locals, and unrelated infrastructure files to avoid style-only churn.
+  - Left only the private FastAPI `_FallbackCompletion` dataclass; private parser blocks now use a simple private class and do not cross a boundary.
+- Verified Task 11.5 with `dotnet build services/dotnet-api/AdvancedRag.sln`, `dotnet test services/dotnet-api/AdvancedRag.sln --filter "Chat|Indexing|Document|UserAdministration|Auth|ErrorEnvelope|Health"` (`31 passed` across matching test projects), `uv run pytest -q` (`25 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `git diff --check`. The `.NET` commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`; build and tests still passed.
 
 ## In Progress
 
-- Task 11 chat/RAG core is implemented and verified. Local Compose/Postman hardening is in progress as manual end-to-end testing surfaces environment-specific issues.
+- Task 11.5 is complete and verified. No implementation task is currently in progress.
 
 ## Next Up
 
@@ -203,6 +213,7 @@
 ### Why This Comes Next
 
 - Task 11 code and verification are complete.
+- Task 11.5 backend readability cleanup is complete and verified.
 - The next safe step is to implement feedback submission tied to query audit and management reporting over FastAPI-owned RAG views through the .NET API.
 
 ### Scope
@@ -223,7 +234,7 @@
 
 Expected result:
 
-- Task 12 starts from the verified public chat/RAG core.
+- Task 12 starts from the verified public chat/RAG core and readability cleanup.
 - Feedback can be attached to generated/cached chat answers and reviewed through management reporting.
 
 ## Open Questions

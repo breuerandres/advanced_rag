@@ -25,14 +25,14 @@ public sealed class DocumentsController : ApiControllerBase
     [HttpGet]
     public async Task<IActionResult> ListAsync(CancellationToken ct)
     {
-        var documents = await _documents.ListAsync(ct);
+        IReadOnlyList<DocumentSummary> documents = await _documents.ListAsync(ct);
         return Ok(documents.Select(DocumentSummaryResponse.FromSummary).ToArray());
     }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetAsync(Guid id, CancellationToken ct)
     {
-        var document = await _documents.GetAsync(id, ct);
+        DocumentAggregate? document = await _documents.GetAsync(id, ct);
         return document is null
             ? Error(404, "NOT_FOUND", "Instruction not found.")
             : Ok(DocumentDetailResponse.FromAggregate(document));
@@ -43,7 +43,7 @@ public sealed class DocumentsController : ApiControllerBase
     {
         try
         {
-            var document = await _documents.CreateDraftAsync(
+            DocumentAggregate document = await _documents.CreateDraftAsync(
                 new CreateDocumentCommand(
                     request.Title,
                     request.InstructionType,
@@ -69,7 +69,7 @@ public sealed class DocumentsController : ApiControllerBase
     {
         try
         {
-            var document = await _documents.UpdateDraftAsync(
+            DocumentAggregate document = await _documents.UpdateDraftAsync(
                 new UpdateDraftCommand(
                     id,
                     request.Title,
@@ -96,7 +96,7 @@ public sealed class DocumentsController : ApiControllerBase
     {
         try
         {
-            var document = await _documents.SendToReviewAsync(
+            DocumentAggregate document = await _documents.SendToReviewAsync(
                 new SendToReviewCommand(id, request.Comment, ActorUserId(), RequestId()),
                 ct);
             return Ok(DocumentDetailResponse.FromAggregate(document));
@@ -115,7 +115,7 @@ public sealed class DocumentsController : ApiControllerBase
     {
         try
         {
-            var document = await _documents.ReturnToDraftAsync(
+            DocumentAggregate document = await _documents.ReturnToDraftAsync(
                 new ReturnToDraftCommand(id, request.Comment ?? string.Empty, ActorUserId(), RequestId()),
                 ct);
             return Ok(DocumentDetailResponse.FromAggregate(document));
@@ -132,7 +132,7 @@ public sealed class DocumentsController : ApiControllerBase
     {
         try
         {
-            var document = await _documents.RequestPublishAsync(
+            DocumentAggregate document = await _documents.RequestPublishAsync(
                 new RequestPublishCommand(id, ActorUserId(), ActorRoles(), RequestId()),
                 ct);
             return Ok(DocumentDetailResponse.FromAggregate(document));
@@ -148,7 +148,7 @@ public sealed class DocumentsController : ApiControllerBase
     {
         try
         {
-            var document = await _documents.ArchiveAsync(
+            DocumentAggregate document = await _documents.ArchiveAsync(
                 new ArchiveInstructionCommand(id, ActorUserId(), ActorRoles(), RequestId()),
                 ct);
             return Ok(DocumentDetailResponse.FromAggregate(document));
@@ -164,7 +164,7 @@ public sealed class DocumentsController : ApiControllerBase
     {
         try
         {
-            var document = await _documents.RestoreAsync(
+            DocumentAggregate document = await _documents.RestoreAsync(
                 new RestoreInstructionCommand(id, ActorUserId(), RequestId()),
                 ct);
             return Ok(DocumentDetailResponse.FromAggregate(document));
@@ -194,7 +194,7 @@ public sealed class DocumentsController : ApiControllerBase
 
         try
         {
-            var result = await _imports.ExtractAsync(
+            ImportExtractionResult result = await _imports.ExtractAsync(
                 new ImportExtractionCommand(file.FileName, file.ContentType, memory.ToArray(), ActorUserId()),
                 ct);
             return Ok(ImportExtractionResponse.FromResult(result));

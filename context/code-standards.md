@@ -14,6 +14,8 @@
 - Keep controllers thin and move lifecycle, authorization, import extraction, and token logic into testable services/use cases.
 - Put browser-facing request/response DTOs under `AdvancedRag.Api/Models/<Feature>/`. Do not define feature DTOs inside controller files.
 - Keep application service interfaces beside their feature use cases in `AdvancedRag.App/<Feature>/` instead of a global `Interfaces` folder.
+- Prefer explicit local variable types in new or refactored `.NET` code when the concrete type is clear and improves readability. Do not ban `var`: use `var` when the explicit type is unavailable or noisier than the initializer, such as anonymous types, LINQ projections, deconstruction, pattern-driven code, or cases where the initializer already makes the type obvious and an explicit type would reduce clarity.
+- Apply the explicit-type preference to production code and to tests that are newly written or actively refactored. Do not perform unrelated mechanical `var` churn inside existing files unless that refactor is the task.
 - Use EF Core migrations for the `app` schema.
 - Use `DocumentFormat.OpenXml` for DOCX text extraction.
 - Use `PdfPig` for PDF text extraction.
@@ -29,6 +31,8 @@
 - FastAPI owns chat, retrieval, embeddings, semantic cache, RAG audit, model pricing, and indexing jobs.
 - Organize FastAPI HTTP boundaries with an MVC-like separation: `api/routers` for route/controller logic, `schemas` for Pydantic request/response models, feature services for business logic, and infrastructure adapters/repositories for database or provider access.
 - Keep FastAPI routers thin. Routers parse HTTP input, bind dependencies, call services, and return schemas; retrieval, budget, indexing, cache, and audit behavior belongs in testable service modules.
+- Use Pydantic `BaseModel` for request schemas, response schemas, API contracts, provider payload contracts, persisted/read-model DTOs that cross module boundaries, and configuration through `pydantic-settings`. Use `typing` annotations precisely, including `Protocol`, `TypedDict`, `Literal`, `Annotated`, and `Self` when they improve the contract.
+- Do not use standard-library `@dataclass` for FastAPI boundary data, configuration, or validated contracts. Internal simple classes or dataclasses are allowed only for private implementation details that do not cross service/module boundaries and do not need validation, serialization, aliases, or OpenAPI/schema behavior. Prefer a frozen Pydantic model when an internal value object leaves a module or benefits from validation.
 - The FastAPI service targets Python 3.12. `services/rag-api/.python-version` must stay on the Python 3.12 line and `pyproject.toml` must constrain `requires-python` to `>=3.12,<3.13` unless the stack decision is updated.
 - FastAPI must not parse PDF/DOCX imports in the MVP.
 - Use Alembic migrations for the `rag` schema.
@@ -53,6 +57,7 @@
 ## API Contracts
 
 - Use explicit DTOs/schemas for all request and response bodies.
+- When an implementation task adds or changes API endpoints, the final task summary to the user must include a concise Postman checklist with method, path, auth/CSRF requirement, representative body when relevant, and expected status/result. Do not persist those checklists in project docs unless the user asks.
 - Enforce authentication and authorization before mutation.
 - Use the shared error envelope: `{ "error": { "code", "message", "details", "requestId" } }`.
 - Stable validation error codes are required for oversized imports, non-extractable imports, invalid lifecycle transitions, unauthorized access, and indexing failures.

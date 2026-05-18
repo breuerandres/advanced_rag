@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -16,6 +15,7 @@ from testcontainers.postgres import PostgresContainer  # type: ignore[import-unt
 from advanced_rag.auth.chat_tokens import ChatTokenClaims
 from advanced_rag.core.config import Settings
 from advanced_rag.main import create_app
+from advanced_rag.rag.chat_completion import ChatCompletionResult
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -506,7 +506,7 @@ class FakeChatCompletionProvider:
     ) -> Any:
         self.calls += 1
         chunk = context_chunks[0]
-        return FakeChatCompletion(
+        return ChatCompletionResult(
             answer=f"Respuesta basada en: {chunk.content}",
             cited_chunk_ids=[chunk.id],
             input_tokens=20,
@@ -520,11 +520,3 @@ class FakeChatTokenValidator:
 
     def validate(self, token: str) -> ChatTokenClaims:
         return self._claims
-
-
-@dataclass(frozen=True)
-class FakeChatCompletion:
-    answer: str
-    cited_chunk_ids: list[UUID]
-    input_tokens: int
-    output_tokens: int

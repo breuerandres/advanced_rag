@@ -1168,6 +1168,94 @@ git commit -m "feat: add chat rag audit cache and budget enforcement"
 
 Expected: commit succeeds.
 
+## Task 11.5: Backend Readability Refactor Audit
+
+**Files:**
+- Modify: selected `.NET` production and test files only when the explicit type improves readability and the file is already in the refactor scope
+- Modify: selected FastAPI production and test files only when a dataclass crosses a contract boundary or benefits from Pydantic validation/serialization
+- Modify: `context/progress-tracker.md`
+- Test: backend build, lint, type checks, and targeted tests for touched modules
+
+**Purpose:** Apply the pre-Task 12 readability rules without doing broad style-only churn. This task is a controlled audit and refactor checkpoint between the completed Task 11 RAG core and Task 12 feedback/reporting.
+
+- [x] **Step 1: Inventory current candidates**
+
+Run:
+
+```powershell
+rg -n "\bvar\b" services/dotnet-api/src services/dotnet-api/tests -g "*.cs"
+rg -n "@dataclass|dataclass\(" services/rag-api/src services/rag-api/tests -g "*.py"
+```
+
+Expected: commands list candidate files. Treat this as an inventory, not as a mandate to change every match.
+
+- [x] **Step 2: Classify scope before editing**
+
+Create a short working note for the task in `context/progress-tracker.md` that lists:
+
+- `.NET` files selected for explicit-type cleanup.
+- `.NET` files intentionally left unchanged because `var` is clearer, necessary, or unrelated churn.
+- FastAPI dataclasses selected for conversion to Pydantic models.
+- FastAPI dataclasses intentionally left unchanged because they are private implementation details.
+
+Expected: the refactor scope is explicit before code edits begin.
+
+- [x] **Step 3: Refactor selected `.NET` local variables**
+
+For selected `.NET` files only:
+
+- Replace `var` with the explicit concrete type when it improves readability.
+- Keep `var` for anonymous types, LINQ projections, deconstruction, initializer-obvious cases where the explicit type is noise, and cases where the type is unavailable.
+- Do not change public behavior, method signatures, routes, DTO shapes, EF mappings, migrations, or API contracts.
+- Avoid touching unrelated lines only to normalize style.
+
+Expected: diffs are small and behavior-preserving.
+
+- [x] **Step 4: Refactor selected FastAPI dataclasses**
+
+For selected FastAPI files only:
+
+- Convert boundary or cross-module dataclasses to Pydantic `BaseModel`, usually with `model_config = ConfigDict(frozen=True)` for immutable value objects.
+- Keep private implementation dataclasses only when they do not need validation, serialization, aliases, or schema/OpenAPI behavior.
+- Preserve existing import paths, public method signatures, API response shapes, and database persistence behavior unless a test proves the change is required.
+
+Expected: boundary data uses Pydantic; private implementation details are not over-engineered.
+
+- [x] **Step 5: Run backend verification**
+
+Run verification based on the files touched:
+
+```powershell
+dotnet build services/dotnet-api/AdvancedRag.sln
+dotnet test services/dotnet-api/AdvancedRag.sln --filter "Chat|Indexing|Document|UserAdministration|Auth|ErrorEnvelope|Health"
+Set-Location services/rag-api
+uv run pytest -q
+uv run ruff check .
+uv run mypy src tests
+Set-Location ..\..
+git diff --check
+```
+
+Expected: build, tests, lint, type checks, and diff whitespace checks pass. If a broad .NET filter is too slow or Docker/Testcontainers is unavailable, document the exact skipped command and reason in `context/progress-tracker.md`.
+
+- [x] **Step 6: Update progress and commit**
+
+Update `context/progress-tracker.md` with:
+
+- Files refactored.
+- Files intentionally deferred.
+- Verification commands and results.
+- Any residual risk before Task 12.
+
+Run:
+
+```powershell
+git add services/dotnet-api services/rag-api context docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md
+git commit -m "refactor: apply backend readability rules"
+```
+
+Expected: commit succeeds with only the scoped readability refactor and its context updates.
+
 ## Task 12: Feedback And Management Reporting
 
 **Files:**

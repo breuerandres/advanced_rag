@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -22,8 +23,9 @@ from advanced_rag.rag.embeddings import EmbeddingProvider
 PROMPT_VERSION = 1
 
 
-@dataclass(frozen=True)
-class RetrievedChunk:
+class RetrievedChunk(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     id: UUID
     instruction_id: UUID
     instruction_version_id: UUID
@@ -31,16 +33,18 @@ class RetrievedChunk:
     content: str
 
 
-@dataclass(frozen=True)
-class Citation:
+class Citation(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     chunk_id: UUID
     instruction_id: UUID
     instruction_version_id: UUID
     heading_path: list[str]
 
 
-@dataclass(frozen=True)
-class ChatAnswer:
+class ChatAnswer(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     answer: str
     citations: list[Citation]
     cache_hit: bool
@@ -51,8 +55,9 @@ class ChatAnswer:
     estimated_cost_usd: Decimal
 
 
-@dataclass(frozen=True)
-class PricingSnapshot:
+class PricingSnapshot(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     id: UUID
     input_token_price_usd: Decimal
     cached_token_price_usd: Decimal

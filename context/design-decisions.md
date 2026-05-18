@@ -101,6 +101,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 - [Human-In-The-Loop Implementation Protocol](#2026-05-13---human-in-the-loop-implementation-protocol)
 - [Documentation Marker Scan Scope](#2026-05-13---documentation-marker-scan-scope)
+- [Backend Readability And Boundary Data Rules](#2026-05-18---backend-readability-and-boundary-data-rules)
 
 ### UI Foundation
 
@@ -1145,3 +1146,17 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Tradeoffs:** Refactoring the existing Task 7 and Task 8 Minimal API files adds a small amount of ceremony and needs regression verification. The benefit is a clearer structure before the document lifecycle module adds many more routes and DTOs.
 
 **Consequences:** Before implementing Task 9 document lifecycle endpoints, refactor the current `.NET` HTTP boundary from endpoint files to MVC controllers and move request/response DTOs into API model folders. Future FastAPI chat, feedback, indexing, budget, and retrieval endpoints should be added through routers and schemas rather than defining route functions directly in `main.py`.
+
+## 2026-05-18 - Backend Readability And Boundary Data Rules
+
+**Context:** Before Task 12, the user asked to tighten project rules for `.NET` local variable readability, FastAPI data modeling, endpoint testability through Postman, and project-specific assistant behavior. A quick scan showed existing `.NET` code already contains many `var` declarations and FastAPI uses a small number of standard-library dataclasses, so a blanket mechanical refactor would create noisy diffs without directly improving Task 12 behavior.
+
+**Options Considered:** Ban `var` in all `.NET` code, prefer explicit local types only when they improve readability, convert all FastAPI internal data carriers to Pydantic, or limit Pydantic requirements to boundaries and validated contracts.
+
+**Decision:** Prefer explicit `.NET` local variable types in new or actively refactored production code and tests when the concrete type is clear and improves readability. Keep `var` allowed when the explicit type is unavailable or noisier, including anonymous types, LINQ projections, deconstruction, and initializer-obvious cases. Use Pydantic `BaseModel` for FastAPI request/response schemas, API/provider contracts, persisted/read-model DTOs crossing boundaries, and configuration through `pydantic-settings`. Do not use standard-library `@dataclass` for boundary data, configuration, or validated contracts. Internal simple classes or dataclasses remain allowed only for private implementation details that do not cross module/service boundaries and do not need validation, serialization, aliases, or schema behavior.
+
+**Rationale:** The rules improve readability and contract consistency without turning the next implementation task into a broad style-only rewrite. Pydantic is the correct default where validation, serialization, aliases, and OpenAPI/schema generation matter. Plain Python classes or dataclasses can still be appropriate for small private implementation details where Pydantic would add ceremony without a boundary benefit.
+
+**Tradeoffs:** Existing code will not be fully normalized immediately, so both styles may coexist until touched by normal work or a dedicated refactor. This avoids churn but requires future edits to follow the updated standards.
+
+**Consequences:** Task 12 and later tasks should use explicit `.NET` local variable types where helpful, Pydantic for FastAPI boundary/contracts, and include a concise Postman endpoint checklist in the final task message when API endpoints are added or changed. These Postman checklists are user-facing completion notes, not durable docs, unless the user requests documentation.

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from html.parser import HTMLParser
+
+from pydantic import BaseModel, ConfigDict
 
 
 CHUNKER_VERSION = 1
@@ -10,8 +11,9 @@ MAX_CHUNK_TOKENS = 800
 OVERLAP_TOKENS = 80
 
 
-@dataclass(frozen=True)
-class DocumentChunk:
+class DocumentChunk(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     chunk_index: int
     heading_path: list[str]
     token_count: int
@@ -91,10 +93,10 @@ def _next_heading_path(current: list[str], tag: str, text: str) -> list[str]:
     return [*current[: level - 1], text]
 
 
-@dataclass(frozen=True)
 class _Block:
-    tag: str
-    text: str
+    def __init__(self, tag: str, text: str) -> None:
+        self.tag = tag
+        self.text = text
 
 
 class _HtmlBlockParser(HTMLParser):

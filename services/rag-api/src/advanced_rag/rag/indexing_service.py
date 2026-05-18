@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -14,8 +14,9 @@ from advanced_rag.rag.embeddings import EmbeddingProvider
 from advanced_rag.schemas.indexing import InternalIndexingRequest
 
 
-@dataclass(frozen=True)
-class IndexingJobResult:
+class IndexingJobResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     job_id: UUID
     status: str
     chunk_count: int
@@ -48,7 +49,13 @@ class InternalIndexingService:
             if not chunks:
                 await self._mark_failed(session, job_id, "INDEXING_NO_CONTENT", "No indexable content.")
                 await session.commit()
-                return IndexingJobResult(job_id, "Failed", 0, "INDEXING_NO_CONTENT", "No indexable content.")
+                return IndexingJobResult(
+                    job_id=job_id,
+                    status="Failed",
+                    chunk_count=0,
+                    error_code="INDEXING_NO_CONTENT",
+                    error_message="No indexable content.",
+                )
 
             try:
                 await session.execute(
@@ -154,7 +161,7 @@ class InternalIndexingService:
                     },
                 )
                 await session.commit()
-                return IndexingJobResult(job_id, "Succeeded", len(chunks))
+                return IndexingJobResult(job_id=job_id, status="Succeeded", chunk_count=len(chunks))
             except Exception as exc:
                 await session.rollback()
                 async with self._session_factory() as failure_session:
@@ -165,7 +172,13 @@ class InternalIndexingService:
                         "Indexing job failed.",
                     )
                     await failure_session.commit()
-                return IndexingJobResult(job_id, "Failed", 0, "INDEXING_FAILED", str(exc))
+                return IndexingJobResult(
+                    job_id=job_id,
+                    status="Failed",
+                    chunk_count=0,
+                    error_code="INDEXING_FAILED",
+                    error_message=str(exc),
+                )
 
     async def _insert_pending_job(
         self,

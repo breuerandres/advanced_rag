@@ -26,7 +26,7 @@ public sealed class AuthController : ApiControllerBase
     [AllowAnonymous]
     public ActionResult<CsrfResponse> GetCsrfToken()
     {
-        var token = _csrf.CreateToken();
+        string token = _csrf.CreateToken();
         Response.Cookies.Append(
             CsrfTokenService.CookieName,
             token,
@@ -45,7 +45,7 @@ public sealed class AuthController : ApiControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> LoginAsync([FromBody] LoginRequest request, CancellationToken ct)
     {
-        var user = await _auth.AuthenticateAsync(request.Email, request.Password, ct);
+        AuthenticatedUser? user = await _auth.AuthenticateAsync(request.Email, request.Password, ct);
         if (user is null)
         {
             return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Invalid credentials.");
@@ -79,13 +79,13 @@ public sealed class AuthController : ApiControllerBase
         [FromServices] IChatTokenIssuer tokenIssuer,
         CancellationToken ct)
     {
-        var user = await ResolveCurrentUserAsync(ct);
+        AuthenticatedUser? user = await ResolveCurrentUserAsync(ct);
         if (user is null)
         {
             return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.");
         }
 
-        var issuedToken = tokenIssuer.Issue(user);
+        IssuedChatToken issuedToken = tokenIssuer.Issue(user);
         Response.Cookies.Append(
             ChatTokenIssuer.CookieName,
             issuedToken.Token,
@@ -105,7 +105,7 @@ public sealed class AuthController : ApiControllerBase
     [Authorize]
     public async Task<IActionResult> GetSessionAsync(CancellationToken ct)
     {
-        var user = await ResolveCurrentUserAsync(ct);
+        AuthenticatedUser? user = await ResolveCurrentUserAsync(ct);
         return user is null
             ? Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.")
             : Ok(SessionResponse.FromUser(user));
@@ -120,7 +120,7 @@ public sealed class AuthController : ApiControllerBase
 
     private async Task<AuthenticatedUser?> ResolveCurrentUserAsync(CancellationToken ct)
     {
-        var userIdValue = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        string? userIdValue = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(userIdValue, out var userId)
             ? await _auth.GetActiveUserAsync(userId, ct)
             : null;
@@ -128,7 +128,7 @@ public sealed class AuthController : ApiControllerBase
 
     private static ClaimsPrincipal CreatePrincipal(AuthenticatedUser user)
     {
-        var claims = new List<Claim>
+        List<Claim> claims = new()
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Email, user.Email),

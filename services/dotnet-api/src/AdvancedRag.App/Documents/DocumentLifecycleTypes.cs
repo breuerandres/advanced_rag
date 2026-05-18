@@ -99,7 +99,7 @@ public sealed record DocumentAggregate(
         IReadOnlyList<Guid> allowedGroupIds,
         Guid actorUserId)
     {
-        var now = DateTimeOffset.UtcNow;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
         return new DocumentAggregate(
             id,
             title,

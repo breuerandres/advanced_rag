@@ -53,7 +53,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     public async Task<DocumentAggregate> CreateDraftAsync(CreateDocumentCommand command, CancellationToken ct)
     {
-        var document = DocumentAggregate.NewDraft(
+        DocumentAggregate document = DocumentAggregate.NewDraft(
             Guid.NewGuid(),
             Guid.NewGuid(),
             command.Title.Trim(),
@@ -74,7 +74,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     public async Task<DocumentAggregate> UpdateDraftAsync(UpdateDraftCommand command, CancellationToken ct)
     {
-        var document = await RequireDocumentAsync(command.InstructionId, ct);
+        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
         if (document.State == InstructionState.Archived)
         {
             throw new DocumentLifecycleException(
@@ -83,17 +83,17 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 "Archived instructions must be restored before editing.");
         }
 
-        var normalizedTitle = command.Title.Trim();
-        var normalizedType = command.InstructionType.Trim();
-        var normalizedAudience = command.Audience.Trim();
-        var normalizedContent = _htmlSanitizer.Sanitize(command.ContentHtml.Trim());
-        var now = DateTimeOffset.UtcNow;
-        var existingDraft = document.CurrentDraftVersion;
+        string normalizedTitle = command.Title.Trim();
+        string normalizedType = command.InstructionType.Trim();
+        string normalizedAudience = command.Audience.Trim();
+        string normalizedContent = _htmlSanitizer.Sanitize(command.ContentHtml.Trim());
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DocumentVersionRecord? existingDraft = document.CurrentDraftVersion;
 
         DocumentVersionRecord draft;
         if (existingDraft is null)
         {
-            var nextVersionNumber = (document.CurrentPublishedVersion?.VersionNumber ?? 0) + 1;
+            int nextVersionNumber = (document.CurrentPublishedVersion?.VersionNumber ?? 0) + 1;
             draft = new DocumentVersionRecord(
                 Guid.NewGuid(),
                 document.Id,
@@ -132,7 +132,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             };
         }
 
-        var updated = document with
+        DocumentAggregate updated = document with
         {
             Title = normalizedTitle,
             State = InstructionState.Draft,
@@ -152,24 +152,24 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     public async Task<DocumentAggregate> SendToReviewAsync(SendToReviewCommand command, CancellationToken ct)
     {
-        var document = await RequireDocumentAsync(command.InstructionId, ct);
-        var draft = RequireDraft(document);
+        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
+        DocumentVersionRecord draft = RequireDraft(document);
         RequireReadyForReview(document, draft);
 
-        var now = DateTimeOffset.UtcNow;
-        var updatedDraft = draft with
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DocumentVersionRecord updatedDraft = draft with
         {
             State = InstructionVersionState.InReview,
             SubmittedForReviewAt = now,
             SubmittedForReviewByUserId = command.ActorUserId,
         };
-        var updated = document with
+        DocumentAggregate updated = document with
         {
             State = InstructionState.InReview,
             CurrentDraftVersion = updatedDraft,
             UpdatedAt = now,
         };
-        var comments = string.IsNullOrWhiteSpace(command.Comment)
+        IReadOnlyList<ReviewCommentRecord> comments = string.IsNullOrWhiteSpace(command.Comment)
             ? Array.Empty<ReviewCommentRecord>()
             : [new ReviewCommentRecord(draft.Id, command.ActorUserId, command.Comment.Trim())];
 
@@ -184,9 +184,9 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     public async Task<DocumentAggregate> ReturnToDraftAsync(ReturnToDraftCommand command, CancellationToken ct)
     {
-        var comment = RequireComment(command.Comment);
-        var document = await RequireDocumentAsync(command.InstructionId, ct);
-        var draft = document.CurrentDraftVersion;
+        string comment = RequireComment(command.Comment);
+        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
+        DocumentVersionRecord? draft = document.CurrentDraftVersion;
         if (document.State != InstructionState.InReview
             || draft is null
             || draft.State != InstructionVersionState.InReview)
@@ -197,14 +197,14 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 "Only in-review drafts can be returned to draft.");
         }
 
-        var updatedDraft = draft with
+        DocumentVersionRecord updatedDraft = draft with
         {
             State = InstructionVersionState.Draft,
             SubmittedForReviewAt = null,
             SubmittedForReviewByUserId = null,
             IndexingStatus = IndexingStatus.None,
         };
-        var updated = document with
+        DocumentAggregate updated = document with
         {
             State = InstructionState.Draft,
             CurrentDraftVersion = updatedDraft,
@@ -223,8 +223,8 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     public async Task<DocumentAggregate> RequestPublishAsync(RequestPublishCommand command, CancellationToken ct)
     {
         RequireRole(command.ActorRoles, "Admin");
-        var document = await RequireDocumentAsync(command.InstructionId, ct);
-        var draft = document.CurrentDraftVersion;
+        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
+        DocumentVersionRecord? draft = document.CurrentDraftVersion;
         if (document.State != InstructionState.InReview
             || draft is null
             || draft.State != InstructionVersionState.InReview)
@@ -235,7 +235,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 "Only in-review drafts can be submitted for publication.");
         }
 
-        var pending = document with
+        DocumentAggregate pending = document with
         {
             CurrentDraftVersion = draft with { IndexingStatus = IndexingStatus.Pending },
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -247,7 +247,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             [Audit(command.ActorUserId, "instruction.publish_requested", document.Id, command.RequestId)],
             ct);
 
-        var result = await _indexingClient.CreateIndexingJobAsync(
+        InternalIndexingResult result = await _indexingClient.CreateIndexingJobAsync(
             new InternalIndexingRequest(
                 document.Id,
                 draft.Id,
@@ -258,7 +258,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
         if (!string.Equals(result.Status, "Succeeded", StringComparison.Ordinal))
         {
-            var failed = pending with
+            DocumentAggregate failed = pending with
             {
                 CurrentDraftVersion = draft with
                 {
@@ -283,8 +283,8 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 });
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var publishedVersion = draft with
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DocumentVersionRecord publishedVersion = draft with
         {
             State = InstructionVersionState.Published,
             PublishedAt = now,
@@ -292,7 +292,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             IndexingStatus = IndexingStatus.Succeeded,
             IndexingJobId = result.JobId,
         };
-        var published = pending with
+        DocumentAggregate published = pending with
         {
             State = InstructionState.Published,
             CurrentDraftVersion = null,
@@ -311,7 +311,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     public async Task<DocumentAggregate> ArchiveAsync(ArchiveInstructionCommand command, CancellationToken ct)
     {
-        var document = await RequireDocumentAsync(command.InstructionId, ct);
+        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
         if (document.CurrentPublishedVersion is not null && !HasRole(command.ActorRoles, "Admin"))
         {
             throw new DocumentLifecycleException(
@@ -325,7 +325,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             throw new DocumentLifecycleException("AUTH_FORBIDDEN", 403, "Actor cannot archive this instruction.");
         }
 
-        var updated = document with
+        DocumentAggregate updated = document with
         {
             State = InstructionState.Archived,
             CurrentDraftVersion = document.CurrentDraftVersion is null
@@ -348,7 +348,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     public async Task<DocumentAggregate> RestoreAsync(RestoreInstructionCommand command, CancellationToken ct)
     {
-        var document = await RequireDocumentAsync(command.InstructionId, ct);
+        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
         if (document.State != InstructionState.Archived)
         {
             throw new DocumentLifecycleException(
@@ -357,12 +357,12 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 "Only archived instructions can be restored.");
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var nextVersionNumber = Math.Max(
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        int nextVersionNumber = Math.Max(
             document.CurrentDraftVersion?.VersionNumber ?? 0,
             document.CurrentPublishedVersion?.VersionNumber ?? 0) + 1;
-        var source = document.CurrentDraftVersion ?? document.CurrentPublishedVersion;
-        var draft = new DocumentVersionRecord(
+        DocumentVersionRecord? source = document.CurrentDraftVersion ?? document.CurrentPublishedVersion;
+        DocumentVersionRecord draft = new(
             Guid.NewGuid(),
             document.Id,
             nextVersionNumber,
@@ -378,7 +378,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 null,
                 IndexingStatus.None,
                 null);
-        var updated = document with
+        DocumentAggregate updated = document with
         {
             State = InstructionState.Draft,
             CurrentDraftVersion = draft,
@@ -418,7 +418,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     private static void RequireReadyForReview(DocumentAggregate document, DocumentVersionRecord draft)
     {
-        var missing = new List<string>();
+        List<string> missing = new();
         if (string.IsNullOrWhiteSpace(draft.Title))
         {
             missing.Add("title");
@@ -461,7 +461,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     private static string RequireComment(string comment)
     {
-        var normalized = comment.Trim();
+        string normalized = comment.Trim();
         if (normalized.Length == 0)
         {
             throw new DocumentLifecycleException(

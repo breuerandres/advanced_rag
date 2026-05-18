@@ -20,8 +20,8 @@ public sealed class GroupsController : ApiControllerBase
     [Authorize(Roles = "Admin,DocumentManager")]
     public async Task<IActionResult> ListGroupsAsync(CancellationToken ct)
     {
-        var result = await _users.ListGroupsAsync(ct);
-        return Ok(result.Select(GroupResponse.FromGroup).ToArray());
+        IReadOnlyList<GroupRecord> groups = await _users.ListGroupsAsync(ct);
+        return Ok(groups.Select(GroupResponse.FromGroup).ToArray());
     }
 
     [HttpPost]
@@ -30,7 +30,7 @@ public sealed class GroupsController : ApiControllerBase
     {
         try
         {
-            var group = await _users.CreateGroupAsync(
+            GroupRecord group = await _users.CreateGroupAsync(
                 new CreateGroupCommand(request.Name, ActorUserId()),
                 ct);
             return Created($"/api/groups/{group.Id}", GroupResponse.FromGroup(group));
