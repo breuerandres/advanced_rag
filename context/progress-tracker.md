@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Complete Task 12 feedback and management reporting, then move to Task 13 viewer exchange and document viewer.
+- Complete Task 13 viewer exchange and document viewer, then move to Task 14 chat frontend workflow.
 
 ## Completed
 
@@ -205,6 +205,15 @@
 - Verified Task 12 with `uv run pytest tests -k feedback -q` (`3 passed`), `dotnet test services/dotnet-api/AdvancedRag.sln --filter Reporting` (`2 passed` in API tests), `pnpm.cmd --dir apps/chat-web test -- --run` (`4 passed`), and `pnpm.cmd --dir apps/manage-web test -- --run` (`13 passed`).
 - Additional Task 12 verification passed: `uv run pytest -q` (`28 passed`), `uv run ruff check .`, `uv run mypy src tests`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `pnpm.cmd --dir apps/chat-web typecheck`, `pnpm.cmd --dir apps/manage-web typecheck`, `pnpm.cmd --dir apps/chat-web build`, and `pnpm.cmd --dir apps/manage-web build`. `.NET` restore/build/test commands still emit NU1900 warnings because NuGet vulnerability metadata cannot be fetched from `https://api.nuget.org/v3/index.json`; build and tests passed.
 - Created the Task 12 feedback/reporting commit with message `feat: add chat feedback and management reporting`.
+- Implemented Task 13 viewer exchange and document viewer:
+  - Added `.NET` viewer link, exchange, token, and document endpoints under `/api/viewer/*`.
+  - Added `ViewerAccessService`, EF persistence over `app.viewer_exchange_codes` and `app.viewer_token_audit`, and RS256 viewer token issuance/validation through the existing JWT key store.
+  - Enforced 60-second single-use exchange codes, chat links limited to `Published`, management links for `Draft`, `In Review`, and `Published` for authorized management users, and reusable 15-minute host-only `HttpOnly` viewer-token cookies.
+  - Built `docs-web` exchange-code loading, safe expired/used/unauthorized/token-expired/not-found states, and successful document rendering.
+  - Updated `chat-web` citation buttons to request viewer exchange links before navigation.
+  - Updated `manage-web` document rows to request management viewer links before opening docs.
+- Verified Task 13 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter Viewer`, `pnpm.cmd --dir apps\docs-web test -- --run`, `pnpm.cmd --dir apps\chat-web test -- --run`, `pnpm.cmd --dir apps\manage-web test -- --run`, frontend typechecks and builds for docs/chat/manage, and `dotnet build services\dotnet-api\AdvancedRag.sln`. `.NET` commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`; build and tests passed.
+- Created the Task 13 viewer exchange commit with message `feat: add secure viewer exchange flow`.
 
 ## In Progress
 
@@ -212,39 +221,38 @@
 
 ## Next Up
 
-- Commit Task 12, then implement Task 13 viewer exchange and document viewer.
+- Implement Task 14 chat frontend workflow.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Task 13 viewer exchange and document viewer.
+- Task 14 chat frontend workflow.
 
 ### Why This Comes Next
 
-- Task 12 feedback/reporting is implemented and verified.
-- The next safe step is to implement secure viewer exchange codes, docs-web exchange/loading states, and citation/open-link behavior.
+- Task 13 viewer exchange and document viewer is implemented and verified.
+- The next safe step is to implement the full chat frontend workflow on top of the viewer link and feedback foundations.
 
 ### Scope
 
-- Implement Task 13 only.
-- Preserve service boundaries: `.NET` owns viewer exchange codes and viewer access tokens; docs-web consumes only same-origin `.NET` viewer APIs.
+- Implement Task 14 only.
+- Preserve service boundaries: chat uses FastAPI for RAG/feedback and same-origin `.NET` routes only for auth/session and viewer-link support.
 
 ### User-Owned Steps
 
-- Keep Docker Desktop running before verification because backend integration tests use Testcontainers.
+- Keep Docker Desktop running before verification because backend integration tests may use Testcontainers.
 
 ### Required Verification
 
-- `dotnet test services/dotnet-api/AdvancedRag.sln --filter Viewer`
-- `pnpm.cmd --dir apps/docs-web test -- --run`
 - `pnpm.cmd --dir apps/chat-web test -- --run`
-- `pnpm.cmd --dir apps/manage-web test -- --run`
+- `pnpm.cmd --dir apps/chat-web typecheck`
+- `pnpm.cmd --dir apps/chat-web build`
 
 Expected result:
 
-- Task 13 starts from a verified feedback/reporting slice.
-- Viewer exchange links can be created, exchanged, and rendered safely in docs-web.
+- Task 14 starts from a verified viewer exchange slice.
+- Chat UI handles empty, loading, answer, citation, feedback, budget, auth-expired, and safe error states.
 
 ## Open Questions
 
@@ -281,10 +289,6 @@ Implementation artifacts (formal spec and 18-task plan) live at `docs/superpower
 
 Current state:
 
-- The project is entering implementation kickoff.
-- The formal architecture spec and MVP implementation plan have been written.
-- The implementation plan has been approved for execution.
-- Git has been initialized by the user.
 - Human-in-the-loop implementation is now required for MVP execution.
 - The implementation branch is `mvp-implementation`.
 - Task 0 repository baseline is complete and committed.
@@ -296,14 +300,13 @@ Current state:
 - Task 6 initial database schemas are complete and committed with the scoped foundation changes.
 - Task 7 authentication foundation is complete and committed with the scoped foundation changes.
 - Task 8 users, groups, access scope, and AI budget configuration is complete and committed with the scoped foundation changes.
-- Backend HTTP organization has been decided: `.NET` feature routes move to MVC controllers and FastAPI feature routes use routers/schemas/services.
-- Fixed the Compose frontend build contexts to use the monorepo root so the existing workspace-aware frontend Dockerfiles can resolve `apps/*-web` paths correctly.
-- Fixed the Compose frontend build file paths so the root-level build contexts point at the app-local Dockerfiles explicitly.
-- Rebased the FastAPI Dockerfile onto `python:3.12-slim-bookworm` and installed `uv` with `pip` to remove the GHCR dependency from local Compose builds.
-- Added the missing `AdvancedRag.Infrastructure.Tests.csproj` copy step to the .NET Dockerfile so solution restore can see all referenced test projects.
-- Verified `docker compose --env-file infra\compose\.env.example -f infra\compose\compose.yaml up` starts successfully after the build-context and Dockerfile fixes.
-- The base architecture formal spec is written and approved as the basis for implementation: monorepo, Docker Compose, Caddy same-origin API routing, three React frontends, .NET management API, FastAPI RAG API, PostgreSQL with `app` and `rag` schemas, secure cookies, chat token flow, viewer exchange codes, document lifecycle, assisted imports, publishing blocked on successful indexing, semantic cache, AI usage budgets, audit, logs, secrets, health checks, operational defaults, UI foundation, and OpenAI model defaults.
+- Task 9 document lifecycle and assisted imports is complete and committed.
+- Task 10 internal indexing pipeline is complete and committed.
+- Task 11 chat/RAG core is complete and committed.
+- Task 11.5 backend readability refactor audit is complete and committed.
+- Task 12 feedback and management reporting is complete and committed.
+- Task 13 viewer exchange and document viewer is complete and committed.
 
 Next safe implementation work:
 
-- Refactor the existing `.NET` API HTTP boundary to MVC controllers, then begin Task 9 document lifecycle and assisted imports.
+- Start Task 14 chat frontend workflow.

@@ -33,6 +33,11 @@ public sealed class JwtSigningKeyStore
             keys = _keys.Select(key => key.ToJwk()).ToArray(),
         };
     }
+
+    public IReadOnlyList<SecurityKey> GetValidationKeys()
+    {
+        return _keys.Select(key => key.ValidationKey).ToArray();
+    }
 }
 
 public sealed class JwtSigningKey
@@ -56,6 +61,8 @@ public sealed class JwtSigningKey
     public string Status { get; }
 
     public SigningCredentials Credentials { get; }
+
+    public SecurityKey ValidationKey => new RsaSecurityKey(PublicKey) { KeyId = Kid };
 
     private RSA PublicKey { get; }
 

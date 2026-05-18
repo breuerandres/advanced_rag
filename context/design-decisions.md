@@ -76,6 +76,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Cost-First MVP Embedding Model](#2026-05-17---cost-first-mvp-embedding-model)
 - [Task 11 Chat RAG Core](#2026-05-17---task-11-chat-rag-core)
 - [Task 12 Feedback And Management Reporting](#2026-05-18---task-12-feedback-and-management-reporting)
+- [Task 13 Viewer Exchange And Document Viewer](#2026-05-18---task-13-viewer-exchange-and-document-viewer)
 
 ### Audit, Pricing, And Budgets
 
@@ -1177,3 +1178,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Chat feedback can be submitted or updated by the same authenticated chat user only for their own query audit event. Management reporting supports negative-only, cited-document, user, and date-range filters through `.NET`, with the frontend calling only same-origin `/api/reporting/feedback`.
 
 **Evidence:** Verified on 2026-05-18 with `uv run pytest tests -k feedback -q`, `dotnet test services/dotnet-api/AdvancedRag.sln --filter Reporting`, `pnpm.cmd --dir apps/chat-web test -- --run`, `pnpm.cmd --dir apps/manage-web test -- --run`, plus full FastAPI tests/lint/type checks, `.NET` build, and chat/manage frontend typecheck/build. `.NET` commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched; build and tests passed.
+
+## 2026-05-18 - Task 13 Viewer Exchange And Document Viewer
+
+**Context:** Task 13 implements the secure citation/document opening path. The implementation must keep real viewer tokens out of URLs and browser JavaScript, use one-time short-lived exchange codes, revalidate document state during exchange and document loading, and support both chat-origin published links and management-origin draft/review/published links.
+
+**Options Considered:** Put a viewer JWT directly in citation URLs, make exchange codes reusable until expiration, or persist one-time exchange codes that set a host-only viewer-token cookie.
+
+**Decision:** Persist one-time 60-second exchange codes in `app.viewer_exchange_codes`, issue RS256 viewer tokens only through `POST /api/viewer/exchange`, set the token in a host-only `__Host-viewer-token` cookie, and audit token issuance in `app.viewer_token_audit`. Chat-created links allow only `Published`; management-created links allow `Draft`, `In Review`, and `Published` for `Admin` or `DocumentManager`. Viewer tokens are document-scoped and reusable for 15 minutes.
+
+**Rationale:** This preserves the approved browser security model: URLs contain only short-lived exchange codes, not credential-bearing tokens. Revalidating state during exchange and document load prevents stale links from becoming authorization. Using the existing RS256 key store keeps token signing consistent with chat tokens while keeping viewer audience and claims separate.
+
+**Tradeoffs:** The docs frontend must perform an extra exchange request before document loading, and management/chat need an additional link-creation call before navigation. The added round trip is acceptable because document opening is less latency-sensitive than chat answer generation.
+
+**Consequences:** `.NET` owns all viewer exchange and document loading APIs under `/api/viewer/*`. `docs-web` handles expired, used, invalid, unauthorized, token-expired, not-found, loading, and success states. `chat-web` and `manage-web` request exchange-code links before opening documents instead of constructing docs URLs locally.
+
+**Evidence:** Verified on 2026-05-18 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter Viewer`, `pnpm.cmd --dir apps\docs-web test -- --run`, `pnpm.cmd --dir apps\chat-web test -- --run`, `pnpm.cmd --dir apps\manage-web test -- --run`, `pnpm.cmd --dir apps\docs-web typecheck`, `pnpm.cmd --dir apps\chat-web typecheck`, `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\docs-web build`, `pnpm.cmd --dir apps\chat-web build`, `pnpm.cmd --dir apps\manage-web build`, and `dotnet build services\dotnet-api\AdvancedRag.sln`. `.NET` commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched; build and tests passed.

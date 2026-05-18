@@ -1336,7 +1336,7 @@ Expected: commit succeeds.
 - Modify: `apps/manage-web` document open link behavior
 - Test: .NET and frontend viewer tests
 
-- [ ] **Step 1: Write .NET viewer exchange tests**
+- [x] **Step 1: Write .NET viewer exchange tests**
 
 Cover:
 
@@ -1350,11 +1350,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 2: Implement viewer link and token services**
+- [x] **Step 2: Implement viewer link and token services**
 
 Persist exchange code state in `app.viewer_exchange_codes` and audit viewer token issuance in `app.viewer_token_audit`.
 
-- [ ] **Step 3: Write docs frontend tests**
+- [x] **Step 3: Write docs frontend tests**
 
 Cover:
 
@@ -1368,11 +1368,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 4: Implement docs frontend**
+- [x] **Step 4: Implement docs frontend**
 
 Build viewer route `/open?code=...`, exchange flow, safe error states, and document rendering.
 
-- [ ] **Step 5: Verify viewer flow**
+- [x] **Step 5: Verify viewer flow**
 
 Run:
 
@@ -1385,7 +1385,7 @@ pnpm --dir apps/manage-web test -- --run
 
 Expected: tests pass.
 
-- [ ] **Step 6: Commit viewer flow**
+- [x] **Step 6: Commit viewer flow**
 
 Run:
 

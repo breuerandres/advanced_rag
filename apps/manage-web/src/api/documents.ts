@@ -50,6 +50,11 @@ export interface ImportExtractionResult {
   }
 }
 
+export interface ViewerLinkResult {
+  url: string
+  expiresAt: string
+}
+
 let csrfToken: string | null = null
 
 export async function listDocuments(): Promise<DocumentSummary[]> {
@@ -95,6 +100,14 @@ export async function importDocumentText(file: File): Promise<ImportExtractionRe
     headers: csrfHeaders(),
     body: form,
   })
+}
+
+export async function createManagementViewerLink(id: string): Promise<ViewerLinkResult> {
+  await ensureCsrfToken()
+  return requestJson<ViewerLinkResult>(
+    '/api/viewer/links',
+    jsonInit('POST', { instructionId: id, purpose: 'management' }),
+  )
 }
 
 function jsonInit(method: string, body: unknown): RequestInit {

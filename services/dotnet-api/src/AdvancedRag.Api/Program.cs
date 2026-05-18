@@ -5,11 +5,13 @@ using AdvancedRag.App.Auth;
 using AdvancedRag.App.Documents;
 using AdvancedRag.App.Reporting;
 using AdvancedRag.App.Users;
+using AdvancedRag.App.Viewer;
 using AdvancedRag.Infrastructure.Auth;
 using AdvancedRag.Infrastructure.Documents;
 using AdvancedRag.Infrastructure.Persistence;
 using AdvancedRag.Infrastructure.Reporting;
 using AdvancedRag.Infrastructure.Users;
+using AdvancedRag.Infrastructure.Viewer;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -50,6 +52,15 @@ builder.Services.AddScoped<IUserAdministrationRepository, EfUserAdministrationRe
 builder.Services.AddScoped<IDocumentLifecycleService, DocumentLifecycleService>();
 builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
 builder.Services.AddScoped<IDocumentImportExtractionService, DocumentImportExtractionService>();
+builder.Services.AddScoped<IViewerAccessRepository, EfViewerAccessRepository>();
+builder.Services.AddScoped<IViewerAccessService>(services =>
+{
+    var repository = services.GetRequiredService<IViewerAccessRepository>();
+    var tokenService = services.GetRequiredService<IViewerTokenService>();
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var docsBaseUrl = configuration["Viewer:DocsBaseUrl"] ?? "https://docs.client.com";
+    return new ViewerAccessService(repository, tokenService, docsBaseUrl);
+});
 builder.Services.AddScoped<IFeedbackReportingService>(services =>
 {
     var configuration = services.GetRequiredService<IConfiguration>();
@@ -83,6 +94,7 @@ builder.Services.AddSingleton<IPasswordHashService, Pbkdf2PasswordHashService>()
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
 builder.Services.AddSingleton<JwtSigningKeyStore>();
 builder.Services.AddSingleton<IChatTokenIssuer, ChatTokenIssuer>();
+builder.Services.AddSingleton<IViewerTokenService, ViewerTokenService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

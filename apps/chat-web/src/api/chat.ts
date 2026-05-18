@@ -3,6 +3,7 @@ import { parseApiError } from '../lib/api-error'
 export interface ChatResult {
   answer: string
   queryAuditEventId: string | null
+  citations: ChatCitation[]
 }
 
 export interface FeedbackResult {
@@ -12,6 +13,14 @@ export interface FeedbackResult {
 }
 
 export type FeedbackValue = 'up' | 'down'
+
+export interface ChatCitation {
+  documentId: string
+  instructionVersionId: string
+  headingPath: string[]
+}
+
+let csrfToken: string | null = null
 
 export async function submitQuestion(question: string): Promise<ChatResult> {
   const response = await fetch('/api/chat', {
@@ -53,9 +62,30 @@ export async function submitFeedback(
   return body as FeedbackResult
 }
 
+export async function createViewerLink(documentId: string): Promise<string> {
+  await ensureCsrfToken()
+  const response = await fetch('/api/viewer/links', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken ?? '',
+      'X-Request-ID': createRequestId(),
+    },
+    body: JSON.stringify({ instructionId: documentId, purpose: 'chat' }),
+  })
+  const body = safeJson(await response.text())
+  if (!response.ok) {
+    throw parseApiError(response, body)
+  }
+
+  return (body as { url: string }).url
+}
+
 function parseChatStream(stream: string): ChatResult {
   let answer = ''
   let queryAuditEventId: string | null = null
+  const citations: ChatCitation[] = []
   const events = stream.split('\n\n').filter(Boolean)
   for (const rawEvent of events) {
     const eventName = rawEvent.match(/^event: (.+)$/m)?.[1]
@@ -77,9 +107,39 @@ function parseChatStream(stream: string): ChatResult {
           queryAuditEventId = first.query_audit_event_id
         }
       }
+
+      if (Array.isArray(payload.citations)) {
+        for (const citation of payload.citations as Record<string, unknown>[]) {
+          if (
+            typeof citation.document_id === 'string' &&
+            typeof citation.instruction_version_id === 'string'
+          ) {
+            citations.push({
+              documentId: citation.document_id,
+              instructionVersionId: citation.instruction_version_id,
+              headingPath: Array.isArray(citation.heading_path)
+                ? citation.heading_path.filter((item): item is string => typeof item === 'string')
+                : [],
+            })
+          }
+        }
+      }
     }
   }
-  return { answer, queryAuditEventId }
+  return { answer, queryAuditEventId, citations }
+}
+
+async function ensureCsrfToken(): Promise<void> {
+  const response = await fetch('/api/csrf', {
+    credentials: 'include',
+    headers: { 'X-Request-ID': createRequestId() },
+  })
+  const body = safeJson(await response.text())
+  if (!response.ok) {
+    throw parseApiError(response, body)
+  }
+
+  csrfToken = response.headers.get('X-CSRF-Token')
 }
 
 function safeJson(text: string): unknown {

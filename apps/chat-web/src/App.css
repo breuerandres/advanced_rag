@@ -106,6 +106,26 @@ textarea {
   gap: 10px;
 }
 
+.citation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.citation-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #164e78;
+  padding: 6px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
 .answer-panel p {
   margin: 0;
   line-height: 1.55;

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Archive, FileText, Pencil, RotateCcw, Users } from 'lucide-react'
+import { Archive, ExternalLink, FileText, Pencil, RotateCcw, Users } from 'lucide-react'
 import { ApiError } from '../../lib/api-error'
 import {
   archiveDocument,
+  createManagementViewerLink,
   getDocument,
   importDocumentText,
   listDocuments,
@@ -60,6 +61,17 @@ export function DocumentsPage({ onOpenUsers }: { onOpenUsers: () => void }) {
       ),
     )
     setMessage('Documento restaurado.')
+  }
+
+  async function openViewer(document: DocumentSummary) {
+    setMessage(null)
+    try {
+      const link = await createManagementViewerLink(document.id)
+      window.location.assign(link.url)
+    } catch (error) {
+      const reference = error instanceof ApiError ? error.requestId : 'unknown'
+      setMessage(`No se pudo abrir el visor. Referencia: ${reference}.`)
+    }
   }
 
   return (
@@ -148,6 +160,14 @@ export function DocumentsPage({ onOpenUsers }: { onOpenUsers: () => void }) {
                         onClick={() => void openDocument(document.id)}
                       >
                         <Pencil size={16} />
+                      </Button>
+                      <Button
+                        className="icon-button"
+                        type="button"
+                        aria-label={`Abrir visor de ${document.title}`}
+                        onClick={() => void openViewer(document)}
+                      >
+                        <ExternalLink size={16} />
                       </Button>
                       {document.state === 'Archived' ? (
                         <Button

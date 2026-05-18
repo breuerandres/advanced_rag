@@ -379,6 +379,33 @@ describe('management documents', () => {
       expect.objectContaining({ method: 'POST' }),
     )
   })
+
+  test('opens management document viewer through exchange links', async () => {
+    const assign = vi.fn()
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { assign },
+    })
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, documentsResponse),
+      csrfResponse(),
+      jsonResponse(200, { url: 'https://docs.client.com/open?code=manager-code', expiresAt: '2026-05-18T12:01:00Z' }),
+    ])
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('link', { name: 'Documentos' }))
+    await user.click(await screen.findByRole('button', { name: 'Abrir visor de Politica de seguridad' }))
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/viewer/links',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(assign).toHaveBeenCalledWith('https://docs.client.com/open?code=manager-code')
+  })
 })
 
 describe('management feedback reporting', () => {

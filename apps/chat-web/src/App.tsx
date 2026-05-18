@@ -1,12 +1,19 @@
 import { useState } from 'react'
-import { MessageSquareText, Send, ThumbsDown, ThumbsUp } from 'lucide-react'
-import { submitFeedback, submitQuestion, type FeedbackValue } from './api/chat'
+import { ExternalLink, MessageSquareText, Send, ThumbsDown, ThumbsUp } from 'lucide-react'
+import {
+  createViewerLink,
+  submitFeedback,
+  submitQuestion,
+  type ChatCitation,
+  type FeedbackValue,
+} from './api/chat'
 import './App.css'
 
 export default function App() {
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState('')
   const [queryAuditEventId, setQueryAuditEventId] = useState<string | null>(null)
+  const [citations, setCitations] = useState<ChatCitation[]>([])
   const [feedbackValue, setFeedbackValue] = useState<FeedbackValue | null>(null)
   const [comment, setComment] = useState('')
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
@@ -24,6 +31,7 @@ export default function App() {
     setIsSubmitting(true)
     setError(null)
     setAnswer('')
+    setCitations([])
     setFeedbackValue(null)
     setFeedbackSubmitted(false)
     setComment('')
@@ -31,10 +39,21 @@ export default function App() {
       const result = await submitQuestion(normalizedQuestion)
       setAnswer(result.answer)
       setQueryAuditEventId(result.queryAuditEventId)
+      setCitations(result.citations)
     } catch {
       setError('No se pudo responder la pregunta.')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function openCitation(citation: ChatCitation) {
+    setError(null)
+    try {
+      const url = await createViewerLink(citation.documentId)
+      window.location.assign(url)
+    } catch {
+      setError('No se pudo abrir la cita.')
     }
   }
 
@@ -94,6 +113,21 @@ export default function App() {
               <h2>Respuesta</h2>
             </div>
             <p>{answer}</p>
+            {citations.length > 0 ? (
+              <div className="citation-list" aria-label="Citas">
+                {citations.map((citation) => (
+                  <button
+                    key={`${citation.documentId}-${citation.instructionVersionId}`}
+                    type="button"
+                    className="citation-button"
+                    onClick={() => void openCitation(citation)}
+                  >
+                    <ExternalLink size={15} />
+                    <span>Abrir cita {citation.headingPath[0] ?? 'documento'}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </article>
         ) : null}
 

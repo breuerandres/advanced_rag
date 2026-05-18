@@ -1,34 +1,121 @@
-import { BookOpen, Clock3, ShieldCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertTriangle, Clock3, FileText, ShieldCheck } from 'lucide-react'
+import {
+  exchangeViewerCode,
+  getViewerDocument,
+  type ViewerDocument,
+  viewerErrorMessage,
+} from './api/viewer'
 import './App.css'
 
+type ViewerState =
+  | { status: 'loading'; message: string }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; document: ViewerDocument }
+
 export default function App() {
+  const [state, setState] = useState<ViewerState>({
+    status: 'loading',
+    message: 'Validando enlace...',
+  })
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadViewer() {
+      try {
+        const code = new URLSearchParams(window.location.search).get('code')
+        if (code) {
+          await exchangeViewerCode(code)
+        }
+
+        const document = await getViewerDocument()
+        if (isMounted) {
+          setState({ status: 'ready', document })
+        }
+      } catch (error) {
+        if (isMounted) {
+          setState({ status: 'error', message: viewerErrorMessage(error) })
+        }
+      }
+    }
+
+    void loadViewer()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   return (
-    <main className="app-shell">
-      <header className="app-header">
+    <main className="viewer-shell">
+      <header className="viewer-header">
         <div>
           <p className="eyebrow">Advanced RAG</p>
-          <h1>Instruction Viewer</h1>
+          <h1>Visor de instrucciones</h1>
         </div>
-        <div className="header-actions">
-          <button type="button">Open</button>
-          <button type="button">Access</button>
+        <div className="trust-strip" aria-label="Estado de acceso">
+          <span>
+            <ShieldCheck size={16} />
+            Acceso verificado
+          </span>
+          <span>
+            <Clock3 size={16} />
+            Token temporal
+          </span>
         </div>
       </header>
 
-      <section className="app-summary" aria-label="Instruction Viewer">
-        <article>
-          <BookOpen size={20} />
-          <span>Published content</span>
-        </article>
-        <article>
-          <ShieldCheck size={20} />
-          <span>Scoped access</span>
-        </article>
-        <article>
-          <Clock3 size={20} />
-          <span>Token-gated links</span>
-        </article>
-      </section>
+      {state.status === 'loading' ? (
+        <section className="state-panel" aria-live="polite">
+          <FileText size={22} />
+          <p>{state.message}</p>
+        </section>
+      ) : null}
+
+      {state.status === 'error' ? (
+        <section className="state-panel error" role="alert">
+          <AlertTriangle size={22} />
+          <p>{state.message}</p>
+        </section>
+      ) : null}
+
+      {state.status === 'ready' ? <DocumentView document={state.document} /> : null}
     </main>
   )
+}
+
+function DocumentView({ document }: { document: ViewerDocument }) {
+  return (
+    <article className="document-view">
+      <header className="document-header">
+        <div>
+          <p className="eyebrow">{document.instructionType}</p>
+          <h2>{document.title}</h2>
+        </div>
+        <dl className="document-meta">
+          <div>
+            <dt>Estado</dt>
+            <dd>{displayState(document.state)}</dd>
+          </div>
+          <div>
+            <dt>Audiencia</dt>
+            <dd>{document.audience}</dd>
+          </div>
+        </dl>
+      </header>
+      <section
+        className="document-content"
+        dangerouslySetInnerHTML={{ __html: document.contentHtml }}
+      />
+    </article>
+  )
+}
+
+function displayState(state: string) {
+  const labels: Record<string, string> = {
+    Published: 'Publicado',
+    Draft: 'Borrador',
+    'In Review': 'En revision',
+  }
+  return labels[state] ?? state
 }

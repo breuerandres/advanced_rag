@@ -67,6 +67,48 @@ test('submits feedback after a chat answer and allows updating it', async () => 
   )
 })
 
+test('opens citations through viewer exchange links', async () => {
+  const assign = vi.fn()
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: { assign },
+  })
+  const fetchMock = stubFetch([
+    sseResponse([
+      ['answer-token', { delta: 'Usa credencial visible.' }],
+      [
+        'citations',
+        {
+          query_audit_event_id: '33333333-3333-3333-3333-333333333333',
+          citations: [
+            {
+              document_id: '55555555-5555-5555-5555-555555555555',
+              instruction_version_id: '66666666-6666-6666-6666-666666666666',
+              heading_path: ['Seguridad'],
+            },
+          ],
+        },
+      ],
+      ['done', {}],
+    ]),
+    csrfResponse(),
+    jsonResponse(200, { url: 'https://docs.client.com/open?code=abc' }),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+  await user.click(await screen.findByRole('button', { name: 'Abrir cita Seguridad' }))
+
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    '/api/viewer/links',
+    expect.objectContaining({ method: 'POST' }),
+  )
+  expect(assign).toHaveBeenCalledWith('https://docs.client.com/open?code=abc')
+})
+
 function stubFetch(responses: Response[]) {
   const fetchMock = vi.fn(async () => {
     const response = responses.shift()
@@ -85,6 +127,13 @@ function jsonResponse(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+function csrfResponse() {
+  return new Response('{}', {
+    status: 200,
+    headers: { 'X-CSRF-Token': 'csrf-token' },
   })
 }
 
