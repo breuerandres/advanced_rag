@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Complete Task 18 documentation and handoff.
+- Complete Task 17.5 UI stabilization, first-run setup, and product polish before Task 18.
 
 ## Completed
 
@@ -252,6 +252,12 @@
   - Added shared nginx SPA fallback config for the three frontend containers, including IPv4 and IPv6 localhost listeners for Compose health checks and deep-link support.
   - Updated `docs-web` to remove one-time viewer exchange codes from the browser URL after successful exchange so reloads use the viewer cookie rather than re-consuming the code.
 - Verified Task 17 with `pnpm --dir tests/e2e test` against the Compose stack (`1 passed`), `dotnet test services/dotnet-api/AdvancedRag.sln` (`62 passed` across .NET test projects), `uv run pytest -q` (`32 passed`), `pnpm -r test -- --run` (`37 frontend tests passed; E2E package intentionally skipped recursive unit run`), `pnpm -r typecheck`, `pnpm -r build`, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`, and `git diff --check`. `.NET` commands still emit NU1900 warnings because NuGet vulnerability metadata cannot be fetched from `https://api.nuget.org/v3/index.json`; tests and builds passed.
+- User review after Task 17 identified a product usability gap that must be fixed before documentation/handoff: the database migrates and services are healthy, but a clean deployment has no human first-run admin setup, no complete login/register surfaces, no user-friendly bootstrap path, and the current UI is too scaffold-like for MVP demo quality.
+- Created Stitch design reference for Task 17.5:
+  - Project: `projects/544909270556047969`.
+  - Design system: `assets/df5cbb6e08e34c07abdf928b24898e57`.
+  - Generated screens cover login/first-run bootstrap, management console, chat app, and instruction viewer states.
+- Inserted Task 17.5 into `docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md` and user approved implementing it before Task 18 when token budget is available.
 
 ## In Progress
 
@@ -259,27 +265,29 @@
 
 ## Next Up
 
-- Implement Task 18 documentation and handoff.
+- Implement Task 17.5 UI stabilization, first-run setup, and product polish.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Task 18 documentation and handoff.
+- Task 17.5 UI stabilization, first-run setup, and product polish.
 
 ### Why This Comes Next
 
 - Task 17 end-to-end MVP verification is implemented and verified.
-- The next safe step is final documentation, handoff, and any user-facing runbook polish required by Task 18.
+- User acceptance review found that the current MVP is technically verifiable but not usable from a clean browser session.
+- The next safe step is Task 17.5, not Task 18, because documentation should not freeze a product flow that still requires hidden SQL seeding and has incomplete login/register UI.
 
 ### Scope
 
-- Implement Task 18 only.
-- Update final project documentation and handoff material without changing runtime behavior unless documentation verification exposes a concrete defect.
+- Implement Task 17.5 only.
+- Add first-run setup API, real login/bootstrap UI, local demo seed support, product UI polish based on the Stitch design reference, and first-run E2E verification.
 
 ### User-Owned Steps
 
-- Review the final documentation/handoff output when requested.
+- Keep Docker Desktop running when implementation resumes.
+- If a clean first-run test is needed, decide whether local Compose volumes may be removed with `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml down -v`.
 
 ### Required Verification
 
@@ -289,15 +297,16 @@
 - `pnpm -r typecheck`
 - `pnpm -r build`
 - `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`
-- Documentation-specific verification from Task 18 once implemented.
+- `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml up -d --build`
+- `pnpm --dir tests/e2e test`
 
 Expected result:
 
-- Existing unit/integration/E2E checks remain green and Task 18 documentation accurately reflects the implemented MVP.
+- Existing unit/integration/E2E checks remain green, a clean deployment can create the first admin from the browser, and the UI reaches credible MVP demo quality.
 
 ## Open Questions
 
-- None for the current checkpoint.
+- None for the current checkpoint. Task 17.5 scope has been approved by the user.
 
 ## Architecture Decisions
 
@@ -350,8 +359,9 @@ Current state:
 - Task 14 chat frontend workflow is complete and committed.
 - Task 15 management frontend workflow is complete and committed.
 - Task 16 operational hardening is complete and committed.
-- Task 17 end-to-end MVP verification is complete and ready to commit.
+- Task 17 end-to-end MVP verification is complete and committed.
+- Task 17.5 UI stabilization, first-run setup, and product polish is documented and approved, but not implemented.
 
 Next safe implementation work:
 
-- Commit Task 17, then start Task 18 documentation and handoff.
+- Start Task 17.5 when token budget is available. Do not start Task 18 until Task 17.5 is implemented and verified.

@@ -1655,6 +1655,129 @@ git commit -m "test: add mvp end-to-end verification"
 
 Expected: commit succeeds.
 
+## Task 17.5: UI Stabilization, First-Run Setup, And Product Polish
+
+**Status:** Approved by user on 2026-05-18. Implement before Task 18.
+
+**Why this task exists:**
+
+Task 17 proved that the service contracts can work end to end, but the product is not yet usable from a clean browser session. The E2E test seeds bootstrap users directly in PostgreSQL, there is no human first-run admin setup, login/register surfaces are missing or incomplete, and the current UI is too scaffold-like for a serious MVP demo. Task 18 documentation must not proceed until this product usability gap is closed.
+
+**Stitch design reference:**
+
+- Project: `projects/544909270556047969`
+- Design system: `assets/df5cbb6e08e34c07abdf928b24898e57`
+- Generated screens:
+  - Login and first-run admin bootstrap.
+  - Management console.
+  - Chat app.
+  - Instruction viewer success and access-error states.
+
+**Files:**
+- Modify: `services/dotnet-api/src/AdvancedRag.Api/Controllers/*`
+- Modify/Create: `services/dotnet-api/src/AdvancedRag.Api/Models/Setup/*`
+- Modify/Create: `services/dotnet-api/src/AdvancedRag.App/Setup/*`
+- Modify: `services/dotnet-api/tests/AdvancedRag.Api.Tests/*`
+- Modify: `services/dotnet-api/tests/AdvancedRag.App.Tests/*`
+- Modify: `apps/manage-web/src/*`
+- Modify: `apps/chat-web/src/*`
+- Modify: `apps/docs-web/src/*`
+- Modify/Create: `infra/compose/Seed-LocalDemoData.ps1`
+- Modify: `tests/e2e/specs/mvp-happy-path.spec.ts`
+- Create: `tests/e2e/specs/first-run-product-flow.spec.ts`
+- Modify: `context/progress-tracker.md`
+- Modify: `context/design-decisions.md`
+- Modify: `context/ui-context.md`
+
+- [ ] **Step 1: Add first-run setup API**
+
+Implement a production-safe bootstrap flow:
+
+- `GET /api/setup/status` returns whether setup is required, whether an admin exists, and safe readiness context.
+- `POST /api/setup/admin` creates the first `Admin` only when no admin user exists.
+- After an admin exists, setup registration is permanently blocked with a safe stable error code.
+- Setup creates the required role assignment and default AI budget.
+- No public open registration after bootstrap.
+
+Expected: tests fail first, then pass for setup allowed, setup blocked, validation errors, and login after setup.
+
+- [ ] **Step 2: Add real login and first-run UI**
+
+Implement `manage-web` authentication surfaces from the Stitch design:
+
+- Show first-run setup when `/api/setup/status` reports setup is required.
+- Show login when setup is complete and no session exists.
+- Show loading, invalid credentials, API offline, DB/setup readiness, and local HTTPS/certificate help states.
+- Add logout and current-user display in the authenticated management shell.
+- Protect management sections from unauthenticated access.
+
+Expected: a clean deployment can be opened at `https://manage.localhost`, create the first admin, then log in without SQL seed commands.
+
+- [ ] **Step 3: Add local demo seed command**
+
+Create a local-only seed script for repeatable demo data:
+
+- Script path: `infra/compose/Seed-LocalDemoData.ps1`.
+- Creates demo admin, document manager, viewer, group, pricing rows, and optional sample instruction data.
+- Does not create or commit secrets.
+- Is never run automatically in production.
+- Documents expected credentials in script output only for local demo users.
+
+Expected: the user can choose between clean first-run setup and local demo seed data.
+
+- [ ] **Step 4: Apply product UI polish**
+
+Apply the Stitch-approved visual direction across the three frontends:
+
+- Use a warm enterprise SaaS design direction with teal primary actions, compact spacing, 6px radius, clear status badges, and high-legibility typography.
+- Management console: persistent navigation, top status bar, polished document/user/budget/feedback/configuration sections, dense tables, friendly empty/error/loading states, and document lifecycle detail panels.
+- Chat app: authenticated state, session/budget status, question input, streaming/answer state, citations panel, feedback panel, budget-limited state, safe errors with request IDs, and no-session state.
+- Docs viewer: verified-access banner, token expiry context, readable document column, metadata/outline side rail, link validation states, unauthorized/expired/used-code states, and document reload behavior preserved.
+
+Expected: browser UI is usable and visually credible as an MVP demo without relying on hidden E2E seed knowledge.
+
+- [ ] **Step 5: Add first-run E2E verification**
+
+Add a Playwright test for the real user path:
+
+1. Start from a clean database or explicitly isolated test data state.
+2. Open `https://manage.localhost`.
+3. Complete first-run admin setup.
+4. Log in through the UI.
+5. Create group and viewer from management UI.
+6. Create or seed a document through approved product/local-demo flow.
+7. Verify chat and viewer surfaces are reachable and show correct authenticated/no-session/error states.
+
+Expected: the product can be verified from a human browser flow, not only by direct SQL seeding.
+
+- [ ] **Step 6: Run verification**
+
+Run:
+
+```powershell
+dotnet test services/dotnet-api/AdvancedRag.sln
+Set-Location services/rag-api; uv run pytest -q; Set-Location ..\..
+pnpm -r test -- --run
+pnpm -r typecheck
+pnpm -r build
+docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config
+docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml up -d --build
+pnpm --dir tests/e2e test
+```
+
+Expected: unit/integration checks pass, Compose renders and starts, and E2E covers both technical happy path and real first-run product flow.
+
+- [ ] **Step 7: Commit UI stabilization**
+
+Run:
+
+```powershell
+git add services apps infra tests context docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md
+git commit -m "feat: add first-run setup and polish product UI"
+```
+
+Expected: commit succeeds.
+
 ## Task 18: Documentation And Handoff
 
 **Files:**

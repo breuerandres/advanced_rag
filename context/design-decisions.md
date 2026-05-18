@@ -110,6 +110,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Human-In-The-Loop Implementation Protocol](#2026-05-13---human-in-the-loop-implementation-protocol)
 - [Documentation Marker Scan Scope](#2026-05-13---documentation-marker-scan-scope)
 - [Backend Readability And Boundary Data Rules](#2026-05-18---backend-readability-and-boundary-data-rules)
+- [Task 17.5 First-Run Setup And UI Stabilization](#2026-05-18---task-175-first-run-setup-and-ui-stabilization)
 
 ### UI Foundation
 
@@ -1306,3 +1307,17 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Tradeoffs:** The Dockerfiles now depend on the shared Compose nginx config. That is acceptable because these images are currently part of the local Compose deployment baseline.
 
 **Consequences:** Local E2E and manual browser tests can open management, chat, and docs deep links reliably through Caddy.
+
+## 2026-05-18 - Task 17.5 First-Run Setup And UI Stabilization
+
+**Context:** Task 17 verified the full MVP path by seeding deterministic users and pricing directly into PostgreSQL from Playwright. User acceptance review after Task 17 found that this is not sufficient for product usability: a clean deployment has no human first-run admin setup, incomplete login/register surfaces, no friendly local demo bootstrap, and a UI that is too scaffold-like for a credible MVP demonstration.
+
+**Options Considered:** Proceed directly to documentation, rely on SQL seed scripts and explain them in docs, or insert a product stabilization task before handoff.
+
+**Decision:** Insert Task 17.5 before Task 18. Task 17.5 adds a production-safe first-run admin setup flow, real login/bootstrap UI, optional local demo seed support, and UI polish across management, chat, and viewer. The approved visual direction is captured in Stitch project `projects/544909270556047969` with design system `assets/df5cbb6e08e34c07abdf928b24898e57`.
+
+**Rationale:** Documentation should describe a usable product flow, not freeze a hidden SQL-bootstrap workaround. A sellable single-tenant product needs an explicit first-run path for the first administrator and a management UI that can be used from a browser without internal test knowledge. UI polish is not cosmetic here; it is necessary to make the MVP demonstrable and operable.
+
+**Tradeoffs:** This delays final handoff documentation and expands the roadmap after Task 17. The tradeoff is acceptable because the missing first-run setup and rough UI would otherwise become support burden and undermine confidence in the MVP.
+
+**Consequences:** Task 18 is blocked until Task 17.5 is implemented and verified. The new acceptance bar is a clean deployment that can create the first admin from `https://manage.localhost`, log in, manage users/groups/documents through the UI, reach chat/viewer surfaces, and pass first-run E2E verification. SQL seeding remains acceptable for technical E2E setup or optional local demo data, but not as the only way for a human to start using the product.
