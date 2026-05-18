@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DollarSign, Pencil, RefreshCw, Search, Users } from 'lucide-react'
+import { DollarSign, MessageSquareWarning, Pencil, RefreshCw, Search, Users } from 'lucide-react'
 import { ApiError } from '../../lib/api-error'
 import { listGroups, listUsers, updateUserBudget } from '../../api/users'
 import type { GroupSummary, UserSummary } from '../../api/users'
@@ -8,7 +8,13 @@ import { Button } from '../../components/ui/button'
 type LoadState = 'loading' | 'ready' | 'error'
 type UserStatusFilter = 'all' | 'active' | 'inactive'
 
-export function UsersBudgetPage({ onOpenDocuments }: { onOpenDocuments?: () => void }) {
+export function UsersBudgetPage({
+  onOpenDocuments,
+  onOpenFeedback,
+}: {
+  onOpenDocuments?: () => void
+  onOpenFeedback?: () => void
+}) {
   const [users, setUsers] = useState<UserSummary[]>([])
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -97,6 +103,17 @@ export function UsersBudgetPage({ onOpenDocuments }: { onOpenDocuments?: () => v
           <a className="nav-link" href="#presupuestos">
             <DollarSign size={18} />
             <span>Presupuestos</span>
+          </a>
+          <a
+            className="nav-link"
+            href="#feedback"
+            onClick={(event) => {
+              event.preventDefault()
+              onOpenFeedback?.()
+            }}
+          >
+            <MessageSquareWarning size={18} />
+            <span>Feedback</span>
           </a>
         </nav>
       </aside>

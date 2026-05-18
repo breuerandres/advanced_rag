@@ -11,10 +11,13 @@ from advanced_rag.auth.chat_tokens import ChatTokenValidatorProtocol
 from advanced_rag.core.errors import ApiException
 from advanced_rag.core.request_id import REQUEST_ID_HEADER
 from advanced_rag.rag.chat_service import ChatAnswer, ChatService
+from advanced_rag.rag.feedback_service import FeedbackService
 from advanced_rag.schemas.chat import (
     CacheInvalidationRequest,
     CacheInvalidationResponse,
     ChatRequest,
+    FeedbackRequest,
+    FeedbackResponse,
 )
 
 
@@ -36,6 +39,36 @@ async def post_chat(body: ChatRequest, request: Request) -> StreamingResponse:
         _stream_answer(answer, request_id),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache"},
+    )
+
+
+@router.post(
+    "/api/feedback/{query_audit_event_id}",
+    response_model=FeedbackResponse,
+    response_model_by_alias=True,
+)
+async def post_feedback(
+    query_audit_event_id: UUID,
+    body: FeedbackRequest,
+    request: Request,
+) -> FeedbackResponse:
+    token = request.cookies.get("__Host-chat-token")
+    if not token:
+        raise ApiException("AUTH_REQUIRED", 401, "Chat session required.")
+
+    validator: ChatTokenValidatorProtocol = request.app.state.chat_token_validator
+    claims = validator.validate(token)
+    service: FeedbackService = request.app.state.feedback_service
+    comment = await service.submit_feedback(
+        query_audit_event_id=query_audit_event_id,
+        user_id=UUID(claims.user_id),
+        value=body.value,
+        comment=body.comment,
+    )
+    return FeedbackResponse(
+        queryAuditEventId=str(query_audit_event_id),
+        value=body.value,
+        comment=comment,
     )
 
 
@@ -70,6 +103,7 @@ async def _stream_answer(answer: ChatAnswer, request_id: str):
     yield _event(
         "citations",
         {
+            "query_audit_event_id": str(answer.query_audit_event_id),
             "citations": [
                 {
                     "chunk_id": str(citation.chunk_id),

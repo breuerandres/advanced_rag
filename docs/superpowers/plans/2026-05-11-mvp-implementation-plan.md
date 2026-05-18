@@ -1265,7 +1265,7 @@ Expected: commit succeeds with only the scoped readability refactor and its cont
 - Modify: `apps/manage-web` feedback review UI
 - Test: FastAPI, .NET, and frontend tests
 
-- [ ] **Step 1: Write feedback submission tests**
+- [x] **Step 1: Write feedback submission tests**
 
 Cover:
 
@@ -1276,11 +1276,11 @@ Cover:
 
 Expected before implementation: tests fail. Reporting data must come from FastAPI-owned read-only views in the `rag` schema, exposed through the .NET API.
 
-- [ ] **Step 2: Implement FastAPI feedback endpoint**
+- [x] **Step 2: Implement FastAPI feedback endpoint**
 
 Store one feedback value/comment on `rag.query_audit_events`.
 
-- [ ] **Step 3: Write .NET reporting tests**
+- [x] **Step 3: Write .NET reporting tests**
 
 Cover filters:
 
@@ -1291,19 +1291,19 @@ Cover filters:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 4: Implement .NET read-only reporting**
+- [x] **Step 4: Implement .NET read-only reporting**
 
 Expose management reporting through .NET. Use FastAPI-owned read-only database views in the `rag` schema. Management frontend must not call FastAPI directly, and .NET must not write to `rag` tables.
 
-- [ ] **Step 5: Write frontend tests**
+- [x] **Step 5: Write frontend tests**
 
 Cover chat feedback states and management feedback review empty/filter/result states.
 
-- [ ] **Step 6: Implement feedback UIs**
+- [x] **Step 6: Implement feedback UIs**
 
 Build chat answer feedback controls and management feedback review table.
 
-- [ ] **Step 7: Verify feedback/reporting**
+- [x] **Step 7: Verify feedback/reporting**
 
 Run:
 
@@ -1316,7 +1316,7 @@ pnpm --dir apps/manage-web test -- --run
 
 Expected: tests pass.
 
-- [ ] **Step 8: Commit feedback and reporting**
+- [x] **Step 8: Commit feedback and reporting**
 
 Run:
 

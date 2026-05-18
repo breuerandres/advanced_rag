@@ -3,10 +3,12 @@ using AdvancedRag.Api.Middleware;
 using AdvancedRag.Api.Security;
 using AdvancedRag.App.Auth;
 using AdvancedRag.App.Documents;
+using AdvancedRag.App.Reporting;
 using AdvancedRag.App.Users;
 using AdvancedRag.Infrastructure.Auth;
 using AdvancedRag.Infrastructure.Documents;
 using AdvancedRag.Infrastructure.Persistence;
+using AdvancedRag.Infrastructure.Reporting;
 using AdvancedRag.Infrastructure.Users;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
@@ -48,6 +50,14 @@ builder.Services.AddScoped<IUserAdministrationRepository, EfUserAdministrationRe
 builder.Services.AddScoped<IDocumentLifecycleService, DocumentLifecycleService>();
 builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
 builder.Services.AddScoped<IDocumentImportExtractionService, DocumentImportExtractionService>();
+builder.Services.AddScoped<IFeedbackReportingService>(services =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var reportingConnectionString = ResolveReportingDatabaseConnectionString(configuration)
+        ?? ResolveAppDatabaseConnectionString(configuration)
+        ?? throw new InvalidOperationException("Reporting database connection string is not configured.");
+    return new NpgsqlFeedbackReportingService(reportingConnectionString);
+});
 builder.Services.AddHttpClient("InternalIndexing", (services, client) =>
 {
     var configuration = services.GetRequiredService<IConfiguration>();
@@ -139,6 +149,46 @@ static string? ResolveAppDatabaseConnectionString(IConfiguration configuration)
     };
 
     if (int.TryParse(configuration["Postgres:Port"], out var port))
+    {
+        builder.Port = port;
+    }
+
+    return builder.ConnectionString;
+}
+
+static string? ResolveReportingDatabaseConnectionString(IConfiguration configuration)
+{
+    var directConnectionString = configuration.GetConnectionString("ReportingDatabase");
+    if (!string.IsNullOrWhiteSpace(directConnectionString))
+    {
+        return directConnectionString;
+    }
+
+    var host = configuration["Postgres:ReportingHost"] ?? configuration["Postgres:Host"];
+    var database = configuration["Postgres:ReportingDatabase"] ?? configuration["Postgres:Database"];
+    var username = configuration["Postgres:ReportingUsername"];
+    if (string.IsNullOrWhiteSpace(host)
+        || string.IsNullOrWhiteSpace(database)
+        || string.IsNullOrWhiteSpace(username))
+    {
+        return null;
+    }
+
+    var password = SecretConfiguration.Read(
+        configuration,
+        "Postgres:ReportingPassword",
+        "Postgres:ReportingPasswordFile");
+
+    var builder = new NpgsqlConnectionStringBuilder
+    {
+        Host = host,
+        Database = database,
+        Username = username,
+        Password = password,
+        SearchPath = "rag,app,public",
+    };
+
+    if (int.TryParse(configuration["Postgres:ReportingPort"] ?? configuration["Postgres:Port"], out var port))
     {
         builder.Port = port;
     }

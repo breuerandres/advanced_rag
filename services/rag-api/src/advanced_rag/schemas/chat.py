@@ -24,3 +24,16 @@ class CacheInvalidationRequest(BaseModel):
 
 class CacheInvalidationResponse(BaseModel):
     invalidated: int
+
+
+class FeedbackRequest(BaseModel):
+    value: str = Field(pattern="^(up|down)$")
+    comment: str | None = None
+
+
+class FeedbackResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    query_audit_event_id: str = Field(alias="queryAuditEventId")
+    value: str
+    comment: str | None

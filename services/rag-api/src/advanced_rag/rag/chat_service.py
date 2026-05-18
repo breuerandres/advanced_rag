@@ -45,6 +45,7 @@ class Citation(BaseModel):
 class ChatAnswer(BaseModel):
     model_config = ConfigDict(frozen=True)
 
+    query_audit_event_id: UUID
     answer: str
     citations: list[Citation]
     cache_hit: bool
@@ -191,8 +192,9 @@ class ChatService:
                     citations=citations,
                 )
             await session.commit()
-            return ChatAnswer(
-                answer=completion.answer,
+        return ChatAnswer(
+            query_audit_event_id=audit_id,
+            answer=completion.answer,
                 citations=citations,
                 cache_hit=False,
                 cached_at=None,
@@ -370,6 +372,7 @@ class ChatService:
         )
         await self._insert_citations(session, audit_id, citations)
         return ChatAnswer(
+            query_audit_event_id=audit_id,
             answer=cache_hit["answer"],
             citations=citations,
             cache_hit=True,

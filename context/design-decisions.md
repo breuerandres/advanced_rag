@@ -75,6 +75,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Cost-First MVP Chat Model](#2026-05-17---cost-first-mvp-chat-model)
 - [Cost-First MVP Embedding Model](#2026-05-17---cost-first-mvp-embedding-model)
 - [Task 11 Chat RAG Core](#2026-05-17---task-11-chat-rag-core)
+- [Task 12 Feedback And Management Reporting](#2026-05-18---task-12-feedback-and-management-reporting)
 
 ### Audit, Pricing, And Budgets
 
@@ -1160,3 +1161,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Tradeoffs:** Existing code will not be fully normalized immediately, so both styles may coexist until touched by normal work or a dedicated refactor. This avoids churn but requires future edits to follow the updated standards.
 
 **Consequences:** Task 12 and later tasks should use explicit `.NET` local variable types where helpful, Pydantic for FastAPI boundary/contracts, and include a concise Postman endpoint checklist in the final task message when API endpoints are added or changed. These Postman checklists are user-facing completion notes, not durable docs, unless the user requests documentation.
+
+## 2026-05-18 - Task 12 Feedback And Management Reporting
+
+**Context:** Task 12 implements chat answer feedback and management feedback review. The implementation must preserve the boundary where FastAPI owns feedback writes on `rag.query_audit_events`, while `.NET` exposes management reporting through read-only access to FastAPI-owned reporting views.
+
+**Options Considered:** Let the management frontend call FastAPI directly, let `.NET` query RAG audit tables directly, or create FastAPI-owned RAG reporting views and expose them through a `.NET` management endpoint.
+
+**Decision:** Store one feedback value/comment directly on `rag.query_audit_events` through FastAPI `POST /api/feedback/{query_audit_event_id}`. Add the audited answer id to the chat SSE citations payload so the chat UI can submit feedback for the correct answer. Create FastAPI-owned views `rag.v_query_audit_with_citations` and `rag.v_feedback_summary`, grant select to `app_reporting_reader` when that role exists, and expose management review through `.NET` `GET /api/reporting/feedback`.
+
+**Rationale:** The approach keeps feedback writes in the RAG service, keeps management UI calls behind the `.NET` management API, and avoids cross-schema writes. The SSE audit id is necessary because feedback is tied to generated or cached answer audit rows, not to document citations alone.
+
+**Tradeoffs:** The MVP reporting view returns user ids and RAG-side audit fields; richer user display metadata can be joined through an approved reporting path later if needed. Feedback history is still not retained; same-user updates overwrite the single value/comment as previously decided.
+
+**Consequences:** Chat feedback can be submitted or updated by the same authenticated chat user only for their own query audit event. Management reporting supports negative-only, cited-document, user, and date-range filters through `.NET`, with the frontend calling only same-origin `/api/reporting/feedback`.
+
+**Evidence:** Verified on 2026-05-18 with `uv run pytest tests -k feedback -q`, `dotnet test services/dotnet-api/AdvancedRag.sln --filter Reporting`, `pnpm.cmd --dir apps/chat-web test -- --run`, `pnpm.cmd --dir apps/manage-web test -- --run`, plus full FastAPI tests/lint/type checks, `.NET` build, and chat/manage frontend typecheck/build. `.NET` commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched; build and tests passed.

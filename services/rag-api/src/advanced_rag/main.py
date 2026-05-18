@@ -28,6 +28,7 @@ from advanced_rag.db.session import create_database_engine, create_session_facto
 from advanced_rag.rag.chat_completion import ChatCompletionProvider, OpenAIChatCompletionProvider
 from advanced_rag.rag.chat_service import ChatService
 from advanced_rag.rag.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
+from advanced_rag.rag.feedback_service import FeedbackService
 from advanced_rag.rag.indexing_service import InternalIndexingService
 
 
@@ -66,6 +67,7 @@ def create_app(
         app.state.chat_completion_provider,
         app.state.settings,
     )
+    app.state.feedback_service = FeedbackService(app.state.session_factory)
     app.add_middleware(RequestIdMiddleware)
     app.add_exception_handler(ApiException, cast(ExceptionHandler, api_exception_handler))
     app.add_exception_handler(StarletteHTTPException, cast(ExceptionHandler, http_exception_handler))

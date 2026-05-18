@@ -381,6 +381,52 @@ describe('management documents', () => {
   })
 })
 
+describe('management feedback reporting', () => {
+  test('shows empty, filter, and result states for feedback review', async () => {
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, [{ id: '22222222-2222-2222-2222-222222222222', name: 'Operaciones' }]),
+      jsonResponse(200, []),
+      jsonResponse(200, [
+        {
+          queryAuditEventId: '99999999-9999-9999-9999-999999999999',
+          userId: '11111111-1111-1111-1111-111111111111',
+          userDisplayName: 'Ana Gomez',
+          question: 'Que regla aplica?',
+          answerSummary: 'Usa credencial visible.',
+          feedbackValue: 'down',
+          feedbackComment: 'Falto detalle',
+          feedbackUpdatedAt: '2026-05-18T12:00:00Z',
+          createdAt: '2026-05-18T11:59:00Z',
+          cacheHit: false,
+          requestId: 'req-report',
+          citations: [
+            {
+              instructionId: '55555555-5555-5555-5555-555555555555',
+              instructionVersionId: '77777777-7777-7777-7777-777777777777',
+              headingPath: ['Seguridad'],
+            },
+          ],
+        },
+      ]),
+    ])
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('link', { name: 'Feedback' }))
+
+    expect(await screen.findByText('Todavia no hay feedback registrado.')).toBeInTheDocument()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Polaridad' }), 'negative')
+    await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }))
+
+    expect(await screen.findByText('Que regla aplica?')).toBeInTheDocument()
+    expect(screen.getByText('No sirvio')).toBeInTheDocument()
+    expect(screen.getByText('Falto detalle')).toBeInTheDocument()
+    expect(screen.getByText('req-report')).toBeInTheDocument()
+  })
+})
+
 function stubFetch(responses: Response[]) {
   const fetchMock = vi.fn(async () => {
     const response = responses.shift()

@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Complete Task 11.5 backend readability refactor audit, then move to Task 12 feedback and management reporting.
+- Complete Task 12 feedback and management reporting, then move to Task 13 viewer exchange and document viewer.
 
 ## Completed
 
@@ -195,31 +195,40 @@
   - Deferred broad `.NET var` cleanup in tests, EF/LINQ projections, `using var` disposables, tuple/deconstruction cases, initializer-obvious locals, and unrelated infrastructure files to avoid style-only churn.
   - Left only the private FastAPI `_FallbackCompletion` dataclass; private parser blocks now use a simple private class and do not cross a boundary.
 - Verified Task 11.5 with `dotnet build services/dotnet-api/AdvancedRag.sln`, `dotnet test services/dotnet-api/AdvancedRag.sln --filter "Chat|Indexing|Document|UserAdministration|Auth|ErrorEnvelope|Health"` (`31 passed` across matching test projects), `uv run pytest -q` (`25 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `git diff --check`. The `.NET` commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`; build and tests still passed.
+- Implemented Task 12 feedback and management reporting:
+  - Added FastAPI `POST /api/feedback/{query_audit_event_id}` for authenticated chat users to submit or update one thumbs up/down value and optional sanitized comment on their own `rag.query_audit_events` row.
+  - Added `query_audit_event_id` to the chat SSE citations payload so the chat frontend can attach feedback to the audited answer.
+  - Added FastAPI-owned Alembic reporting views `rag.v_query_audit_with_citations` and `rag.v_feedback_summary`, with conditional `GRANT SELECT` to `app_reporting_reader`.
+  - Added `.NET` management reporting endpoint `GET /api/reporting/feedback` for `Admin` and `DocumentManager`, backed by a read-only Npgsql reporting service over the RAG reporting views.
+  - Added chat feedback controls in `apps/chat-web` with submit/update states and optional comments.
+  - Added management feedback review in `apps/manage-web` with empty state, negative filter, result table, comments, citations, user, and request id.
+- Verified Task 12 with `uv run pytest tests -k feedback -q` (`3 passed`), `dotnet test services/dotnet-api/AdvancedRag.sln --filter Reporting` (`2 passed` in API tests), `pnpm.cmd --dir apps/chat-web test -- --run` (`4 passed`), and `pnpm.cmd --dir apps/manage-web test -- --run` (`13 passed`).
+- Additional Task 12 verification passed: `uv run pytest -q` (`28 passed`), `uv run ruff check .`, `uv run mypy src tests`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `pnpm.cmd --dir apps/chat-web typecheck`, `pnpm.cmd --dir apps/manage-web typecheck`, `pnpm.cmd --dir apps/chat-web build`, and `pnpm.cmd --dir apps/manage-web build`. `.NET` restore/build/test commands still emit NU1900 warnings because NuGet vulnerability metadata cannot be fetched from `https://api.nuget.org/v3/index.json`; build and tests passed.
+- Created the Task 12 feedback/reporting commit with message `feat: add chat feedback and management reporting`.
 
 ## In Progress
 
-- Task 11.5 is complete and verified. No implementation task is currently in progress.
+- No implementation task is currently in progress.
 
 ## Next Up
 
-- Implement Task 12 feedback submission and management reporting.
+- Commit Task 12, then implement Task 13 viewer exchange and document viewer.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Task 12 feedback submission and management reporting.
+- Task 13 viewer exchange and document viewer.
 
 ### Why This Comes Next
 
-- Task 11 code and verification are complete.
-- Task 11.5 backend readability cleanup is complete and verified.
-- The next safe step is to implement feedback submission tied to query audit and management reporting over FastAPI-owned RAG views through the .NET API.
+- Task 12 feedback/reporting is implemented and verified.
+- The next safe step is to implement secure viewer exchange codes, docs-web exchange/loading states, and citation/open-link behavior.
 
 ### Scope
 
-- Implement Task 12 only.
-- Preserve service boundaries: FastAPI owns chat feedback storage on RAG audit rows; `.NET` owns management reporting endpoints over read-only RAG views.
+- Implement Task 13 only.
+- Preserve service boundaries: `.NET` owns viewer exchange codes and viewer access tokens; docs-web consumes only same-origin `.NET` viewer APIs.
 
 ### User-Owned Steps
 
@@ -227,15 +236,15 @@
 
 ### Required Verification
 
-- `Set-Location services/rag-api; uv run pytest tests -k feedback -q; Set-Location ..\..`
-- `dotnet test services/dotnet-api/AdvancedRag.sln --filter Reporting`
-- `pnpm --dir apps/chat-web test -- --run`
-- `pnpm --dir apps/manage-web test -- --run`
+- `dotnet test services/dotnet-api/AdvancedRag.sln --filter Viewer`
+- `pnpm.cmd --dir apps/docs-web test -- --run`
+- `pnpm.cmd --dir apps/chat-web test -- --run`
+- `pnpm.cmd --dir apps/manage-web test -- --run`
 
 Expected result:
 
-- Task 12 starts from the verified public chat/RAG core and readability cleanup.
-- Feedback can be attached to generated/cached chat answers and reviewed through management reporting.
+- Task 13 starts from a verified feedback/reporting slice.
+- Viewer exchange links can be created, exchanged, and rendered safely in docs-web.
 
 ## Open Questions
 
