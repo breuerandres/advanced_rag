@@ -77,6 +77,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Task 11 Chat RAG Core](#2026-05-17---task-11-chat-rag-core)
 - [Task 12 Feedback And Management Reporting](#2026-05-18---task-12-feedback-and-management-reporting)
 - [Task 13 Viewer Exchange And Document Viewer](#2026-05-18---task-13-viewer-exchange-and-document-viewer)
+- [Task 14 Chat Frontend Workflow](#2026-05-18---task-14-chat-frontend-workflow)
 
 ### Audit, Pricing, And Budgets
 
@@ -1194,3 +1195,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** `.NET` owns all viewer exchange and document loading APIs under `/api/viewer/*`. `docs-web` handles expired, used, invalid, unauthorized, token-expired, not-found, loading, and success states. `chat-web` and `manage-web` request exchange-code links before opening documents instead of constructing docs URLs locally.
 
 **Evidence:** Verified on 2026-05-18 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter Viewer`, `pnpm.cmd --dir apps\docs-web test -- --run`, `pnpm.cmd --dir apps\chat-web test -- --run`, `pnpm.cmd --dir apps\manage-web test -- --run`, `pnpm.cmd --dir apps\docs-web typecheck`, `pnpm.cmd --dir apps\chat-web typecheck`, `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\docs-web build`, `pnpm.cmd --dir apps\chat-web build`, `pnpm.cmd --dir apps\manage-web build`, and `dotnet build services\dotnet-api\AdvancedRag.sln`. `.NET` commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched; build and tests passed.
+
+## 2026-05-18 - Task 14 Chat Frontend Workflow
+
+**Context:** Task 14 turns the backend `/api/chat` SSE contract, feedback endpoint, and secure viewer-link endpoint into a usable chat frontend. The implementation must keep chat focused on question entry, answer reading, citations, feedback, budget-limited states, auth recovery, and safe errors without crossing service boundaries.
+
+**Options Considered:** Keep the previous minimal chat shell, add a full chat-history product surface now, or implement the Task 14 single-question workflow with complete production states.
+
+**Decision:** Implement the Task 14 chat frontend as a compact single-question workflow. `apps/chat-web` calls FastAPI through same-origin `/api/chat` and `/api/feedback/*`, calls `.NET` only for `/api/auth/chat-token`, `/api/csrf`, and `/api/viewer/links`, parses SSE events into typed UI state, retries once after `AUTH_TOKEN_EXPIRED` by renewing the chat token, and shows Spanish states for empty, loading, answer, semantic cache hit, citations, feedback, budget exhaustion, auth expiration, and generic errors with request IDs.
+
+**Rationale:** The MVP needs a reliable operational chat workflow before broader conversation history. Keeping the UI single-question and state-complete reduces scope while still exercising the critical RAG, feedback, budget, and viewer-link paths.
+
+**Tradeoffs:** The frontend still treats each question independently and does not persist a multi-turn chat transcript. That matches the current RAG spec, where conversation memory across user sessions is out of scope for the MVP.
+
+**Consequences:** Future chat history work can build on the typed SSE parser and error-state mapping without changing the backend contract. Over-budget users see a service-limited AI state instead of a general account lockout, and authorized document opening remains available through citation links.
+
+**Evidence:** Verified on 2026-05-18 with `pnpm.cmd --dir apps\chat-web test -- --run` (`10 passed`), `pnpm.cmd --dir apps\chat-web typecheck`, and `pnpm.cmd --dir apps\chat-web build`.

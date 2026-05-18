@@ -8,10 +8,36 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-test('renders the chat shell label', () => {
+test('shows the empty initial chat state', () => {
   render(<App />)
 
-  expect(screen.getByRole('heading', { name: 'Instruction Chat' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
+  expect(screen.getByText('Hacé una pregunta sobre las instrucciones publicadas.')).toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Enviar pregunta' })).toBeDisabled()
+})
+
+test('disables the question input while submitting', async () => {
+  const pendingChat = deferred<Response>()
+  stubFetch([pendingChat.promise])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Como ingreso?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+
+  expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: /Enviando/ })).toBeDisabled()
+
+  pendingChat.resolve(
+    sseResponse([
+      ['answer-token', { delta: 'Usa tu usuario corporativo.' }],
+      ['citations', { query_audit_event_id: '33333333-3333-3333-3333-333333333333', citations: [] }],
+      ['done', {}],
+    ]),
+  )
+  expect(await screen.findByText('Usa tu usuario corporativo.')).toBeInTheDocument()
 })
 
 test('submits feedback after a chat answer and allows updating it', async () => {
@@ -53,18 +79,116 @@ test('submits feedback after a chat answer and allows updating it', async () => 
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
   expect(await screen.findByText('Usa credencial visible.')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'No me sirvio' }))
+  await user.click(screen.getByRole('button', { name: 'No me sirvió' }))
   await user.type(screen.getByRole('textbox', { name: 'Comentario opcional' }), 'Falto detalle')
   await user.click(screen.getByRole('button', { name: 'Enviar feedback' }))
 
   expect(await screen.findByText('Feedback registrado.')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Me sirvio' }))
+  await user.click(screen.getByRole('button', { name: 'Me sirvió' }))
   await user.click(screen.getByRole('button', { name: 'Actualizar feedback' }))
 
   expect(fetchMock).toHaveBeenLastCalledWith(
     '/api/feedback/33333333-3333-3333-3333-333333333333',
     expect.objectContaining({ method: 'POST' }),
   )
+})
+
+test('shows a successful answer with citations and cache hit indicator', async () => {
+  stubFetch([
+    sseResponse([
+      ['cache-hit', { cached_at: '2026-05-18T10:00:00Z' }],
+      ['answer-token', { delta: 'Consultá el procedimiento de seguridad.' }],
+      [
+        'citations',
+        {
+          query_audit_event_id: '33333333-3333-3333-3333-333333333333',
+          citations: [
+            {
+              document_id: '55555555-5555-5555-5555-555555555555',
+              instruction_version_id: '66666666-6666-6666-6666-666666666666',
+              heading_path: ['Seguridad'],
+            },
+          ],
+        },
+      ],
+      ['usage', { input_tokens: 0, cached_tokens: 0, output_tokens: 0, cost_usd: 0 }],
+      ['done', {}],
+    ]),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+
+  expect(await screen.findByText('Consultá el procedimiento de seguridad.')).toBeInTheDocument()
+  expect(screen.getByText('Respuesta desde caché semántico')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Abrir cita Seguridad' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Me sirvió' })).toBeInTheDocument()
+})
+
+test('shows the monthly budget exhausted state', async () => {
+  stubFetch([
+    jsonResponse(
+      429,
+      apiError('AI_BUDGET_EXCEEDED', 'Monthly budget exceeded.', 'request-budget-1'),
+    ),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Puedo consultar?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Alcanzaste el presupuesto mensual de uso de IA.',
+  )
+  expect(screen.getByText('Podés seguir abriendo documentos autorizados.')).toBeInTheDocument()
+})
+
+test('renews the chat token when the session token expires and retries the question', async () => {
+  const fetchMock = stubFetch([
+    jsonResponse(
+      401,
+      apiError('AUTH_TOKEN_EXPIRED', 'Chat token expired.', 'request-auth-1'),
+    ),
+    jsonResponse(200, { status: 'ok' }),
+    sseResponse([
+      ['answer-token', { delta: 'La sesión de chat fue renovada.' }],
+      ['citations', { query_audit_event_id: '33333333-3333-3333-3333-333333333333', citations: [] }],
+      ['done', {}],
+    ]),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Sigo autenticado?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+
+  expect(await screen.findByText('La sesión de chat fue renovada.')).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    2,
+    '/api/auth/chat-token',
+    expect.objectContaining({ method: 'POST' }),
+  )
+})
+
+test('shows a safe generic error with request id', async () => {
+  stubFetch([
+    jsonResponse(503, apiError('RAG_PROVIDER_UNAVAILABLE', 'Provider unavailable.', 'request-503')),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Que hago?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo responder la pregunta.')
+  expect(screen.getByText('ID de solicitud: request-503')).toBeInTheDocument()
 })
 
 test('opens citations through viewer exchange links', async () => {
@@ -109,14 +233,14 @@ test('opens citations through viewer exchange links', async () => {
   expect(assign).toHaveBeenCalledWith('https://docs.client.com/open?code=abc')
 })
 
-function stubFetch(responses: Response[]) {
+function stubFetch(responses: Array<Response | Promise<Response>>) {
   const fetchMock = vi.fn(async () => {
     const response = responses.shift()
     if (!response) {
       throw new Error('Unexpected fetch call.')
     }
 
-    return response
+    return await response
   })
 
   vi.stubGlobal('fetch', fetchMock)
@@ -145,4 +269,26 @@ function sseResponse(events: [string, unknown][]) {
     status: 200,
     headers: { 'Content-Type': 'text/event-stream' },
   })
+}
+
+function apiError(code: string, message: string, requestId: string) {
+  return {
+    error: {
+      code,
+      message,
+      requestId,
+      details: null,
+    },
+  }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+
+  return { promise, resolve, reject }
 }

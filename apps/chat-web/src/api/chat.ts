@@ -4,6 +4,9 @@ export interface ChatResult {
   answer: string
   queryAuditEventId: string | null
   citations: ChatCitation[]
+  cacheHit: boolean
+  requestId: string | null
+  usage: ChatUsage | null
 }
 
 export interface FeedbackResult {
@@ -18,6 +21,13 @@ export interface ChatCitation {
   documentId: string
   instructionVersionId: string
   headingPath: string[]
+}
+
+export interface ChatUsage {
+  inputTokens: number
+  cachedTokens: number
+  outputTokens: number
+  costUsd: number
 }
 
 let csrfToken: string | null = null
@@ -38,6 +48,21 @@ export async function submitQuestion(question: string): Promise<ChatResult> {
   }
 
   return parseChatStream(text)
+}
+
+export async function renewChatToken(): Promise<void> {
+  const response = await fetch('/api/auth/chat-token', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Request-ID': createRequestId(),
+    },
+  })
+  const body = safeJson(await response.text())
+  if (!response.ok) {
+    throw parseApiError(response, body)
+  }
 }
 
 export async function submitFeedback(
@@ -85,6 +110,9 @@ export async function createViewerLink(documentId: string): Promise<string> {
 function parseChatStream(stream: string): ChatResult {
   let answer = ''
   let queryAuditEventId: string | null = null
+  let cacheHit = false
+  let requestId: string | null = null
+  let usage: ChatUsage | null = null
   const citations: ChatCitation[] = []
   const events = stream.split('\n\n').filter(Boolean)
   for (const rawEvent of events) {
@@ -94,6 +122,12 @@ function parseChatStream(stream: string): ChatResult {
       continue
     }
     const payload = JSON.parse(dataLine) as Record<string, unknown>
+    if (eventName === 'request-id' && typeof payload.request_id === 'string') {
+      requestId = payload.request_id
+    }
+    if (eventName === 'cache-hit') {
+      cacheHit = true
+    }
     if (eventName === 'answer-token' && typeof payload.delta === 'string') {
       answer += payload.delta
     }
@@ -125,8 +159,16 @@ function parseChatStream(stream: string): ChatResult {
         }
       }
     }
+    if (eventName === 'usage') {
+      usage = {
+        inputTokens: numberValue(payload.input_tokens),
+        cachedTokens: numberValue(payload.cached_tokens),
+        outputTokens: numberValue(payload.output_tokens),
+        costUsd: numberValue(payload.cost_usd),
+      }
+    }
   }
-  return { answer, queryAuditEventId, citations }
+  return { answer, queryAuditEventId, citations, cacheHit, requestId, usage }
 }
 
 async function ensureCsrfToken(): Promise<void> {
@@ -159,4 +201,8 @@ function createRequestId(): string {
   }
 
   return `request-${Date.now()}`
+}
+
+function numberValue(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }

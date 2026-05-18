@@ -33,6 +33,13 @@ h1 {
   line-height: 1.15;
 }
 
+.header-copy {
+  margin: 8px 0 0;
+  color: #526176;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 h2 {
   font-size: 18px;
   line-height: 1.2;
@@ -47,13 +54,26 @@ h2 {
 
 .question-form,
 .answer-panel,
-.feedback-panel {
+.feedback-panel,
+.empty-state {
   display: grid;
   gap: 14px;
   border: 1px solid #d9dee8;
   border-radius: 6px;
   background: #ffffff;
   padding: 16px;
+}
+
+.empty-state {
+  align-items: center;
+  justify-items: center;
+  min-height: 150px;
+  color: #526176;
+  text-align: center;
+}
+
+.empty-state p {
+  margin: 0;
 }
 
 .field {
@@ -71,6 +91,11 @@ textarea {
   color: #111827;
   font: inherit;
   resize: vertical;
+}
+
+textarea:disabled {
+  background: #f3f6fa;
+  color: #687387;
 }
 
 .primary-button,
@@ -104,6 +129,22 @@ textarea {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.answer-heading {
+  flex-wrap: wrap;
+}
+
+.cache-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid #a7d8b6;
+  border-radius: 999px;
+  background: #eefaf3;
+  color: #166534;
+  padding: 2px 8px;
+  font-size: 12px;
 }
 
 .citation-list {
@@ -152,6 +193,23 @@ textarea {
   background: #ffffff;
   padding: 10px 12px;
   color: #364257;
+}
+
+.status-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-heading p,
+.status-detail {
+  margin: 0;
+}
+
+.status-detail {
+  margin-top: 6px;
+  color: inherit;
+  font-size: 13px;
 }
 
 .status-message.success {

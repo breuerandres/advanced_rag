@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Complete Task 13 viewer exchange and document viewer, then move to Task 14 chat frontend workflow.
+- Complete Task 15 management frontend workflow.
 
 ## Completed
 
@@ -214,6 +214,12 @@
   - Updated `manage-web` document rows to request management viewer links before opening docs.
 - Verified Task 13 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter Viewer`, `pnpm.cmd --dir apps\docs-web test -- --run`, `pnpm.cmd --dir apps\chat-web test -- --run`, `pnpm.cmd --dir apps\manage-web test -- --run`, frontend typechecks and builds for docs/chat/manage, and `dotnet build services\dotnet-api\AdvancedRag.sln`. `.NET` commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`; build and tests passed.
 - Created the Task 13 viewer exchange commit with message `feat: add secure viewer exchange flow`.
+- Implemented Task 14 chat frontend workflow:
+  - Added chat UI behavior tests for empty state, submitting state, successful answers with citations, semantic cache hit indication, feedback controls, monthly budget exhaustion, chat token renewal after `AUTH_TOKEN_EXPIRED`, and generic safe errors with request IDs.
+  - Extended the typed chat API client to parse `cache-hit`, `request-id`, `usage`, answer, citations, and query audit event SSE payloads.
+  - Added same-origin chat-token renewal through `/api/auth/chat-token` and retry-once behavior when the FastAPI chat token expires.
+  - Updated `apps/chat-web` to a compact Spanish chat workflow with disabled empty submission, loading state, answer panel, citation actions, feedback update controls, budget-limited messaging, and safe error states.
+- Verified Task 14 with `pnpm.cmd --dir apps\chat-web test -- --run` (`10 passed`), `pnpm.cmd --dir apps\chat-web typecheck`, and `pnpm.cmd --dir apps\chat-web build`.
 
 ## In Progress
 
@@ -221,38 +227,38 @@
 
 ## Next Up
 
-- Implement Task 14 chat frontend workflow.
+- Implement Task 15 management frontend workflow.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Task 14 chat frontend workflow.
+- Task 15 management frontend workflow.
 
 ### Why This Comes Next
 
-- Task 13 viewer exchange and document viewer is implemented and verified.
-- The next safe step is to implement the full chat frontend workflow on top of the viewer link and feedback foundations.
+- Task 14 chat frontend workflow is implemented and verified.
+- The next safe step is to complete the management frontend workflow on top of the existing document, users/groups, budgets, viewer-link, and reporting APIs.
 
 ### Scope
 
-- Implement Task 14 only.
-- Preserve service boundaries: chat uses FastAPI for RAG/feedback and same-origin `.NET` routes only for auth/session and viewer-link support.
+- Implement Task 15 only.
+- Preserve service boundaries: management frontend calls the `.NET` API only and does not call FastAPI directly.
 
 ### User-Owned Steps
 
-- Keep Docker Desktop running before verification because backend integration tests may use Testcontainers.
+- Keep Docker Desktop running if backend or full-stack verification is added beyond the frontend-only Task 15 commands.
 
 ### Required Verification
 
-- `pnpm.cmd --dir apps/chat-web test -- --run`
-- `pnpm.cmd --dir apps/chat-web typecheck`
-- `pnpm.cmd --dir apps/chat-web build`
+- `pnpm.cmd --dir apps/manage-web test -- --run`
+- `pnpm.cmd --dir apps/manage-web typecheck`
+- `pnpm.cmd --dir apps/manage-web build`
 
 Expected result:
 
-- Task 14 starts from a verified viewer exchange slice.
-- Chat UI handles empty, loading, answer, citation, feedback, budget, auth-expired, and safe error states.
+- Task 15 starts from a verified chat frontend slice.
+- Management UI exposes navigation and document/configuration workflows with loading, empty, error, disabled, and success states.
 
 ## Open Questions
 
@@ -306,7 +312,8 @@ Current state:
 - Task 11.5 backend readability refactor audit is complete and committed.
 - Task 12 feedback and management reporting is complete and committed.
 - Task 13 viewer exchange and document viewer is complete and committed.
+- Task 14 chat frontend workflow is complete and committed.
 
 Next safe implementation work:
 
-- Start Task 14 chat frontend workflow.
+- Start Task 15 management frontend workflow.

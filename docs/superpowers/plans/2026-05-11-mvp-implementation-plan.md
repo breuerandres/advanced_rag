@@ -1404,7 +1404,7 @@ Expected: commit succeeds.
 - Modify: `apps/chat-web/src/components/`
 - Test: chat frontend tests
 
-- [ ] **Step 1: Write chat UI behavior tests**
+- [x] **Step 1: Write chat UI behavior tests**
 
 Cover:
 
@@ -1419,15 +1419,15 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 2: Implement typed chat API client**
+- [x] **Step 2: Implement typed chat API client**
 
 Create request/response interfaces for chat query, citation link request, feedback submission, and error envelope.
 
-- [ ] **Step 3: Implement chat screen**
+- [x] **Step 3: Implement chat screen**
 
 Build compact chat layout focused on question entry, answer reading, citations, feedback, and budget/auth states.
 
-- [ ] **Step 4: Verify chat UI**
+- [x] **Step 4: Verify chat UI**
 
 Run:
 
@@ -1439,7 +1439,7 @@ pnpm --dir apps/chat-web build
 
 Expected: typecheck, tests, and build pass.
 
-- [ ] **Step 5: Commit chat frontend**
+- [x] **Step 5: Commit chat frontend**
 
 Run:
 
