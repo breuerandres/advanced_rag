@@ -220,6 +220,13 @@
   - Added same-origin chat-token renewal through `/api/auth/chat-token` and retry-once behavior when the FastAPI chat token expires.
   - Updated `apps/chat-web` to a compact Spanish chat workflow with disabled empty submission, loading state, answer panel, citation actions, feedback update controls, budget-limited messaging, and safe error states.
 - Verified Task 14 with `pnpm.cmd --dir apps\chat-web test -- --run` (`10 passed`), `pnpm.cmd --dir apps\chat-web typecheck`, and `pnpm.cmd --dir apps\chat-web build`.
+- Implemented Task 15 management frontend workflow:
+  - Added a persistent management shell navigation covering documents, users/groups, audit, feedback, AI budgets, and configuration.
+  - Added management navigation tests for the full section set.
+  - Extended the document workflow UI with failed-indexing retry through the `.NET` `POST /api/documents/{id}/request-publish` endpoint.
+  - Added `.NET` `GET /api/configuration` and configuration UI tests for a read-only operational configuration screen that displays non-sensitive defaults, model configuration, budget defaults, cache settings, import limits, and secret-backed setting statuses without exposing secret values.
+  - Added a basic audit workspace with filters and an empty state to preserve the management information architecture for Task 16+ read models.
+- Verified Task 15 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Configuration` (`1 passed` in API tests), `pnpm.cmd --dir apps/manage-web test -- --run` (`18 passed`), `pnpm.cmd --dir apps/manage-web typecheck`, and `pnpm.cmd --dir apps/manage-web build`.
 
 ## In Progress
 
@@ -227,38 +234,37 @@
 
 ## Next Up
 
-- Implement Task 15 management frontend workflow.
+- Implement Task 16 operational hardening.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Task 15 management frontend workflow.
+- Task 16 operational hardening.
 
 ### Why This Comes Next
 
-- Task 14 chat frontend workflow is implemented and verified.
-- The next safe step is to complete the management frontend workflow on top of the existing document, users/groups, budgets, viewer-link, and reporting APIs.
+- Task 15 management frontend workflow is implemented and verified.
+- The next safe step is operational hardening across rate limits, readiness checks, structured logging, and Compose health checks.
 
 ### Scope
 
-- Implement Task 15 only.
-- Preserve service boundaries: management frontend calls the `.NET` API only and does not call FastAPI directly.
+- Implement Task 16 only.
+- Preserve the distinction between technical rate limits and monetary AI budgets.
 
 ### User-Owned Steps
 
-- Keep Docker Desktop running if backend or full-stack verification is added beyond the frontend-only Task 15 commands.
+- Keep Docker Desktop running because backend readiness/rate-limit verification may need Testcontainers and Compose validation.
 
 ### Required Verification
 
-- `pnpm.cmd --dir apps/manage-web test -- --run`
-- `pnpm.cmd --dir apps/manage-web typecheck`
-- `pnpm.cmd --dir apps/manage-web build`
+- `dotnet test services/dotnet-api/AdvancedRag.sln --filter "RateLimit|Health|Logging"`
+- `Set-Location services/rag-api; uv run pytest tests -k "rate_limit or health or logging" -q; Set-Location ..\..`
+- `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`
 
 Expected result:
 
-- Task 15 starts from a verified chat frontend slice.
-- Management UI exposes navigation and document/configuration workflows with loading, empty, error, disabled, and success states.
+- Rate limits, readiness checks, structured service logs, and Compose health checks are implemented and verified.
 
 ## Open Questions
 
@@ -313,7 +319,8 @@ Current state:
 - Task 12 feedback and management reporting is complete and committed.
 - Task 13 viewer exchange and document viewer is complete and committed.
 - Task 14 chat frontend workflow is complete and committed.
+- Task 15 management frontend workflow is complete and committed.
 
 Next safe implementation work:
 
-- Start Task 15 management frontend workflow.
+- Start Task 16 operational hardening.

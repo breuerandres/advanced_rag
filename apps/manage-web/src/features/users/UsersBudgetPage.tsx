@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DollarSign, MessageSquareWarning, Pencil, RefreshCw, Search, Users } from 'lucide-react'
+import { Pencil, RefreshCw, Search } from 'lucide-react'
 import { ApiError } from '../../lib/api-error'
 import { listGroups, listUsers, updateUserBudget } from '../../api/users'
 import type { GroupSummary, UserSummary } from '../../api/users'
@@ -8,13 +8,7 @@ import { Button } from '../../components/ui/button'
 type LoadState = 'loading' | 'ready' | 'error'
 type UserStatusFilter = 'all' | 'active' | 'inactive'
 
-export function UsersBudgetPage({
-  onOpenDocuments,
-  onOpenFeedback,
-}: {
-  onOpenDocuments?: () => void
-  onOpenFeedback?: () => void
-}) {
+export function UsersBudgetPage() {
   const [users, setUsers] = useState<UserSummary[]>([])
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -78,45 +72,7 @@ export function UsersBudgetPage({
   }, [searchQuery, statusFilter, users])
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar" aria-label="Navegación principal">
-        <div className="sidebar-brand">
-          <span className="brand-mark">AR</span>
-          <span>Advanced RAG</span>
-        </div>
-        <nav>
-          <a
-            className="nav-link"
-            href="#documentos"
-            onClick={(event) => {
-              event.preventDefault()
-              onOpenDocuments?.()
-            }}
-          >
-            <Pencil size={18} />
-            <span>Documentos</span>
-          </a>
-          <a className="nav-link nav-link-active" href="#usuarios">
-            <Users size={18} />
-            <span>Usuarios</span>
-          </a>
-          <a className="nav-link" href="#presupuestos">
-            <DollarSign size={18} />
-            <span>Presupuestos</span>
-          </a>
-          <a
-            className="nav-link"
-            href="#feedback"
-            onClick={(event) => {
-              event.preventDefault()
-              onOpenFeedback?.()
-            }}
-          >
-            <MessageSquareWarning size={18} />
-            <span>Feedback</span>
-          </a>
-        </nav>
-      </aside>
+    <>
 
       <section className="workspace" id="usuarios">
         <header className="workspace-header">
@@ -269,7 +225,7 @@ export function UsersBudgetPage({
           }}
         />
       ) : null}
-    </main>
+    </>
   )
 }
 

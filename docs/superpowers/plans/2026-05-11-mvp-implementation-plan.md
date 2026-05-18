@@ -1456,9 +1456,10 @@ Expected: commit succeeds.
 - Modify: `apps/manage-web/src/api/`
 - Modify: `apps/manage-web/src/routes/`
 - Modify: `apps/manage-web/src/components/`
+- Modify: `.NET` configuration read endpoint
 - Test: management frontend tests
 
-- [ ] **Step 1: Write management navigation tests**
+- [x] **Step 1: Write management navigation tests**
 
 Cover navigation sections:
 
@@ -1471,27 +1472,27 @@ Cover navigation sections:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 2: Implement persistent management shell**
+- [x] **Step 2: Implement persistent management shell**
 
 Use dense operational layout with persistent navigation, table-heavy screens, filters, detail panels, dialogs, and status badges.
 
-- [ ] **Step 3: Write document workflow UI tests**
+- [x] **Step 3: Write document workflow UI tests**
 
 Cover list filters, editor state, import states, review validation, indexing retry, archive/restore, and audit panel.
 
-- [ ] **Step 4: Implement document workflow UI**
+- [x] **Step 4: Implement document workflow UI**
 
 Connect to .NET API client and show loading, empty, error, disabled, and success states.
 
-- [ ] **Step 5: Write configuration UI tests**
+- [x] **Step 5: Write configuration UI tests**
 
 Cover operational defaults display, customer timezone, model configuration, budget defaults, and safe read-only display for secret-backed values.
 
-- [ ] **Step 6: Implement configuration UI**
+- [x] **Step 6: Implement configuration UI**
 
 Expose configurable non-sensitive settings through management views. Do not expose secret values.
 
-- [ ] **Step 7: Verify management UI**
+- [x] **Step 7: Verify management UI**
 
 Run:
 
@@ -1503,7 +1504,7 @@ pnpm --dir apps/manage-web build
 
 Expected: typecheck, tests, and build pass.
 
-- [ ] **Step 8: Commit management frontend**
+- [x] **Step 8: Commit management frontend**
 
 Run:
 

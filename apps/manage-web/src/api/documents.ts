@@ -81,6 +81,14 @@ export async function sendDocumentToReview(id: string): Promise<DocumentDetail> 
   )
 }
 
+export async function requestPublish(id: string): Promise<DocumentDetail> {
+  await ensureCsrfToken()
+  return requestJson<DocumentDetail>(`/api/documents/${id}/request-publish`, {
+    method: 'POST',
+    headers: csrfHeaders(),
+  })
+}
+
 export async function archiveDocument(id: string): Promise<DocumentDetail> {
   await ensureCsrfToken()
   return requestJson<DocumentDetail>(`/api/documents/${id}/archive`, { method: 'POST', headers: csrfHeaders() })

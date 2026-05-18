@@ -1,29 +1,23 @@
 import { useState } from 'react'
+import { ManagementNav, type ManagementSection } from './components/ManagementNav'
+import { AuditPage } from './features/audit/AuditPage'
+import { ConfigurationPage } from './features/configuration/ConfigurationPage'
 import { DocumentsPage } from './features/documents/DocumentsPage'
 import { FeedbackReviewPage } from './features/reporting/FeedbackReviewPage'
 import { UsersBudgetPage } from './features/users/UsersBudgetPage'
 import './App.css'
 
 export default function App() {
-  const [view, setView] = useState<'users' | 'documents' | 'feedback'>('users')
-
-  if (view === 'documents') {
-    return <DocumentsPage onOpenUsers={() => setView('users')} />
-  }
-
-  if (view === 'feedback') {
-    return (
-      <FeedbackReviewPage
-        onOpenDocuments={() => setView('documents')}
-        onOpenUsers={() => setView('users')}
-      />
-    )
-  }
+  const [view, setView] = useState<ManagementSection>('users')
 
   return (
-    <UsersBudgetPage
-      onOpenDocuments={() => setView('documents')}
-      onOpenFeedback={() => setView('feedback')}
-    />
+    <main className="app-shell">
+      <ManagementNav active={view} onNavigate={setView} />
+      {view === 'documents' ? <DocumentsPage /> : null}
+      {view === 'users' || view === 'budgets' ? <UsersBudgetPage /> : null}
+      {view === 'audit' ? <AuditPage /> : null}
+      {view === 'feedback' ? <FeedbackReviewPage /> : null}
+      {view === 'configuration' ? <ConfigurationPage /> : null}
+    </main>
   )
 }

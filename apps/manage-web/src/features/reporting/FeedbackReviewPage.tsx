@@ -1,17 +1,10 @@
 import { useEffect, useState } from 'react'
-import { MessageSquareWarning, Pencil, Users } from 'lucide-react'
 import { listFeedbackReport, type FeedbackReportItem } from '../../api/reporting'
 import { Button } from '../../components/ui/button'
 
 type PolarityFilter = 'all' | 'negative'
 
-export function FeedbackReviewPage({
-  onOpenDocuments,
-  onOpenUsers,
-}: {
-  onOpenDocuments: () => void
-  onOpenUsers: () => void
-}) {
+export function FeedbackReviewPage() {
   const [items, setItems] = useState<FeedbackReportItem[]>([])
   const [polarity, setPolarity] = useState<PolarityFilter>('all')
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
@@ -39,41 +32,7 @@ export function FeedbackReviewPage({
   }
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar" aria-label="Navegacion principal">
-        <div className="sidebar-brand">
-          <span className="brand-mark">AR</span>
-          <span>Advanced RAG</span>
-        </div>
-        <nav>
-          <a
-            className="nav-link"
-            href="#documentos"
-            onClick={(event) => {
-              event.preventDefault()
-              onOpenDocuments()
-            }}
-          >
-            <Pencil size={18} />
-            <span>Documentos</span>
-          </a>
-          <a
-            className="nav-link"
-            href="#usuarios"
-            onClick={(event) => {
-              event.preventDefault()
-              onOpenUsers()
-            }}
-          >
-            <Users size={18} />
-            <span>Usuarios</span>
-          </a>
-          <a className="nav-link nav-link-active" href="#feedback">
-            <MessageSquareWarning size={18} />
-            <span>Feedback</span>
-          </a>
-        </nav>
-      </aside>
+    <>
 
       <section className="workspace" id="feedback">
         <header className="workspace-header">
@@ -146,6 +105,6 @@ export function FeedbackReviewPage({
           </div>
         ) : null}
       </section>
-    </main>
+    </>
   )
 }

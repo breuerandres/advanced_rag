@@ -78,6 +78,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Task 12 Feedback And Management Reporting](#2026-05-18---task-12-feedback-and-management-reporting)
 - [Task 13 Viewer Exchange And Document Viewer](#2026-05-18---task-13-viewer-exchange-and-document-viewer)
 - [Task 14 Chat Frontend Workflow](#2026-05-18---task-14-chat-frontend-workflow)
+- [Task 15 Management Frontend Workflow](#2026-05-18---task-15-management-frontend-workflow)
 
 ### Audit, Pricing, And Budgets
 
@@ -1211,3 +1212,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Future chat history work can build on the typed SSE parser and error-state mapping without changing the backend contract. Over-budget users see a service-limited AI state instead of a general account lockout, and authorized document opening remains available through citation links.
 
 **Evidence:** Verified on 2026-05-18 with `pnpm.cmd --dir apps\chat-web test -- --run` (`10 passed`), `pnpm.cmd --dir apps\chat-web typecheck`, and `pnpm.cmd --dir apps\chat-web build`.
+
+## 2026-05-18 - Task 15 Management Frontend Workflow
+
+**Context:** Task 15 turns the management frontend into a persistent operational console on top of existing `.NET` APIs for documents, users/groups, AI budgets, viewer links, and feedback reporting. The management UI must stay dense, scannable, Spanish-facing, and boundary-safe: it calls only same-origin `.NET` API routes and never calls FastAPI directly.
+
+**Options Considered:** Keep per-screen navigation, build a shared management shell, defer configuration/audit placeholders, or expose configuration as a read-only operational view.
+
+**Decision:** Use one persistent management shell navigation covering documents, users/groups, audit, feedback, AI budgets, and configuration. Keep documents, users/budgets, feedback review, audit, and configuration as separate screen components under that shell. Add failed-indexing retry through the existing `.NET` publish request route. Add `.NET` `GET /api/configuration` plus a read-only configuration screen for non-sensitive operational settings and secret-backed status indicators without exposing secret values.
+
+**Rationale:** A shared shell gives management users a stable operational information architecture and removes inconsistent per-screen navigation. The retry action belongs in document operations because indexing failure blocks publication. Configuration should be visible to operators, but secret values must remain outside the browser.
+
+**Tradeoffs:** The audit workspace is currently a frontend-level operational placeholder until Task 16+ adds dedicated audit/rate-limit/logging read models. The configuration endpoint intentionally reports secret status only (`Configured`/`Missing`) and not secret values, so operators still need filesystem or Compose access to rotate credentials.
+
+**Consequences:** `apps/manage-web` now has a shared navigation component, a typed operational configuration client, a configuration screen, an audit screen, and document indexing retry UI. `.NET` exposes the corresponding read-only management configuration route. Management frontend service boundaries remain intact because all calls are same-origin `.NET` API routes.
+
+**Evidence:** Verified on 2026-05-18 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Configuration` (`1 passed` in API tests), `pnpm.cmd --dir apps/manage-web test -- --run` (`18 passed`), `pnpm.cmd --dir apps/manage-web typecheck`, and `pnpm.cmd --dir apps/manage-web build`.

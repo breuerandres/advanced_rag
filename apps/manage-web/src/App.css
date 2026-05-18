@@ -370,6 +370,58 @@ select {
   padding: 18px;
 }
 
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settings-panel,
+.empty-panel {
+  border: 1px solid #d9dee8;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.settings-panel h2,
+.empty-panel h2 {
+  margin-bottom: 12px;
+}
+
+.settings-panel dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.settings-panel dt {
+  color: #687387;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.settings-panel dd {
+  margin: 3px 0 0;
+  font-weight: 700;
+}
+
+.muted-copy {
+  margin: 0 0 12px;
+  color: #687387;
+}
+
+.empty-panel {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: #364257;
+}
+
+.empty-panel p {
+  margin: 0;
+}
+
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
@@ -391,6 +443,10 @@ select {
   }
 
   .filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -59,11 +59,43 @@ const documentDetail = {
   updatedAt: '2026-05-17T12:00:00Z',
 }
 
+const configurationResponse = {
+  customerTimezone: 'America/Argentina/Buenos_Aires',
+  chatModel: 'gpt-4.1-nano',
+  embeddingModel: 'text-embedding-3-small',
+  embeddingDimensions: 1536,
+  defaultMonthlyAiBudgetUsd: 5,
+  semanticCacheTtlHours: 24,
+  semanticCacheSimilarityThreshold: 0.9,
+  chatMaxQuestionChars: 4000,
+  importMaxFileSizeMb: 10,
+  secrets: [
+    { name: 'OpenAI API key', status: 'Configured' },
+    { name: 'JWT signing keys', status: 'Configured' },
+  ],
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
 describe('management users and budgets', () => {
+  test('shows persistent management navigation sections', async () => {
+    stubFetch([jsonResponse(200, usersResponse), jsonResponse(200, [])])
+
+    render(<App />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Usuarios y presupuestos' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Documentos' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Usuarios y grupos' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Auditoria' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Feedback' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Presupuestos IA' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Configuracion' })).toBeInTheDocument()
+  })
+
   test('shows users with roles, groups, status, budget, spend, and remaining budget', async () => {
     stubFetch([
       jsonResponse(200, usersResponse),
@@ -405,6 +437,91 @@ describe('management documents', () => {
       expect.objectContaining({ method: 'POST' }),
     )
     expect(assign).toHaveBeenCalledWith('https://docs.client.com/open?code=manager-code')
+  })
+
+  test('retries failed indexing from the document list', async () => {
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, [
+        {
+          ...documentsResponse[0],
+          indexingStatus: 'Failed',
+          state: 'In Review',
+        },
+      ]),
+      csrfResponse(),
+      jsonResponse(200, {
+        ...documentDetail,
+        state: 'Published',
+        currentDraftVersion: {
+          ...documentDetail.currentDraftVersion,
+          indexingStatus: 'Succeeded',
+        },
+      }),
+    ])
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('link', { name: 'Documentos' }))
+    await user.click(await screen.findByRole('button', { name: 'Reintentar indexacion de Politica de seguridad' }))
+
+    expect(await screen.findByText('Indexacion reintentada.')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/documents/55555555-5555-5555-5555-555555555555/request-publish',
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+})
+
+describe('management configuration', () => {
+  test('shows operational defaults and hides secret values', async () => {
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, configurationResponse),
+    ])
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('link', { name: 'Configuracion' }))
+
+    expect(await screen.findByRole('heading', { name: 'Configuracion operativa' })).toBeInTheDocument()
+    expect(screen.getByText('America/Argentina/Buenos_Aires')).toBeInTheDocument()
+    expect(screen.getByText('gpt-4.1-nano')).toBeInTheDocument()
+    expect(screen.getByText('text-embedding-3-small')).toBeInTheDocument()
+    expect(screen.getByText('1536 dimensiones')).toBeInTheDocument()
+    expect(screen.getByText('USD 5.00')).toBeInTheDocument()
+    expect(screen.getByText('24 horas')).toBeInTheDocument()
+    expect(screen.getByText('0.90')).toBeInTheDocument()
+    expect(screen.getByText('Valores protegidos por secretos')).toBeInTheDocument()
+    expect(screen.queryByText(/sk-/i)).not.toBeInTheDocument()
+  })
+
+  test('shows configuration load errors with a safe state', async () => {
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(500, {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An internal error occurred.',
+          details: null,
+          requestId: 'config-request',
+        },
+      }),
+    ])
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('link', { name: 'Configuracion' }))
+
+    expect(
+      await screen.findByText('No se pudo cargar la configuracion. Referencia: config-request.'),
+    ).toBeInTheDocument()
   })
 })
 

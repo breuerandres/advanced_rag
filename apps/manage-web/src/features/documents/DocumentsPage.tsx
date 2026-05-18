@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Archive, ExternalLink, FileText, Pencil, RotateCcw, Users } from 'lucide-react'
+import { Archive, ExternalLink, Pencil, RefreshCw, RotateCcw } from 'lucide-react'
 import { ApiError } from '../../lib/api-error'
 import {
   archiveDocument,
@@ -7,6 +7,7 @@ import {
   getDocument,
   importDocumentText,
   listDocuments,
+  requestPublish,
   restoreDocument,
   saveDocumentDraft,
   sendDocumentToReview,
@@ -16,7 +17,7 @@ import { Button } from '../../components/ui/button'
 
 type DocumentStateFilter = 'all' | 'Draft' | 'In Review' | 'Published' | 'Archived'
 
-export function DocumentsPage({ onOpenUsers }: { onOpenUsers: () => void }) {
+export function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentSummary[]>([])
   const [stateFilter, setStateFilter] = useState<DocumentStateFilter>('all')
   const [selectedDocument, setSelectedDocument] = useState<DocumentDetail | null>(null)
@@ -63,6 +64,22 @@ export function DocumentsPage({ onOpenUsers }: { onOpenUsers: () => void }) {
     setMessage('Documento restaurado.')
   }
 
+  async function retryIndexing(document: DocumentSummary) {
+    const updated = await requestPublish(document.id)
+    setDocuments((current) =>
+      current.map((item) =>
+        item.id === document.id
+          ? {
+              ...item,
+              state: updated.state,
+              indexingStatus: updated.currentDraftVersion?.indexingStatus ?? 'Succeeded',
+            }
+          : item,
+      ),
+    )
+    setMessage('Indexacion reintentada.')
+  }
+
   async function openViewer(document: DocumentSummary) {
     setMessage(null)
     try {
@@ -75,31 +92,7 @@ export function DocumentsPage({ onOpenUsers }: { onOpenUsers: () => void }) {
   }
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar" aria-label="Navegacion principal">
-        <div className="sidebar-brand">
-          <span className="brand-mark">AR</span>
-          <span>Advanced RAG</span>
-        </div>
-        <nav>
-          <a className="nav-link nav-link-active" href="#documentos">
-            <FileText size={18} />
-            <span>Documentos</span>
-          </a>
-          <a
-            className="nav-link"
-            href="#usuarios"
-            onClick={(event) => {
-              event.preventDefault()
-              onOpenUsers()
-            }}
-          >
-            <Users size={18} />
-            <span>Usuarios</span>
-          </a>
-        </nav>
-      </aside>
-
+    <>
       <section className="workspace" id="documentos">
         <header className="workspace-header">
           <div>
@@ -188,6 +181,16 @@ export function DocumentsPage({ onOpenUsers }: { onOpenUsers: () => void }) {
                           <Archive size={16} />
                         </Button>
                       )}
+                      {document.indexingStatus === 'Failed' ? (
+                        <Button
+                          className="icon-button"
+                          type="button"
+                          aria-label={`Reintentar indexacion de ${document.title}`}
+                          onClick={() => void retryIndexing(document)}
+                        >
+                          <RefreshCw size={16} />
+                        </Button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -219,7 +222,7 @@ export function DocumentsPage({ onOpenUsers }: { onOpenUsers: () => void }) {
           }}
         />
       ) : null}
-    </main>
+    </>
   )
 }
 

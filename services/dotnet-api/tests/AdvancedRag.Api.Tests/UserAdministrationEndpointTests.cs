@@ -206,6 +206,15 @@ public sealed class UserAdministrationWebApplicationFactory : WebApplicationFact
             {
                 ["ConnectionStrings:AppDatabase"] = "Host=localhost;Database=unused;Username=unused;Password=unused",
                 ["Csrf:SigningKey"] = "local-test-csrf-signing-key-with-enough-entropy",
+                ["CUSTOMER_TIMEZONE"] = "America/Argentina/Buenos_Aires",
+                ["OPENAI_CHAT_MODEL"] = "gpt-4.1-nano",
+                ["OPENAI_EMBEDDING_MODEL"] = "text-embedding-3-small",
+                ["OPENAI_EMBEDDING_DIMENSIONS"] = "1536",
+                ["DEFAULT_MONTHLY_AI_BUDGET_USD"] = "5",
+                ["RAG_SEMANTIC_CACHE_TTL_HOURS"] = "24",
+                ["RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD"] = "0.90",
+                ["OpenAI:ApiKey"] = "configured-openai-key-placeholder",
+                ["Jwt:SigningKeysJson"] = "configured-jwt-placeholder",
             });
         });
         builder.ConfigureServices(services =>
