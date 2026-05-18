@@ -1594,11 +1594,11 @@ Expected: commit succeeds.
 - Create: `tests/e2e/specs/mvp-happy-path.spec.ts`
 - Modify: root `package.json`
 
-- [ ] **Step 1: Add E2E test package**
+- [x] **Step 1: Add E2E test package**
 
 Create Playwright tests for the full MVP happy path.
 
-- [ ] **Step 2: Write happy-path E2E test**
+- [x] **Step 2: Write happy-path E2E test**
 
 Cover:
 
@@ -1618,7 +1618,7 @@ Cover:
 
 Expected before all workflows are wired: E2E test fails at the first missing workflow.
 
-- [ ] **Step 3: Run full verification**
+- [x] **Step 3: Run full verification**
 
 Run:
 
@@ -1633,7 +1633,7 @@ docker compose --env-file infra/compose/.env.example -f infra/compose/compose.ya
 
 Expected: all unit/integration tests pass and Compose config renders.
 
-- [ ] **Step 4: Run E2E tests against Compose stack**
+- [x] **Step 4: Run E2E tests against Compose stack**
 
 Run:
 
@@ -1644,7 +1644,7 @@ pnpm --dir tests/e2e test
 
 Expected: E2E happy path passes. Stop the stack after verification.
 
-- [ ] **Step 5: Commit E2E verification**
+- [x] **Step 5: Commit E2E verification**
 
 Run:
 

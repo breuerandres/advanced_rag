@@ -27,6 +27,7 @@ export default function App() {
         const code = new URLSearchParams(window.location.search).get('code')
         if (code) {
           await exchangeViewerCode(code)
+          clearExchangeCodeFromUrl()
         }
 
         const document = await getViewerDocument()
@@ -82,6 +83,12 @@ export default function App() {
       {state.status === 'ready' ? <DocumentView document={state.document} /> : null}
     </main>
   )
+}
+
+function clearExchangeCodeFromUrl() {
+  const url = new URL(window.location.href)
+  url.searchParams.delete('code')
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
 function DocumentView({ document }: { document: ViewerDocument }) {

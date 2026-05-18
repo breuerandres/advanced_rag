@@ -79,6 +79,8 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Task 13 Viewer Exchange And Document Viewer](#2026-05-18---task-13-viewer-exchange-and-document-viewer)
 - [Task 14 Chat Frontend Workflow](#2026-05-18---task-14-chat-frontend-workflow)
 - [Task 15 Management Frontend Workflow](#2026-05-18---task-15-management-frontend-workflow)
+- [Task 17 E2E Bootstrap Strategy](#2026-05-18---task-17-e2e-bootstrap-strategy)
+- [Task 17 Viewer Reload Behavior](#2026-05-18---task-17-viewer-reload-behavior)
 
 ### Audit, Pricing, And Budgets
 
@@ -88,6 +90,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Over-Budget Cache Behavior](#2026-05-11---over-budget-cache-behavior)
 - [Task 11 RAG Enforcement Boundaries](#2026-05-17---task-11-rag-enforcement-boundaries)
 - [Task 8 User Administration And Budget Configuration](#2026-05-14---task-8-user-administration-and-budget-configuration)
+- [Task 17 Budget Exhaustion E2E Scope](#2026-05-18---task-17-budget-exhaustion-e2e-scope)
 
 ### Data Model And Operations
 
@@ -100,6 +103,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [FastAPI Docker Base Image](#2026-05-14---fastapi-docker-base-image)
 - [MVP Operational Defaults](#2026-05-11---mvp-operational-defaults)
 - [Default OpenAI Models](#2026-05-11---default-openai-models)
+- [Task 17 Local Compose Deep Links And Viewer Host](#2026-05-18---task-17-local-compose-deep-links-and-viewer-host)
 
 ### Workflow
 
@@ -1246,3 +1250,59 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Technical rate-limit failures now return `LOGIN_IP_RATE_LIMITED`, `LOGIN_USER_RATE_LIMITED`, `CHAT_RATE_LIMITED`, `IMPORT_RATE_LIMITED`, or `VIEWER_EXCHANGE_RATE_LIMITED`. `/health/ready` now fails with 503 when critical dependencies are missing or unavailable, while `/health/live` stays independent. Compose can gate Caddy on service health.
 
 **Evidence:** Verified on 2026-05-18 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter "RateLimit|Health|Logging"` (`9 passed`), `uv run pytest tests -k "rate_limit or health or logging" -q` (`6 passed, 26 deselected`), `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run ruff check .`, `uv run mypy src tests`, and `git diff --check`. `.NET` commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched; build and tests passed.
+
+## 2026-05-18 - Task 17 E2E Bootstrap Strategy
+
+**Context:** The MVP has local authentication and user administration, but no first-admin bootstrap UI or public seed endpoint. The end-to-end test must create the initial admin and document manager users before it can exercise the browser workflows.
+
+**Options Considered:** Add a temporary bootstrap API, drive manual seed steps outside the test, or seed deterministic E2E records directly through the Compose PostgreSQL service.
+
+**Decision:** Seed deterministic E2E roles, users, password hashes, and model pricing directly through Compose PostgreSQL from the Playwright test setup.
+
+**Rationale:** This keeps bootstrap test data outside the production API surface and avoids adding a one-off product endpoint only for E2E setup. The seeded records use fixed IDs and E2E-only emails so the setup can clean up and rerun safely.
+
+**Tradeoffs:** The E2E setup knows database details. That is acceptable for initial bootstrap only and should be replaced if the product later adds a supported first-admin setup flow.
+
+**Consequences:** `tests/e2e/specs/mvp-happy-path.spec.ts` owns the deterministic seed/cleanup routine. Runtime product code still owns all workflow behavior after bootstrap.
+
+## 2026-05-18 - Task 17 Viewer Reload Behavior
+
+**Context:** Viewer exchange codes are intentionally one-time. During E2E verification, the docs frontend successfully exchanged the code and set a host-only viewer cookie, but a browser reload re-used the still-visible `?code=` query parameter and failed with `VIEWER_CODE_USED`.
+
+**Options Considered:** Make exchange codes reusable during their TTL, let the frontend keep the code in the URL and tolerate the error, or remove the code from the URL after successful exchange.
+
+**Decision:** Keep exchange codes single-use and remove `code` from the docs URL with `history.replaceState` after successful exchange.
+
+**Rationale:** The real viewer token is already stored as an `HttpOnly` cookie. Keeping the consumed exchange code in the URL creates a reload hazard without adding security or usability value.
+
+**Tradeoffs:** The visible URL no longer contains the original code after the document opens. That is desirable because the code is no longer useful.
+
+**Consequences:** Reloading an already-open docs page uses the existing viewer cookie and preserves authorized document access, including after AI budget exhaustion blocks new paid chat requests.
+
+## 2026-05-18 - Task 17 Budget Exhaustion E2E Scope
+
+**Context:** The architecture already states that AI budget exhaustion blocks new paid chat/RAG work but must not revoke authorized document viewing. Task 17 needed an executable full-stack verification of that boundary.
+
+**Options Considered:** Verify only API responses, verify only frontend budget messaging, or verify the full browser workflow before and after lowering the user's AI budget to zero.
+
+**Decision:** The E2E happy path lowers the viewer's AI budget through the management UI, verifies the next chat request shows the budget-limited state, and then verifies the already-open document remains accessible through the viewer cookie.
+
+**Rationale:** This is the highest-risk cross-service boundary in the MVP: FastAPI enforces paid AI usage, `.NET` owns budget configuration and viewer documents, and Caddy/frontends must preserve their separate access paths.
+
+**Tradeoffs:** The E2E test depends on a live Compose stack and a configured OpenAI key for the chat/indexing path. Unit and integration tests remain the faster deterministic layer for everyday development.
+
+**Consequences:** Future budget changes must preserve the distinction between AI spend controls and document authorization.
+
+## 2026-05-18 - Task 17 Local Compose Deep Links And Viewer Host
+
+**Context:** The E2E path opens docs deep links such as `/open?code=...` and relies on `.NET` generating viewer URLs for the active local docs host.
+
+**Options Considered:** Configure each frontend nginx container independently, let nginx return 404 for unknown paths, or add a shared SPA fallback config. For viewer links, rely on production defaults or set the local docs base URL explicitly in Compose.
+
+**Decision:** Use a shared `infra/compose/frontend-nginx.conf` for all frontend containers with SPA fallback and IPv4/IPv6 localhost listeners. Set `.NET` `Viewer__DocsBaseUrl` in local Compose to `https://docs.${PUBLIC_DOMAIN}`.
+
+**Rationale:** React frontends must handle browser deep links after nginx serves `index.html`. Compose health checks also need `localhost` to work whether the container resolves it to IPv4 or IPv6. `.NET` should generate viewer links for the local docs host during Compose verification instead of the production placeholder domain.
+
+**Tradeoffs:** The Dockerfiles now depend on the shared Compose nginx config. That is acceptable because these images are currently part of the local Compose deployment baseline.
+
+**Consequences:** Local E2E and manual browser tests can open management, chat, and docs deep links reliably through Caddy.

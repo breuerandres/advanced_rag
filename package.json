@@ -5,6 +5,7 @@
   "scripts": {
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
+    "test:e2e": "pnpm --dir tests/e2e test",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build"
   }

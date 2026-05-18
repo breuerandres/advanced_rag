@@ -61,6 +61,7 @@ services:
       OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
       InternalService__TokenFile: /run/secrets/internal_service_token
       Rag__InternalBaseUrl: http://rag-api:8000
+      Viewer__DocsBaseUrl: https://docs.${PUBLIC_DOMAIN}
     depends_on:
       postgres-init:
         condition: service_completed_successfully

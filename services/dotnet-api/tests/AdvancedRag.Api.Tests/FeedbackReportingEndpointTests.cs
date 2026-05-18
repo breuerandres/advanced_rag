@@ -44,7 +44,7 @@ public sealed class FeedbackReportingEndpointTests
             await response.Content.ReadFromJsonAsync<IReadOnlyList<FeedbackReportItemResponse>>();
         body.Should().NotBeNull();
         body!.Should().ContainSingle();
-        body[0].FeedbackValue.Should().Be("down");
+        body![0].FeedbackValue.Should().Be("down");
         _factory.Reporting.LastQuery.Should().Be(
             new FeedbackReportQuery(
                 NegativeOnly: true,

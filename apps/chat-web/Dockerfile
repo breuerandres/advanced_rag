@@ -10,4 +10,5 @@ COPY apps/chat-web apps/chat-web
 RUN pnpm --dir apps/chat-web install --frozen-lockfile && pnpm --dir apps/chat-web build
 
 FROM nginx:1.27-alpine
+COPY infra/compose/frontend-nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/chat-web/dist /usr/share/nginx/html

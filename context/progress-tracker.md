@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Complete Task 16 operational hardening.
+- Complete Task 18 documentation and handoff.
 
 ## Completed
 
@@ -242,6 +242,16 @@
   - Added `docs/operations/operational-hardening.md` and linked it from the root README.
 - Verified Task 16 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter "RateLimit|Health|Logging"` (`9 passed` in API tests), `uv run pytest tests -k "rate_limit or health or logging" -q` (`6 passed, 26 deselected`), and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.
 - Additional Task 16 verification passed with `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run ruff check .`, `uv run mypy src tests`, and `git diff --check`. `.NET` restore/build/test commands still emit NU1900 warnings because NuGet vulnerability metadata cannot be fetched from `https://api.nuget.org/v3/index.json`; build and tests passed.
+- Implemented Task 17 end-to-end MVP verification:
+  - Added a dedicated Playwright package under `tests/e2e` with TypeScript config, Chromium project settings, and a wrapper that skips E2E during recursive unit-test runs.
+  - Added the MVP happy-path E2E test covering admin setup, viewer/group creation, document manager draft/review, admin publish with indexing, viewer chat with citations, secure viewer exchange, feedback submission, management feedback reporting, AI budget exhaustion, and preserved document access.
+  - Seeded deterministic E2E bootstrap users, roles, and pricing through Compose PostgreSQL because the MVP has no first-admin bootstrap UI yet.
+  - Fixed `.NET` operational request logging to serialize concurrent appends to the same daily JSON log file on Windows.
+  - Fixed `.NET` feedback reporting SQL generation for no-filter requests so management feedback review works in the full stack.
+  - Fixed local Compose viewer links by setting `Viewer__DocsBaseUrl=https://docs.${PUBLIC_DOMAIN}` for `.NET`.
+  - Added shared nginx SPA fallback config for the three frontend containers, including IPv4 and IPv6 localhost listeners for Compose health checks and deep-link support.
+  - Updated `docs-web` to remove one-time viewer exchange codes from the browser URL after successful exchange so reloads use the viewer cookie rather than re-consuming the code.
+- Verified Task 17 with `pnpm --dir tests/e2e test` against the Compose stack (`1 passed`), `dotnet test services/dotnet-api/AdvancedRag.sln` (`62 passed` across .NET test projects), `uv run pytest -q` (`32 passed`), `pnpm -r test -- --run` (`37 frontend tests passed; E2E package intentionally skipped recursive unit run`), `pnpm -r typecheck`, `pnpm -r build`, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`, and `git diff --check`. `.NET` commands still emit NU1900 warnings because NuGet vulnerability metadata cannot be fetched from `https://api.nuget.org/v3/index.json`; tests and builds passed.
 
 ## In Progress
 
@@ -249,27 +259,27 @@
 
 ## Next Up
 
-- Implement Task 17 end-to-end MVP verification.
+- Implement Task 18 documentation and handoff.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Task 17 end-to-end MVP verification.
+- Task 18 documentation and handoff.
 
 ### Why This Comes Next
 
-- Task 16 operational hardening is implemented and verified.
-- The next safe step is end-to-end MVP verification across the full Compose stack.
+- Task 17 end-to-end MVP verification is implemented and verified.
+- The next safe step is final documentation, handoff, and any user-facing runbook polish required by Task 18.
 
 ### Scope
 
-- Implement Task 17 only.
-- Add Playwright E2E coverage for the MVP happy path without changing product behavior outside the verified workflows.
+- Implement Task 18 only.
+- Update final project documentation and handoff material without changing runtime behavior unless documentation verification exposes a concrete defect.
 
 ### User-Owned Steps
 
-- Keep Docker Desktop running because the E2E verification starts the Compose stack.
+- Review the final documentation/handoff output when requested.
 
 ### Required Verification
 
@@ -279,10 +289,11 @@
 - `pnpm -r typecheck`
 - `pnpm -r build`
 - `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`
+- Documentation-specific verification from Task 18 once implemented.
 
 Expected result:
 
-- Unit/integration checks pass, Compose config renders, and the E2E package is ready to run against the Compose stack.
+- Existing unit/integration/E2E checks remain green and Task 18 documentation accurately reflects the implemented MVP.
 
 ## Open Questions
 
@@ -338,8 +349,9 @@ Current state:
 - Task 13 viewer exchange and document viewer is complete and committed.
 - Task 14 chat frontend workflow is complete and committed.
 - Task 15 management frontend workflow is complete and committed.
-- Task 16 operational hardening is complete and ready to commit.
+- Task 16 operational hardening is complete and committed.
+- Task 17 end-to-end MVP verification is complete and ready to commit.
 
 Next safe implementation work:
 
-- Commit Task 16, then start Task 17 end-to-end MVP verification.
+- Commit Task 17, then start Task 18 documentation and handoff.

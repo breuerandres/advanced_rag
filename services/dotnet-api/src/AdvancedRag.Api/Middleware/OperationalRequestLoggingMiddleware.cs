@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace AdvancedRag.Api.Middleware;
@@ -5,6 +6,8 @@ namespace AdvancedRag.Api.Middleware;
 public sealed class OperationalRequestLoggingMiddleware
 {
     public const string ErrorCodeItemKey = "SafeErrorCode";
+
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> LogFileLocks = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly RequestDelegate _next;
     private readonly IConfiguration _configuration;
@@ -48,7 +51,16 @@ public sealed class OperationalRequestLoggingMiddleware
             elapsed_ms = (int)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds,
         };
 
-        await File.AppendAllTextAsync(path, JsonSerializer.Serialize(entry) + Environment.NewLine);
+        SemaphoreSlim logFileLock = LogFileLocks.GetOrAdd(path, _ => new SemaphoreSlim(1, 1));
+        await logFileLock.WaitAsync();
+        try
+        {
+            await File.AppendAllTextAsync(path, JsonSerializer.Serialize(entry) + Environment.NewLine);
+        }
+        finally
+        {
+            logFileLock.Release();
+        }
     }
 
     private static string ResolveOriginIp(HttpContext context)

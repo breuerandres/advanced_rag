@@ -10,4 +10,5 @@ COPY apps/docs-web apps/docs-web
 RUN pnpm --dir apps/docs-web install --frozen-lockfile && pnpm --dir apps/docs-web build
 
 FROM nginx:1.27-alpine
+COPY infra/compose/frontend-nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/docs-web/dist /usr/share/nginx/html

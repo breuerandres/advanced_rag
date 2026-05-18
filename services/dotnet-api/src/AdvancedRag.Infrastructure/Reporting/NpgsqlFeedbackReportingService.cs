@@ -61,7 +61,7 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
         return builders.Values.Select(builder => builder.Build()).ToList();
     }
 
-    private static string BuildSql(FeedbackReportQuery query)
+    internal static string BuildSql(FeedbackReportQuery query)
     {
         StringBuilder sql = new(
             """
@@ -117,6 +117,7 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
             sql.AppendLine("and event.created_at < @to");
         }
 
+        sql.AppendLine();
         sql.AppendLine("order by event.feedback_updated_at desc, event.created_at desc, event.citation_created_at asc");
         return sql.ToString();
     }

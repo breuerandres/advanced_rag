@@ -43,6 +43,7 @@ test.each([
 })
 
 test('renders document after successful exchange and load', async () => {
+  const replaceState = vi.spyOn(window.history, 'replaceState')
   mockFetch([
     csrfResponse(),
     jsonResponse({ instructionId: 'doc-1', expiresAt: '2026-05-18T12:15:00Z' }),
@@ -63,6 +64,7 @@ test('renders document after successful exchange and load', async () => {
   expect(await screen.findByRole('heading', { name: 'Procedimiento publicado' })).toBeInTheDocument()
   expect(screen.getByText('Usa el equipo de seguridad.')).toBeInTheDocument()
   expect(screen.getByText('Publicado')).toBeInTheDocument()
+  expect(replaceState).toHaveBeenCalledWith({}, '', '/open')
 })
 
 function setLocation(url: string) {

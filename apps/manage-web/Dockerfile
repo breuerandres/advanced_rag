@@ -10,4 +10,5 @@ COPY apps/manage-web apps/manage-web
 RUN pnpm --dir apps/manage-web install --frozen-lockfile && pnpm --dir apps/manage-web build
 
 FROM nginx:1.27-alpine
+COPY infra/compose/frontend-nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/manage-web/dist /usr/share/nginx/html

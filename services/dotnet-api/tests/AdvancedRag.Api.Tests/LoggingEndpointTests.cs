@@ -53,6 +53,47 @@ public sealed class LoggingEndpointTests
         root.GetProperty("timestamp").GetString().Should().NotBeNullOrWhiteSpace();
     }
 
+    [Fact]
+    public async Task RequestLog_AllowsConcurrentWritesToTheSameDailyFile()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "advanced-rag-dotnet-logs", Guid.NewGuid().ToString("N"));
+        using WebApplicationFactory<Program> factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Logging:Directory"] = directory,
+                });
+            });
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IOperationalReadinessChecker>();
+                services.AddSingleton<IOperationalReadinessChecker>(
+                    new FakeReadinessChecker(OperationalReadinessResult.Ready));
+            });
+        });
+        using HttpClient client = factory.CreateClient();
+
+        Task<HttpResponseMessage>[] requests = Enumerable.Range(0, 20)
+            .Select(index =>
+            {
+                HttpRequestMessage request = new(HttpMethod.Get, $"/missing-{index}");
+                request.Headers.Add("X-Request-ID", $"req-log-concurrent-{index}");
+                return client.SendAsync(request);
+            })
+            .ToArray();
+
+        HttpResponseMessage[] responses = await Task.WhenAll(requests);
+
+        responses.Should().AllSatisfy(response => response.StatusCode.Should().Be(HttpStatusCode.NotFound));
+        string logPath = Directory.GetFiles(directory, "log-*.json").Single();
+        string[] lines = await File.ReadAllLinesAsync(logPath);
+        lines.Should().HaveCount(20);
+        responses.ToList().ForEach(response => response.Dispose());
+    }
+
     private sealed class FakeReadinessChecker : IOperationalReadinessChecker
     {
         private readonly OperationalReadinessResult _result;
