@@ -22,6 +22,8 @@ The project is in implementation planning. The approved base architecture spec l
 Local setup commands are added as services are scaffolded.
 Real secrets must not be committed.
 
+Operational hardening notes live in `docs/operations/operational-hardening.md`.
+
 ## Troubleshooting
 
 - `docs/troubleshooting.md` - local operational fixes, including Caddy Docker HTTPS certificate trust.

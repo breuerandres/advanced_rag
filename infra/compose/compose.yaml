@@ -73,6 +73,12 @@ services:
       - internal_service_token
     volumes:
       - dotnet-logs:/var/log/dotnet-api
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   rag-api:
     build:
@@ -104,21 +110,42 @@ services:
       - internal_service_token
     volumes:
       - rag-logs:/var/log/rag-api
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5).read()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   manage-web:
     build:
       context: ../../
       dockerfile: apps/manage-web/Dockerfile
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   chat-web:
     build:
       context: ../../
       dockerfile: apps/chat-web/Dockerfile
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   docs-web:
     build:
       context: ../../
       dockerfile: apps/docs-web/Dockerfile
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   caddy:
     image: caddy:2-alpine
@@ -133,11 +160,21 @@ services:
       - caddy-config:/config
       - caddy-logs:/var/log/caddy
     depends_on:
-      - manage-web
-      - chat-web
-      - docs-web
-      - dotnet-api
-      - rag-api
+      manage-web:
+        condition: service_healthy
+      chat-web:
+        condition: service_healthy
+      docs-web:
+        condition: service_healthy
+      dotnet-api:
+        condition: service_healthy
+      rag-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "caddy validate --config /etc/caddy/Caddyfile >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 secrets:
   postgres_admin_password:

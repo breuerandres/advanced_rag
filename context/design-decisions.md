@@ -1230,3 +1230,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Evidence:** Verified on 2026-05-18 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Configuration` (`1 passed` in API tests), `pnpm.cmd --dir apps/manage-web test -- --run` (`18 passed`), `pnpm.cmd --dir apps/manage-web typecheck`, and `pnpm.cmd --dir apps/manage-web build`.
 
 **Follow-up:** The configuration screen reports whether secret-backed settings are configured by checking file presence from `.NET`. Therefore, Compose must mount the relevant status-only secret files into `dotnet-api` as well as their primary runtime services. The endpoint remains read-only and must return only `Configured`/`Missing`, never secret values.
+
+## 2026-05-18 - Task 16 Operational Hardening
+
+**Context:** Task 16 implements the MVP's technical stability controls: rate limits, readiness checks, JSON technical request logs, and Compose health checks. These controls must remain separate from AI budget enforcement and must work within the approved single-tenant Docker Compose deployment.
+
+**Options Considered:** Use per-process in-memory fixed-window counters, add a shared external rate-limit store, or persist technical counters in Postgres. For logs, use the approved daily JSON file approach rather than adding OpenTelemetry or a remote aggregator.
+
+**Decision:** Use per-process fixed-window counters for MVP technical rate limits in `.NET` and FastAPI. Add explicit stable error codes for each limited workflow. Add readiness checks that validate backend critical dependencies while keeping liveness process-only. Write daily JSON request logs from each backend to mounted log volumes. Gate Caddy startup on healthy frontend and backend services through Compose health checks.
+
+**Rationale:** The MVP deployment is single-instance per service under Docker Compose, so in-memory counters are sufficient and avoid adding Redis or cross-schema technical counter writes. Daily JSON logs match the architecture context and provide enough operational evidence for the MVP without introducing tracing infrastructure.
+
+**Tradeoffs:** In-memory rate limits reset on service restart and are not safe for horizontal scaling. If the platform later runs multiple replicas per service, technical rate-limit state must move to shared storage. The current JSON file loggers are intentionally simple and local; remote aggregation remains a later operational enhancement.
+
+**Consequences:** Technical rate-limit failures now return `LOGIN_IP_RATE_LIMITED`, `LOGIN_USER_RATE_LIMITED`, `CHAT_RATE_LIMITED`, `IMPORT_RATE_LIMITED`, or `VIEWER_EXCHANGE_RATE_LIMITED`. `/health/ready` now fails with 503 when critical dependencies are missing or unavailable, while `/health/live` stays independent. Compose can gate Caddy on service health.
+
+**Evidence:** Verified on 2026-05-18 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter "RateLimit|Health|Logging"` (`9 passed`), `uv run pytest tests -k "rate_limit or health or logging" -q` (`6 passed, 26 deselected`), `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`, `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run ruff check .`, `uv run mypy src tests`, and `git diff --check`. `.NET` commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched; build and tests passed.

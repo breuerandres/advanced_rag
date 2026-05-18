@@ -33,12 +33,14 @@ public sealed class RequestIdMiddleware
 
             if (context.Response.StatusCode == StatusCodes.Status404NotFound && !context.Response.HasStarted)
             {
+                context.Items[OperationalRequestLoggingMiddleware.ErrorCodeItemKey] = "NOT_FOUND";
                 await WriteErrorAsync(context, StatusCodes.Status404NotFound, ErrorResponse.NotFound(requestId));
             }
         }
         catch (Exception exception) when (!context.Response.HasStarted)
         {
             _logger.LogError(exception, "Unhandled request exception.");
+            context.Items[OperationalRequestLoggingMiddleware.ErrorCodeItemKey] = "INTERNAL_ERROR";
             await WriteErrorAsync(
                 context,
                 StatusCodes.Status500InternalServerError,

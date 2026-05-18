@@ -37,6 +37,7 @@ class ApiException(Exception):
 
 
 async def api_exception_handler(request: Request, exception: ApiException) -> JSONResponse:
+    request.state.safe_error_code = exception.code
     return error_response(
         request=request,
         status_code=exception.http_status,
@@ -48,6 +49,7 @@ async def api_exception_handler(request: Request, exception: ApiException) -> JS
 
 async def http_exception_handler(request: Request, exception: StarletteHTTPException) -> JSONResponse:
     if exception.status_code == 404:
+        request.state.safe_error_code = "NOT_FOUND"
         return error_response(
             request=request,
             status_code=404,
@@ -55,6 +57,7 @@ async def http_exception_handler(request: Request, exception: StarletteHTTPExcep
             message="Resource not found.",
         )
 
+    request.state.safe_error_code = "HTTP_ERROR"
     return error_response(
         request=request,
         status_code=exception.status_code,
@@ -68,6 +71,7 @@ async def validation_exception_handler(
     request: Request,
     exception: RequestValidationError,
 ) -> JSONResponse:
+    request.state.safe_error_code = "VALIDATION_FAILED"
     return error_response(
         request=request,
         status_code=400,

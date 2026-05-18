@@ -32,6 +32,13 @@ async def post_chat(body: ChatRequest, request: Request) -> StreamingResponse:
 
     validator: ChatTokenValidatorProtocol = request.app.state.chat_token_validator
     claims = validator.validate(token)
+    if not request.app.state.rate_limiter.allow(f"chat:user:{claims.user_id}", 30, 60):
+        raise ApiException(
+            "CHAT_RATE_LIMITED",
+            429,
+            "Chat request rate limit exceeded.",
+            details={"limit": 30, "windowSeconds": 60},
+        )
     service: ChatService = request.app.state.chat_service
     request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
     answer = await service.answer(question=body.question, claims=claims, request_id=request_id)

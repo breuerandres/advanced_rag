@@ -1,4 +1,5 @@
 using AdvancedRag.Api.Controllers;
+using AdvancedRag.Api.Health;
 using AdvancedRag.Api.Middleware;
 using AdvancedRag.Api.Security;
 using AdvancedRag.App.Auth;
@@ -45,6 +46,9 @@ builder.Services
         options.Events.OnRedirectToAccessDenied = ApiCookieAuthEvents.WriteForbiddenAsync;
     });
 builder.Services.AddAuthorization();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<FixedWindowRateLimiter>();
+builder.Services.AddScoped<IOperationalReadinessChecker, OperationalReadinessChecker>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserAuthRepository, EfUserAuthRepository>();
 builder.Services.AddScoped<IUserAdministrationService, UserAdministrationService>();
@@ -106,8 +110,10 @@ if (ShouldRunDatabaseMigrations(app.Configuration))
     await RunAppDatabaseMigrationsAsync(app);
 }
 
+app.UseMiddleware<OperationalRequestLoggingMiddleware>();
 app.UseMiddleware<RequestIdMiddleware>();
 app.UseAuthentication();
+app.UseMiddleware<RateLimitMiddleware>();
 app.UseMiddleware<CsrfProtectionMiddleware>();
 app.UseAuthorization();
 
@@ -121,7 +127,15 @@ app.MapGet("/health/live", () => Results.Ok(new HealthResponse("ok")))
     .WithName("LiveHealth")
     .WithOpenApi();
 
-app.MapGet("/health/ready", () => Results.Ok(new HealthResponse("ok")))
+app.MapGet("/health/ready", async (IOperationalReadinessChecker readiness, CancellationToken ct) =>
+    {
+        OperationalReadinessResult result = await readiness.CheckAsync(ct);
+        return result.IsReady
+            ? Results.Ok(new HealthResponse("ok"))
+            : Results.Json(
+                new HealthResponse("unhealthy", result.FailedChecks),
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+    })
     .WithName("ReadyHealth")
     .WithOpenApi();
 
@@ -224,6 +238,6 @@ static async Task RunAppDatabaseMigrationsAsync(WebApplication app)
     logger.LogInformation("App database migrations applied.");
 }
 
-internal sealed record HealthResponse(string Status);
+internal sealed record HealthResponse(string Status, IReadOnlyList<string>? Checks = null);
 
 public partial class Program;

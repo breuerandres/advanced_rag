@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Complete Task 15 management frontend workflow.
+- Complete Task 16 operational hardening.
 
 ## Completed
 
@@ -230,6 +230,18 @@
 - Fixed the Task 15 configuration endpoint secret status detection so `.NET` recognizes Compose-style environment variables such as `OPENAI_API_KEY_FILE` in addition to hierarchical `.NET` keys. This corrected the management configuration view reporting the OpenAI API key as `Missing` when the Compose secret file is configured.
 - Verified the configuration secret-status fix with `dotnet test services/dotnet-api/AdvancedRag.sln --filter Configuration` (`1 passed` in API tests).
 - Diagnosed a remaining local Compose secret-status issue: `dotnet-api` could only report secrets mounted into its own container. OpenAI was mounted only into `rag-api`, and the internal service token used the legacy `InternalServiceTokenFile` key while the configuration endpoint checked Compose-style and hierarchical keys. Updated Compose wiring so `.NET` receives read-only secret file paths for status checks without exposing secret values.
+- Implemented Task 16 operational hardening:
+  - Added per-process fixed-window technical rate limits for login by IP, login by user/email, chat by user, assisted import extraction by user, and viewer exchange attempts.
+  - Added stable rate-limit error codes: `LOGIN_IP_RATE_LIMITED`, `LOGIN_USER_RATE_LIMITED`, `CHAT_RATE_LIMITED`, `IMPORT_RATE_LIMITED`, and `VIEWER_EXCHANGE_RATE_LIMITED`.
+  - Kept technical rate limits separate from monetary AI budget enforcement.
+  - Added `.NET` readiness checks for database connectivity, CSRF signing secret, internal service token, and current JWT signing key load.
+  - Added FastAPI readiness checks for database connectivity, pgvector extension presence, OpenAI API key, and internal service token.
+  - Preserved `/health/live` as process-only liveness in both backends.
+  - Added daily JSON request logs for `.NET` and FastAPI with timestamp, service, request id, origin IP, route, method, response status, safe error code, and elapsed milliseconds.
+  - Added Compose health checks for `.NET`, FastAPI, all three frontend containers, and Caddy, with Caddy gated on healthy upstream services.
+  - Added `docs/operations/operational-hardening.md` and linked it from the root README.
+- Verified Task 16 with `dotnet test services/dotnet-api/AdvancedRag.sln --filter "RateLimit|Health|Logging"` (`9 passed` in API tests), `uv run pytest tests -k "rate_limit or health or logging" -q` (`6 passed, 26 deselected`), and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.
+- Additional Task 16 verification passed with `dotnet build services/dotnet-api/AdvancedRag.sln`, `uv run ruff check .`, `uv run mypy src tests`, and `git diff --check`. `.NET` restore/build/test commands still emit NU1900 warnings because NuGet vulnerability metadata cannot be fetched from `https://api.nuget.org/v3/index.json`; build and tests passed.
 
 ## In Progress
 
@@ -237,37 +249,40 @@
 
 ## Next Up
 
-- Implement Task 16 operational hardening.
+- Implement Task 17 end-to-end MVP verification.
 
 ## Next Implementation Checkpoint
 
 ### Checkpoint Name
 
-- Task 16 operational hardening.
+- Task 17 end-to-end MVP verification.
 
 ### Why This Comes Next
 
-- Task 15 management frontend workflow is implemented and verified.
-- The next safe step is operational hardening across rate limits, readiness checks, structured logging, and Compose health checks.
+- Task 16 operational hardening is implemented and verified.
+- The next safe step is end-to-end MVP verification across the full Compose stack.
 
 ### Scope
 
-- Implement Task 16 only.
-- Preserve the distinction between technical rate limits and monetary AI budgets.
+- Implement Task 17 only.
+- Add Playwright E2E coverage for the MVP happy path without changing product behavior outside the verified workflows.
 
 ### User-Owned Steps
 
-- Keep Docker Desktop running because backend readiness/rate-limit verification may need Testcontainers and Compose validation.
+- Keep Docker Desktop running because the E2E verification starts the Compose stack.
 
 ### Required Verification
 
-- `dotnet test services/dotnet-api/AdvancedRag.sln --filter "RateLimit|Health|Logging"`
-- `Set-Location services/rag-api; uv run pytest tests -k "rate_limit or health or logging" -q; Set-Location ..\..`
+- `dotnet test services/dotnet-api/AdvancedRag.sln`
+- `Set-Location services/rag-api; uv run pytest -q; Set-Location ..\..`
+- `pnpm -r test -- --run`
+- `pnpm -r typecheck`
+- `pnpm -r build`
 - `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`
 
 Expected result:
 
-- Rate limits, readiness checks, structured service logs, and Compose health checks are implemented and verified.
+- Unit/integration checks pass, Compose config renders, and the E2E package is ready to run against the Compose stack.
 
 ## Open Questions
 
@@ -323,7 +338,8 @@ Current state:
 - Task 13 viewer exchange and document viewer is complete and committed.
 - Task 14 chat frontend workflow is complete and committed.
 - Task 15 management frontend workflow is complete and committed.
+- Task 16 operational hardening is complete and ready to commit.
 
 Next safe implementation work:
 
-- Start Task 16 operational hardening.
+- Commit Task 16, then start Task 17 end-to-end MVP verification.

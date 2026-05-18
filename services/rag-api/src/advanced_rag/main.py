@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 from advanced_rag.api.routers.chat import router as chat_router
 from advanced_rag.api.routers.indexing import router as indexing_router
@@ -23,7 +23,10 @@ from advanced_rag.core.errors import (
     http_exception_handler,
     validation_exception_handler,
 )
+from advanced_rag.core.health import OperationalReadinessChecker, ReadinessResult
+from advanced_rag.core.logging import OperationalRequestLoggingMiddleware
 from advanced_rag.core.request_id import RequestIdMiddleware
+from advanced_rag.core.rate_limit import FixedWindowRateLimiter
 from advanced_rag.db.session import create_database_engine, create_session_factory
 from advanced_rag.rag.chat_completion import ChatCompletionProvider, OpenAIChatCompletionProvider
 from advanced_rag.rag.chat_service import ChatService
@@ -34,6 +37,7 @@ from advanced_rag.rag.indexing_service import InternalIndexingService
 
 class HealthResponse(BaseModel):
     status: str
+    checks: list[str] | None = None
 
 
 ExceptionHandler = Callable[[Request, Exception], Response | Awaitable[Response]]
@@ -68,7 +72,10 @@ def create_app(
         app.state.settings,
     )
     app.state.feedback_service = FeedbackService(app.state.session_factory)
+    app.state.rate_limiter = FixedWindowRateLimiter()
+    app.state.readiness_checker = OperationalReadinessChecker(app.state.settings, app.state.database_engine)
     app.add_middleware(RequestIdMiddleware)
+    app.add_middleware(OperationalRequestLoggingMiddleware, log_directory=app.state.settings.log_directory)
     app.add_exception_handler(ApiException, cast(ExceptionHandler, api_exception_handler))
     app.add_exception_handler(StarletteHTTPException, cast(ExceptionHandler, http_exception_handler))
     app.add_exception_handler(
@@ -76,13 +83,20 @@ def create_app(
         cast(ExceptionHandler, validation_exception_handler),
     )
 
-    @app.get("/health/live", response_model=HealthResponse)
+    @app.get("/health/live", response_model=HealthResponse, response_model_exclude_none=True)
     async def live_health() -> HealthResponse:
         return HealthResponse(status="ok")
 
-    @app.get("/health/ready", response_model=HealthResponse)
-    async def ready_health() -> HealthResponse:
-        return HealthResponse(status="ok")
+    @app.get("/health/ready", response_model=HealthResponse, response_model_exclude_none=True)
+    async def ready_health() -> HealthResponse | JSONResponse:
+        result: ReadinessResult = await app.state.readiness_checker.check()
+        if result.is_ready:
+            return HealthResponse(status="ok")
+
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "checks": result.failed_checks},
+        )
 
     app.include_router(indexing_router)
     app.include_router(chat_router)

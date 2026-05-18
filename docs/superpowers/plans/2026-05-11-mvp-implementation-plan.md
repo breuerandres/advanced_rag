@@ -1524,7 +1524,7 @@ Expected: commit succeeds.
 - Modify: docs runbooks
 - Test: backend and Compose checks
 
-- [ ] **Step 1: Write rate limit tests**
+- [x] **Step 1: Write rate limit tests**
 
 Cover:
 
@@ -1536,11 +1536,11 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 2: Implement rate limits**
+- [x] **Step 2: Implement rate limits**
 
 Implement stable safe error codes for each rate-limited workflow. Keep monetary budget enforcement separate from technical rate limits.
 
-- [ ] **Step 3: Write readiness tests**
+- [x] **Step 3: Write readiness tests**
 
 Cover:
 
@@ -1550,19 +1550,19 @@ Cover:
 
 Expected before implementation: tests fail.
 
-- [ ] **Step 4: Implement readiness checks**
+- [x] **Step 4: Implement readiness checks**
 
 Add DB and secret checks to readiness endpoints for .NET and FastAPI.
 
-- [ ] **Step 5: Write logging tests**
+- [x] **Step 5: Write logging tests**
 
 Cover request ID, origin IP where available, timestamp, route, response status, safe error code, and daily JSON sink configuration.
 
-- [ ] **Step 6: Implement structured logging**
+- [x] **Step 6: Implement structured logging**
 
 Configure daily JSON logs per service on mounted volumes with default retention policy of 30 days.
 
-- [ ] **Step 7: Verify operational hardening**
+- [x] **Step 7: Verify operational hardening**
 
 Run:
 
@@ -1574,7 +1574,7 @@ docker compose --env-file infra/compose/.env.example -f infra/compose/compose.ya
 
 Expected: tests pass and Compose config renders.
 
-- [ ] **Step 8: Commit operational hardening**
+- [x] **Step 8: Commit operational hardening**
 
 Run:
 

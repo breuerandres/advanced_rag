@@ -111,6 +111,11 @@ Codes are stable strings, UPPER_SNAKE_CASE. Document new codes in this file when
 | `CONFLICT` | 409 | Concurrent modification or invalid state transition. |
 | `INVALID_LIFECYCLE_TRANSITION` | 409 | Document lifecycle transition is not allowed in the current state. |
 | `RATE_LIMITED` | 429 | Generic rate-limit trip. |
+| `LOGIN_IP_RATE_LIMITED` | 429 | Login attempts from one origin IP exceeded the configured technical limit. |
+| `LOGIN_USER_RATE_LIMITED` | 429 | Login attempts for one user/email exceeded the configured technical limit. |
+| `CHAT_RATE_LIMITED` | 429 | Chat questions for one user exceeded the configured technical limit. |
+| `IMPORT_RATE_LIMITED` | 429 | Assisted import extraction requests for one user exceeded the configured technical limit. |
+| `VIEWER_EXCHANGE_RATE_LIMITED` | 429 | Viewer exchange attempts exceeded the configured technical limit. |
 | `AI_BUDGET_EXCEEDED` | 429 | User reached configured monthly AI budget. |
 | `IMPORT_TEXT_NOT_EXTRACTABLE` | 422 | Uploaded PDF/DOCX has no extractable text. |
 | `IMPORT_FILE_TOO_LARGE` | 413 | Uploaded file exceeds the configured size limit. |
