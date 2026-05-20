@@ -326,10 +326,16 @@
 - Verified with a new legacy-upgrade regression test plus `dotnet test services\dotnet-api\AdvancedRag.sln` (`71 passed`; existing NU1900 warnings) and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.
 - Tightened management text input vertical spacing by removing vertical padding from `input[type='text']` in `apps/manage-web/src/App.css`, while preserving textarea padding.
 - Verified the focused CSS change with `pnpm.cmd --dir apps\manage-web typecheck` and `git diff --check -- apps/manage-web/src/App.css`. `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` is still blocked by the pre-existing uncommitted `DocumentsPage.tsx` change that removed the expected `PDF o DOCX, maximo 10 MB.` text.
+- Diagnosed the 2026-05-20 feedback/audit regression after the documents rename:
+  - FastAPI's Alembic rename migration dropped and recreated `rag.v_query_audit_with_citations` and `rag.v_feedback_summary` without restoring `app_reporting_reader` SELECT grants, so `.NET` management reporting could not read feedback.
+  - Existing `.NET` audit rows retained legacy `instruction.*` event types and `instruction` entity types, so the audit UI displayed old vocabulary.
+- Added a follow-up Alembic migration to restore reporting-view SELECT grants after the documents rename.
+- Added a follow-up EF migration to convert existing `app.audit_events` rows from `instruction.*` / `instruction` / `instructionId` to `document.*` / `document` / `documentId`.
+- Verified with `dotnet test services\dotnet-api\AdvancedRag.sln` (`72 passed`; existing NU1900 warnings), `uv run pytest -q` (`32 passed`), `uv run ruff check .`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.
 
 ## In Progress
 
-- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes, structural documents vocabulary rename, `postgres-init` grant-order fix, legacy indexing-status migration fix, and text-input spacing tweak are locally verified but still need browser/Compose verification with the rest of Task 17.5.
+- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes, structural documents vocabulary rename, `postgres-init` grant-order fix, legacy indexing-status migration fix, text-input spacing tweak, feedback reporting grant fix, and audit event vocabulary data migration are locally verified but still need browser/Compose verification with the rest of Task 17.5.
 
 ## Next Up
 

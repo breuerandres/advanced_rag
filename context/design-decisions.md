@@ -1452,3 +1452,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** `postgres-init` must not grant table-level access to `.NET`-owned tables. Future `.NET` migrations that add new app tables needed by FastAPI must include conditional grants after creating those tables.
 
 **Evidence:** Verified on 2026-05-20 with `uv run pytest tests/test_migrations.py -q` (`3 passed`) and `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter EfMigration_CreatesOnlyAppSchemaTables` (`1 passed`). `.NET` emitted existing NU1900 warnings because NuGet vulnerability metadata could not be fetched.
+
+## 2026-05-20 - Post-Rename Reporting And Audit Compatibility
+
+**Context:** After the structural rename from `instruction` to `documents`, the management feedback view did not load and the audit workspace still displayed legacy `instruction.*` events. Investigation found that the RAG rename migration recreated reporting views without restoring `app_reporting_reader` grants, and existing `.NET` audit rows retained old event/entity vocabulary.
+
+**Options Considered:** Leave local data stale and ask operators to reset volumes, map legacy labels only in the UI/API, or add explicit compatibility migrations that repair permissions and persisted data.
+
+**Decision:** Add post-rename compatibility migrations. FastAPI Alembic restores `SELECT` grants on `rag.v_query_audit_with_citations` and `rag.v_feedback_summary` to `app_reporting_reader` after the views are recreated. `.NET` EF migrates existing `app.audit_events` rows from `instruction.*`, `instruction`, and `instructionId` to `document.*`, `document`, and `documentId`.
+
+**Rationale:** The product should upgrade existing local/customer data without requiring volume deletion or manual SQL. Fixing the data and grants at the migration layer keeps the frontend simple and preserves the documented service boundaries.
+
+**Tradeoffs:** Compatibility migrations necessarily reference legacy `instruction` identifiers. Those references are acceptable only in migration code that upgrades or downgrades existing data.
+
+**Consequences:** Future schema/view recreation migrations must reapply dependent grants in the same migration or a follow-up migration. Future domain-vocabulary changes must include persisted audit data as part of the migration checklist.
+
+**Evidence:** Verified on 2026-05-20 with `dotnet test services\dotnet-api\AdvancedRag.sln` (`72 passed`; existing NU1900 warnings), `uv run pytest -q` (`32 passed`), `uv run ruff check .`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.

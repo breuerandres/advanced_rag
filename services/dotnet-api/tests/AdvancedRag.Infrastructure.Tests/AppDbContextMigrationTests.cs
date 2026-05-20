@@ -1,6 +1,8 @@
 using AdvancedRag.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Testcontainers.PostgreSql;
 
 namespace AdvancedRag.Infrastructure.Tests;
@@ -161,4 +163,73 @@ public sealed class AppDbContextMigrationTests
         legacyTableExists.Should().BeFalse();
         documentVersionColumns.Should().Contain(["document_id", "document_type", "indexing_status"]);
     }
+
+    [Fact]
+    public async Task EfMigration_RenamesLegacyAuditEventsToDocuments()
+    {
+        await using var postgres = new PostgreSqlBuilder("pgvector/pgvector:pg16")
+            .WithDatabase("advanced_rag_legacy_audit_test")
+            .WithUsername("postgres")
+            .WithPassword("postgres")
+            .Build();
+
+        await postgres.StartAsync();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(
+                postgres.GetConnectionString(),
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", AppDbContext.Schema))
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        IMigrator migrator = db.Database.GetService<IMigrator>();
+        await migrator.MigrateAsync("20260520173000_GrantRagOwnerAppReadAccess");
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            insert into app.audit_events (
+                "Id",
+                actor_user_id,
+                event_type,
+                entity_type,
+                entity_id,
+                details_json,
+                request_id,
+                created_at
+            )
+            values (
+                '99999999-9999-9999-9999-999999999999',
+                null,
+                'instruction.published',
+                'instruction',
+                '55555555-5555-5555-5555-555555555555',
+                '{{"instructionId":"55555555-5555-5555-5555-555555555555"}}',
+                'req-legacy-audit',
+                now()
+            );
+            """);
+
+        await migrator.MigrateAsync();
+
+        LegacyAuditRow row = await db.Database
+            .SqlQueryRaw<LegacyAuditRow>(
+                """
+                select
+                    event_type as "EventType",
+                    entity_type as "EntityType",
+                    details_json::text as "DetailsJson"
+                from app.audit_events
+                where "Id" = '99999999-9999-9999-9999-999999999999'
+                """)
+            .SingleAsync();
+
+        row.EventType.Should().Be("document.published");
+        row.EntityType.Should().Be("document");
+        row.DetailsJson.Should().Contain("documentId");
+        row.DetailsJson.Should().NotContain("instructionId");
+    }
+
+    private sealed record LegacyAuditRow(
+        string EventType,
+        string EntityType,
+        string DetailsJson);
 }

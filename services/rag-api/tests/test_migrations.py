@@ -91,6 +91,7 @@ def test_alembic_migration_runs_as_runtime_rag_owner_without_database_create_pri
 
     assert state["rag_tables"] == EXPECTED_TABLES
     assert state["vector_extension_exists"] is True
+    assert state["reporting_reader_can_select_views"] is True
 
 
 def test_postgres_init_does_not_grant_table_access_before_app_migrations() -> None:
@@ -124,6 +125,7 @@ async def _bootstrap_runtime_rag_schema(dsn: str) -> None:
     try:
         await connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
         await connection.execute("CREATE ROLE rag_owner LOGIN PASSWORD 'rag-password'")
+        await connection.execute("CREATE ROLE app_reporting_reader LOGIN PASSWORD 'reporting-password'")
         await connection.execute("CREATE SCHEMA rag AUTHORIZATION rag_owner")
     finally:
         await connection.close()
@@ -188,6 +190,24 @@ async def _read_database_state(dsn: str) -> dict[str, Any]:
               and attribute.attnum > 0
             """
         )
+        reporting_reader_can_select_views = await connection.fetchval(
+            """
+            select case
+                when to_regrole('app_reporting_reader') is null then false
+                else
+                    has_table_privilege(
+                        'app_reporting_reader',
+                        'rag.v_query_audit_with_citations',
+                        'SELECT'
+                    )
+                    and has_table_privilege(
+                        'app_reporting_reader',
+                        'rag.v_feedback_summary',
+                        'SELECT'
+                    )
+                end
+            """
+        )
     finally:
         await connection.close()
 
@@ -197,4 +217,5 @@ async def _read_database_state(dsn: str) -> dict[str, Any]:
         "indexes": indexes,
         "vector_extension_exists": vector_extension_exists,
         "document_chunks_embedding_type": embedding_type,
+        "reporting_reader_can_select_views": reporting_reader_can_select_views,
     }
