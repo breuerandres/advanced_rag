@@ -321,10 +321,13 @@
 - Diagnosed the 2026-05-20 `postgres-init` exit 3 failure after the documents rename: `postgres-init` was granting table-level SELECT on `app.document_permissions` before `.NET` EF migrations could create or rename that table.
 - Moved `.NET` app-table read grants for `rag_owner` out of `postgres-init` and into an EF migration that runs after `app.document_permissions` and `app.user_ai_budget_limits` exist, while keeping `postgres-init` responsible for roles, schemas, and schema USAGE.
 - Verified the focused fix with `uv run pytest tests/test_migrations.py -q` (`3 passed`) and `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter EfMigration_CreatesOnlyAppSchemaTables` (`1 passed`; existing NU1900 warnings).
+- Diagnosed the follow-up `.NET` migration failure where `20260517090000_AddDocumentVersionIndexingStatus` attempted to alter `app.document_versions` before the compatibility rename could convert an existing local `app.instruction_versions` table.
+- Made the indexing-status migration idempotent across both legacy and renamed table names so existing local databases can upgrade without manual `ALTER TABLE` or volume deletion.
+- Verified with a new legacy-upgrade regression test plus `dotnet test services\dotnet-api\AdvancedRag.sln` (`71 passed`; existing NU1900 warnings) and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.
 
 ## In Progress
 
-- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes, structural documents vocabulary rename, and `postgres-init` grant-order fix are locally verified but still need browser/Compose verification with the rest of Task 17.5.
+- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes, structural documents vocabulary rename, `postgres-init` grant-order fix, and legacy indexing-status migration fix are locally verified but still need browser/Compose verification with the rest of Task 17.5.
 
 ## Next Up
 

@@ -102,4 +102,63 @@ public sealed class AppDbContextMigrationTests
         documentVersionColumns.Should().Contain("indexing_status");
         ragOwnerPrivileges.Should().BeEquivalentTo(["document_permissions", "user_ai_budget_limits"]);
     }
+
+    [Fact]
+    public async Task EfMigration_UpgradesLegacyInstructionVersionsBeforeDocumentRename()
+    {
+        await using var postgres = new PostgreSqlBuilder("pgvector/pgvector:pg16")
+            .WithDatabase("advanced_rag_legacy_app_test")
+            .WithUsername("postgres")
+            .WithPassword("postgres")
+            .Build();
+
+        await postgres.StartAsync();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(
+                postgres.GetConnectionString(),
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", AppDbContext.Schema))
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            create schema app;
+            create table app."__EFMigrationsHistory" (
+                "MigrationId" character varying(150) not null,
+                "ProductVersion" character varying(32) not null,
+                constraint "PK___EFMigrationsHistory" primary key ("MigrationId")
+            );
+            insert into app."__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+            values ('20260513184201_InitialAppSchema', '8.0.27');
+            create table app.instruction_versions (
+                "Id" uuid not null,
+                instruction_id uuid not null,
+                instruction_type character varying(80) not null,
+                constraint "PK_instruction_versions" primary key ("Id")
+            );
+            """);
+
+        await db.Database.MigrateAsync();
+
+        var legacyTableExists = await db.Database
+            .SqlQueryRaw<bool>(
+                """
+                select to_regclass('app.instruction_versions') is not null as "Value"
+                """)
+            .SingleAsync();
+        var documentVersionColumns = await db.Database
+            .SqlQueryRaw<string>(
+                """
+                select column_name::text as "Value"
+                from information_schema.columns
+                where table_schema = 'app'
+                  and table_name = 'document_versions'
+                order by column_name
+                """)
+            .ToListAsync();
+
+        legacyTableExists.Should().BeFalse();
+        documentVersionColumns.Should().Contain(["document_id", "document_type", "indexing_status"]);
+    }
 }
