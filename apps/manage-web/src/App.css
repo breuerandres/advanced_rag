@@ -513,12 +513,16 @@ input[type='text'],
 textarea {
   border: 1px solid #bcc9c6;
   border-radius: 6px;
-  padding: 8px 10px;
   color: #1f1b17;
   font: inherit;
 }
 
+input[type='text'] {
+  padding: 0 10px;
+}
+
 textarea {
+  padding: 8px 10px;
   min-height: 140px;
   resize: vertical;
 }

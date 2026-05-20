@@ -324,10 +324,12 @@
 - Diagnosed the follow-up `.NET` migration failure where `20260517090000_AddDocumentVersionIndexingStatus` attempted to alter `app.document_versions` before the compatibility rename could convert an existing local `app.instruction_versions` table.
 - Made the indexing-status migration idempotent across both legacy and renamed table names so existing local databases can upgrade without manual `ALTER TABLE` or volume deletion.
 - Verified with a new legacy-upgrade regression test plus `dotnet test services\dotnet-api\AdvancedRag.sln` (`71 passed`; existing NU1900 warnings) and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.
+- Tightened management text input vertical spacing by removing vertical padding from `input[type='text']` in `apps/manage-web/src/App.css`, while preserving textarea padding.
+- Verified the focused CSS change with `pnpm.cmd --dir apps\manage-web typecheck` and `git diff --check -- apps/manage-web/src/App.css`. `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` is still blocked by the pre-existing uncommitted `DocumentsPage.tsx` change that removed the expected `PDF o DOCX, maximo 10 MB.` text.
 
 ## In Progress
 
-- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes, structural documents vocabulary rename, `postgres-init` grant-order fix, and legacy indexing-status migration fix are locally verified but still need browser/Compose verification with the rest of Task 17.5.
+- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes, structural documents vocabulary rename, `postgres-init` grant-order fix, legacy indexing-status migration fix, and text-input spacing tweak are locally verified but still need browser/Compose verification with the rest of Task 17.5.
 
 ## Next Up
 
