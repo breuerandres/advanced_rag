@@ -99,23 +99,39 @@ function DocumentView({ document }: { document: ViewerDocument }) {
           <p className="eyebrow">{document.instructionType}</p>
           <h2>{document.title}</h2>
         </div>
-        <dl className="document-meta">
-          <div>
-            <dt>Estado</dt>
-            <dd>{displayState(document.state)}</dd>
-          </div>
-          <div>
-            <dt>Audiencia</dt>
-            <dd>{document.audience}</dd>
-          </div>
-        </dl>
       </header>
-      <section
-        className="document-content"
-        dangerouslySetInnerHTML={{ __html: document.contentHtml }}
-      />
+      <div className="document-layout">
+        <section
+          className="document-content"
+          dangerouslySetInnerHTML={{ __html: document.contentHtml }}
+        />
+        <aside className="document-side-rail" aria-label="Contexto del documento">
+          <h3>Contexto</h3>
+          <dl className="document-meta">
+            <div>
+              <dt>Estado</dt>
+              <dd>{displayState(document.state)}</dd>
+            </div>
+            <div>
+              <dt>Audiencia</dt>
+              <dd>{document.audience}</dd>
+            </div>
+            <div>
+              <dt>Token vigente hasta</dt>
+              <dd>{formatDateTime(document.tokenExpiresAt)}</dd>
+            </div>
+          </dl>
+        </aside>
+      </div>
     </article>
   )
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('es-AR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value))
 }
 
 function displayState(state: string) {

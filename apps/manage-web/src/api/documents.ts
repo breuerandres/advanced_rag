@@ -4,6 +4,9 @@ export interface DocumentSummary {
   id: string
   title: string
   state: string
+  instructionType: string
+  audience: string
+  allowedGroupIds: string[]
   draftVersionNumber: number | null
   publishedVersionNumber: number | null
   indexingStatus: string
@@ -63,6 +66,13 @@ export async function listDocuments(): Promise<DocumentSummary[]> {
 
 export async function getDocument(id: string): Promise<DocumentDetail> {
   return requestJson<DocumentDetail>(`/api/documents/${id}`)
+}
+
+export async function createDocumentDraft(
+  request: SaveDocumentDraftRequest,
+): Promise<DocumentDetail> {
+  await ensureCsrfToken()
+  return requestJson<DocumentDetail>('/api/documents', jsonInit('POST', request))
 }
 
 export async function saveDocumentDraft(

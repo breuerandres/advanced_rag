@@ -1689,7 +1689,7 @@ Task 17 proved that the service contracts can work end to end, but the product i
 - Modify: `context/design-decisions.md`
 - Modify: `context/ui-context.md`
 
-- [ ] **Step 1: Add first-run setup API**
+- [x] **Step 1: Add first-run setup API**
 
 Implement a production-safe bootstrap flow:
 
@@ -1701,7 +1701,7 @@ Implement a production-safe bootstrap flow:
 
 Expected: tests fail first, then pass for setup allowed, setup blocked, validation errors, and login after setup.
 
-- [ ] **Step 2: Add real login and first-run UI**
+- [x] **Step 2: Add real login and first-run UI**
 
 Implement `manage-web` authentication surfaces from the Stitch design:
 
@@ -1713,7 +1713,7 @@ Implement `manage-web` authentication surfaces from the Stitch design:
 
 Expected: a clean deployment can be opened at `https://manage.localhost`, create the first admin, then log in without SQL seed commands.
 
-- [ ] **Step 3: Add local demo seed command**
+- [x] **Step 3: Add local demo seed command**
 
 Create a local-only seed script for repeatable demo data:
 

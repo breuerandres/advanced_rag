@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Pencil, RefreshCw, Search } from 'lucide-react'
+import { FolderPlus, Pencil, RefreshCw, Search, UserCheck, UserPlus, UserX } from 'lucide-react'
 import { ApiError } from '../../lib/api-error'
-import { listGroups, listUsers, updateUserBudget } from '../../api/users'
+import {
+  createGroup,
+  createUser,
+  listGroups,
+  listUsers,
+  updateUserBudget,
+  updateUserStatus,
+} from '../../api/users'
 import type { GroupSummary, UserSummary } from '../../api/users'
 import { Button } from '../../components/ui/button'
 
@@ -13,7 +20,10 @@ export function UsersBudgetPage() {
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [editingUser, setEditingUser] = useState<UserSummary | null>(null)
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('all')
 
@@ -71,6 +81,28 @@ export function UsersBudgetPage() {
     })
   }, [searchQuery, statusFilter, users])
 
+  async function setActiveStatus(user: UserSummary, isActive: boolean) {
+    setSuccessMessage(null)
+    setErrorMessage(null)
+
+    try {
+      const updatedUser = await updateUserStatus(user.id, { isActive })
+      setUsers((current) =>
+        current.map((currentUser) =>
+          currentUser.id === updatedUser.id ? updatedUser : currentUser,
+        ),
+      )
+      setSuccessMessage(isActive ? 'Usuario reactivado.' : 'Usuario dado de baja.')
+    } catch (error) {
+      const reference = error instanceof ApiError ? error.requestId : 'unknown'
+      setErrorMessage(
+        isActive
+          ? `No se pudo reactivar el usuario. Referencia: ${reference}.`
+          : `No se pudo dar de baja el usuario. Referencia: ${reference}.`,
+      )
+    }
+  }
+
   return (
     <>
 
@@ -78,17 +110,47 @@ export function UsersBudgetPage() {
         <header className="workspace-header">
           <div>
             <p className="eyebrow">Administración</p>
-            <h1>Usuarios y presupuestos</h1>
+            <h1>Usuarios y grupos</h1>
           </div>
-          <Button
-            className="icon-button"
-            type="button"
-            aria-label="Actualizar usuarios"
-            disabled={loadState === 'loading'}
-            onClick={() => void loadUsers()}
-          >
-            <RefreshCw size={18} />
-          </Button>
+          <div className="workspace-actions">
+            {!isCreatingGroup && !isCreatingUser ? (
+              <>
+                <Button
+                  className="text-button"
+                  type="button"
+                  onClick={() => {
+                    setIsCreatingGroup(true)
+                    setSuccessMessage(null)
+                    setErrorMessage(null)
+                  }}
+                >
+                  <FolderPlus size={16} />
+                  Crear grupo
+                </Button>
+                <Button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => {
+                    setIsCreatingUser(true)
+                    setSuccessMessage(null)
+                    setErrorMessage(null)
+                  }}
+                >
+                  <UserPlus size={16} />
+                  Crear usuario
+                </Button>
+              </>
+            ) : null}
+            <Button
+              className="icon-button"
+              type="button"
+              aria-label="Actualizar usuarios"
+              disabled={loadState === 'loading'}
+              onClick={() => void loadUsers()}
+            >
+              <RefreshCw size={18} />
+            </Button>
+          </div>
         </header>
 
         <section className="metrics-row" aria-label="Resumen de usuarios">
@@ -138,6 +200,12 @@ export function UsersBudgetPage() {
         {successMessage ? (
           <p className="status-message success" role="status">
             {successMessage}
+          </p>
+        ) : null}
+
+        {errorMessage ? (
+          <p className="status-message error" role="alert">
+            {errorMessage}
           </p>
         ) : null}
 
@@ -192,17 +260,32 @@ export function UsersBudgetPage() {
                     <td>{formatCurrency(user.currentSpendUsd)}</td>
                     <td>{formatNullableCurrency(user.remainingBudgetUsd)}</td>
                     <td>
-                      <Button
-                        className="icon-button"
-                        type="button"
-                        aria-label={`Editar presupuesto de ${user.displayName}`}
-                        onClick={() => {
-                          setEditingUser(user)
-                          setSuccessMessage(null)
-                        }}
-                      >
-                        <Pencil size={16} />
-                      </Button>
+                      <div className="row-actions">
+                        <Button
+                          className="icon-button"
+                          type="button"
+                          aria-label={`Editar presupuesto de ${user.displayName}`}
+                          onClick={() => {
+                            setEditingUser(user)
+                            setSuccessMessage(null)
+                            setErrorMessage(null)
+                          }}
+                        >
+                          <Pencil size={16} />
+                        </Button>
+                        <Button
+                          className="icon-button"
+                          type="button"
+                          aria-label={
+                            user.isActive
+                              ? `Dar de baja a ${user.displayName}`
+                              : `Reactivar a ${user.displayName}`
+                          }
+                          onClick={() => void setActiveStatus(user, !user.isActive)}
+                        >
+                          {user.isActive ? <UserX size={16} /> : <UserCheck size={16} />}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -225,7 +308,288 @@ export function UsersBudgetPage() {
           }}
         />
       ) : null}
+
+      {isCreatingGroup ? (
+        <GroupDialog
+          onClose={() => setIsCreatingGroup(false)}
+          onSaved={(group) => {
+            setGroups((current) => [...current, group])
+            setIsCreatingGroup(false)
+            setSuccessMessage('Grupo creado.')
+          }}
+        />
+      ) : null}
+
+      {isCreatingUser ? (
+        <UserDialog
+          groups={groups}
+          onClose={() => setIsCreatingUser(false)}
+          onSaved={(user) => {
+            setUsers((current) => [...current, user])
+            setIsCreatingUser(false)
+            setSuccessMessage('Usuario creado.')
+          }}
+        />
+      ) : null}
     </>
+  )
+}
+
+function GroupDialog({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void
+  onSaved: (group: GroupSummary) => void
+}) {
+  const [name, setName] = useState('')
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setValidationError(null)
+    setApiError(null)
+
+    const trimmedName = name.trim()
+    if (trimmedName.length === 0) {
+      setValidationError('El nombre del grupo es obligatorio.')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const group = await createGroup({ name: trimmedName })
+      onSaved(group)
+    } catch (error) {
+      const reference = error instanceof ApiError ? error.requestId : 'unknown'
+      setApiError(`No se pudo crear el grupo. Referencia: ${reference}.`)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop">
+      <section
+        aria-labelledby="group-dialog-title"
+        aria-modal="true"
+        className="dialog"
+        role="dialog"
+      >
+        <header className="dialog-header">
+          <div>
+            <p className="eyebrow">Acceso documental</p>
+            <h2 id="group-dialog-title">Crear grupo</h2>
+          </div>
+          <Button className="text-button" type="button" onClick={onClose}>
+            Cerrar
+          </Button>
+        </header>
+
+        <form className="dialog-form" noValidate onSubmit={handleSubmit}>
+          <label className="field">
+            <span>Nombre del grupo</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              disabled={isSaving}
+            />
+          </label>
+
+          {validationError ? (
+            <p className="status-message error" role="alert">
+              {validationError}
+            </p>
+          ) : null}
+
+          {apiError ? (
+            <p className="status-message error" role="alert">
+              {apiError}
+            </p>
+          ) : null}
+
+          <div className="dialog-actions">
+            <Button className="text-button" type="button" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button className="primary-button" type="submit" disabled={isSaving}>
+              {isSaving ? 'Guardando...' : 'Guardar grupo'}
+            </Button>
+          </div>
+        </form>
+      </section>
+    </div>
+  )
+}
+
+function UserDialog({
+  groups,
+  onClose,
+  onSaved,
+}: {
+  groups: GroupSummary[]
+  onClose: () => void
+  onSaved: (user: UserSummary) => void
+}) {
+  const [email, setEmail] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState('Viewer')
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([])
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setValidationError(null)
+    setApiError(null)
+
+    const trimmedEmail = email.trim()
+    const trimmedDisplayName = displayName.trim()
+    if (
+      trimmedEmail.length === 0 ||
+      trimmedDisplayName.length === 0 ||
+      password.length === 0
+    ) {
+      setValidationError('Completá email, nombre visible y contraseña temporal.')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const user = await createUser({
+        email: trimmedEmail,
+        displayName: trimmedDisplayName,
+        password,
+        roles: [role],
+        groupIds: selectedGroupIds,
+      })
+      onSaved(user)
+    } catch (error) {
+      const reference = error instanceof ApiError ? error.requestId : 'unknown'
+      setApiError(`No se pudo crear el usuario. Referencia: ${reference}.`)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  function toggleGroup(groupId: string) {
+    setSelectedGroupIds((current) =>
+      current.includes(groupId)
+        ? current.filter((selectedId) => selectedId !== groupId)
+        : [...current, groupId],
+    )
+  }
+
+  return (
+    <div className="dialog-backdrop">
+      <section
+        aria-labelledby="user-dialog-title"
+        aria-modal="true"
+        className="dialog user-dialog"
+        role="dialog"
+      >
+        <header className="dialog-header">
+          <div>
+            <p className="eyebrow">Identidad y permisos</p>
+            <h2 id="user-dialog-title">Crear usuario</h2>
+          </div>
+          <Button className="text-button" type="button" onClick={onClose}>
+            Cerrar
+          </Button>
+        </header>
+
+        <form className="dialog-form" noValidate onSubmit={handleSubmit}>
+          <div className="dialog-grid">
+            <label className="field">
+              <span>Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={isSaving}
+              />
+            </label>
+
+            <label className="field">
+              <span>Nombre visible</span>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                disabled={isSaving}
+              />
+            </label>
+
+            <label className="field">
+              <span>Contraseña temporal</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={isSaving}
+              />
+            </label>
+
+            <label className="field">
+              <span>Rol</span>
+              <select
+                value={role}
+                onChange={(event) => setRole(event.target.value)}
+                disabled={isSaving}
+              >
+                <option value="Viewer">Viewer</option>
+                <option value="DocumentManager">DocumentManager</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </label>
+          </div>
+
+          <fieldset className="checkbox-list" disabled={isSaving}>
+            <legend>Grupos</legend>
+            {groups.length > 0 ? (
+              groups.map((group) => (
+                <label className="checkbox-field" key={group.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedGroupIds.includes(group.id)}
+                    onChange={() => toggleGroup(group.id)}
+                  />
+                  <span>{group.name}</span>
+                </label>
+              ))
+            ) : (
+              <p className="muted-copy">No hay grupos disponibles.</p>
+            )}
+          </fieldset>
+
+          {validationError ? (
+            <p className="status-message error" role="alert">
+              {validationError}
+            </p>
+          ) : null}
+
+          {apiError ? (
+            <p className="status-message error" role="alert">
+              {apiError}
+            </p>
+          ) : null}
+
+          <div className="dialog-actions">
+            <Button className="text-button" type="button" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button className="primary-button" type="submit" disabled={isSaving}>
+              {isSaving ? 'Creando...' : 'Crear usuario'}
+            </Button>
+          </div>
+        </form>
+      </section>
+    </div>
   )
 }
 

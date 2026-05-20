@@ -352,6 +352,42 @@ function restartDotnetApi() {
     stdio: ['ignore', 'pipe', 'pipe'],
     timeout: 60_000,
   })
+  waitForDotnetApi()
+}
+
+function waitForDotnetApi() {
+  let lastError: unknown = null
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    try {
+      execFileSync(
+        'docker',
+        [
+          ...composeArgs,
+          'exec',
+          '-T',
+          'dotnet-api',
+          'sh',
+          '-lc',
+          'curl -fsS http://localhost:8080/health/ready >/dev/null',
+        ],
+        {
+          cwd: repoRoot,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          timeout: 10_000,
+        },
+      )
+      return
+    } catch (error) {
+      lastError = error
+      sleepSync(1_000)
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('dotnet-api did not become ready.')
+}
+
+function sleepSync(milliseconds: number) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds)
 }
 
 function postgresSeedCommand() {

@@ -1,14 +1,15 @@
 .chat-shell {
   min-height: 100vh;
   padding: 28px;
-  color: #172033;
-  background: #f6f7f9;
+  color: #1f1b17;
+  background: #fff8f5;
 }
 
 .chat-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 20px;
   max-width: 920px;
   margin: 0 auto 20px;
 }
@@ -16,15 +17,15 @@
 .eyebrow {
   margin: 0 0 4px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   font-size: 12px;
-  color: #687387;
+  color: #3d4947;
 }
 
 h1,
 h2 {
   margin: 0;
-  color: #111827;
+  color: #1f1b17;
   letter-spacing: 0;
 }
 
@@ -35,7 +36,7 @@ h1 {
 
 .header-copy {
   margin: 8px 0 0;
-  color: #526176;
+  color: #3d4947;
   font-size: 14px;
   line-height: 1.4;
 }
@@ -43,6 +44,27 @@ h1 {
 h2 {
   font-size: 18px;
   line-height: 1.2;
+}
+
+.chat-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.chat-status-strip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  border: 1px solid #d4e6e2;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #00685f;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .chat-panel {
@@ -58,7 +80,7 @@ h2 {
 .empty-state {
   display: grid;
   gap: 14px;
-  border: 1px solid #d9dee8;
+  border: 1px solid #e2d8d2;
   border-radius: 6px;
   background: #ffffff;
   padding: 16px;
@@ -68,7 +90,7 @@ h2 {
   align-items: center;
   justify-items: center;
   min-height: 150px;
-  color: #526176;
+  color: #3d4947;
   text-align: center;
 }
 
@@ -79,23 +101,32 @@ h2 {
 .field {
   display: grid;
   gap: 6px;
-  color: #364257;
+  color: #3d4947;
   font-size: 14px;
 }
 
 textarea {
   min-height: 120px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #bcc9c6;
   border-radius: 6px;
   padding: 10px;
-  color: #111827;
+  color: #1f1b17;
   font: inherit;
   resize: vertical;
 }
 
 textarea:disabled {
-  background: #f3f6fa;
-  color: #687387;
+  background: #f8f2ee;
+  color: #3d4947;
+}
+
+.question-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: #3d4947;
+  font-size: 13px;
 }
 
 .primary-button,
@@ -105,7 +136,7 @@ textarea:disabled {
   justify-content: center;
   gap: 8px;
   min-height: 38px;
-  border: 1px solid #195c8f;
+  border: 1px solid #00685f;
   border-radius: 6px;
   padding: 8px 12px;
   cursor: pointer;
@@ -114,7 +145,7 @@ textarea:disabled {
 
 .primary-button {
   justify-self: end;
-  background: #195c8f;
+  background: #00685f;
   color: #ffffff;
 }
 
@@ -140,7 +171,7 @@ textarea:disabled {
   align-items: center;
   min-height: 24px;
   border: 1px solid #a7d8b6;
-  border-radius: 999px;
+  border-radius: 6px;
   background: #eefaf3;
   color: #166534;
   padding: 2px 8px;
@@ -158,10 +189,10 @@ textarea:disabled {
   align-items: center;
   gap: 6px;
   min-height: 34px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #bcc9c6;
   border-radius: 6px;
   background: #ffffff;
-  color: #164e78;
+  color: #00685f;
   padding: 6px 10px;
   cursor: pointer;
   font: inherit;
@@ -172,27 +203,50 @@ textarea:disabled {
   line-height: 1.55;
 }
 
+.usage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, auto);
+  gap: 12px;
+  margin: 0;
+  border: 1px solid #e2d8d2;
+  border-radius: 6px;
+  background: #fcf2eb;
+  padding: 10px 12px;
+}
+
+.usage-row dt {
+  color: #3d4947;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.usage-row dd {
+  margin: 3px 0 0;
+  color: #1f1b17;
+  font-weight: 700;
+}
+
 .feedback-actions {
   flex-wrap: wrap;
 }
 
 .feedback-button {
   background: #ffffff;
-  color: #172033;
+  color: #1f1b17;
 }
 
 .feedback-button.selected {
-  background: #e8f2fb;
-  color: #164e78;
+  background: #e6f5f2;
+  color: #00685f;
 }
 
 .status-message {
   margin: 0;
-  border: 1px solid #d9dee8;
+  border: 1px solid #e2d8d2;
   border-radius: 6px;
   background: #ffffff;
   padding: 10px 12px;
-  color: #364257;
+  color: #3d4947;
 }
 
 .status-heading {
@@ -222,4 +276,22 @@ textarea:disabled {
   border-color: #f0aaa6;
   background: #fff1f0;
   color: #991b1b;
+}
+
+@media (max-width: 720px) {
+  .chat-shell {
+    padding: 18px;
+  }
+
+  .chat-header,
+  .question-form-footer,
+  .usage-row {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chat-status-strip {
+    justify-content: flex-start;
+  }
 }

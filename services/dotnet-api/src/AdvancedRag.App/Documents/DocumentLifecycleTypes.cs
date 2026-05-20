@@ -132,6 +132,9 @@ public sealed record DocumentSummary(
     Guid Id,
     string Title,
     InstructionState State,
+    string InstructionType,
+    string Audience,
+    IReadOnlyList<Guid> AllowedGroupIds,
     int? DraftVersionNumber,
     int? PublishedVersionNumber,
     IndexingStatus IndexingStatus,
@@ -143,6 +146,13 @@ public sealed record DocumentSummary(
             document.Id,
             document.Title,
             document.State,
+            document.CurrentDraftVersion?.InstructionType
+                ?? document.CurrentPublishedVersion?.InstructionType
+                ?? string.Empty,
+            document.CurrentDraftVersion?.Audience
+                ?? document.CurrentPublishedVersion?.Audience
+                ?? string.Empty,
+            document.AllowedGroupIds,
             document.CurrentDraftVersion?.VersionNumber,
             document.CurrentPublishedVersion?.VersionNumber,
             document.CurrentDraftVersion?.IndexingStatus ?? IndexingStatus.None,

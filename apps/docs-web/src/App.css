@@ -1,8 +1,8 @@
 .viewer-shell {
   min-height: 100vh;
   padding: 28px;
-  color: #172033;
-  background: #eef2f7;
+  color: #1f1b17;
+  background: #fff8f5;
 }
 
 .viewer-header {
@@ -16,10 +16,10 @@
 
 .eyebrow {
   margin: 0 0 6px;
-  color: #5b6575;
+  color: #3d4947;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -51,18 +51,19 @@ h2 {
   gap: 6px;
   min-height: 32px;
   padding: 6px 10px;
-  border: 1px solid #c9d3df;
+  border: 1px solid #d4e6e2;
   border-radius: 6px;
   background: #ffffff;
-  color: #334155;
+  color: #00685f;
   font-size: 13px;
+  font-weight: 700;
 }
 
 .state-panel,
 .document-view {
   max-width: 1040px;
   margin: 0 auto;
-  border: 1px solid #d5dde7;
+  border: 1px solid #e2d8d2;
   border-radius: 8px;
   background: #ffffff;
 }
@@ -90,19 +91,25 @@ h2 {
   justify-content: space-between;
   gap: 20px;
   padding: 22px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2d8d2;
+}
+
+.document-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: start;
 }
 
 .document-meta {
   display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
   gap: 12px;
   margin: 0;
 }
 
 .document-meta dt {
-  color: #64748b;
+  color: #3d4947;
   font-size: 12px;
+  text-transform: uppercase;
 }
 
 .document-meta dd {
@@ -112,8 +119,24 @@ h2 {
 
 .document-content {
   padding: 24px;
-  color: #1f2937;
+  color: #1f1b17;
   line-height: 1.65;
+}
+
+.document-side-rail {
+  display: grid;
+  gap: 14px;
+  margin: 24px 24px 24px 0;
+  border: 1px solid #e2d8d2;
+  border-radius: 6px;
+  background: #fcf2eb;
+  padding: 16px;
+}
+
+.document-side-rail h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.2;
 }
 
 .document-content h1,
@@ -136,12 +159,19 @@ h2 {
     flex-direction: column;
   }
 
+  .document-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .document-side-rail {
+    margin: 0 18px 18px;
+  }
+
   .trust-strip {
     justify-content: flex-start;
   }
 
   .document-meta {
     width: 100%;
-    grid-template-columns: 1fr;
   }
 }

@@ -111,6 +111,12 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Documentation Marker Scan Scope](#2026-05-13---documentation-marker-scan-scope)
 - [Backend Readability And Boundary Data Rules](#2026-05-18---backend-readability-and-boundary-data-rules)
 - [Task 17.5 First-Run Setup And UI Stabilization](#2026-05-18---task-175-first-run-setup-and-ui-stabilization)
+- [Task 17.5 Bootstrap Concurrency And Base Roles](#2026-05-19---task-175-bootstrap-concurrency-and-base-roles)
+- [Task 17.5 UI Polish Skill Adaptation](#2026-05-19---task-175-ui-polish-skill-adaptation)
+- [Task 17.5 Management Information Architecture](#2026-05-20---task-175-management-information-architecture)
+- [Task 17.5 Management Workspace Refinement And TipTap](#2026-05-20---task-175-management-workspace-refinement-and-tiptap)
+- [Task 17.5 Feedback And Functional Audit Separation](#2026-05-20---task-175-feedback-and-functional-audit-separation)
+- [Task 17.5 Functional Audit Read Model](#2026-05-20---task-175-functional-audit-read-model)
 
 ### UI Foundation
 
@@ -1321,3 +1327,95 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Tradeoffs:** This delays final handoff documentation and expands the roadmap after Task 17. The tradeoff is acceptable because the missing first-run setup and rough UI would otherwise become support burden and undermine confidence in the MVP.
 
 **Consequences:** Task 18 is blocked until Task 17.5 is implemented and verified. The new acceptance bar is a clean deployment that can create the first admin from `https://manage.localhost`, log in, manage users/groups/documents through the UI, reach chat/viewer surfaces, and pass first-run E2E verification. SQL seeding remains acceptable for technical E2E setup or optional local demo data, but not as the only way for a human to start using the product.
+
+## 2026-05-19 - Task 17.5 UI Polish Skill Adaptation
+
+**Context:** The user asked whether the Cult UI Claude skills under `nolly-studio/cult-ui` could be adapted for the Task 17.5 redesign of the web apps. The upstream guidance is useful for component architecture and animation performance, but the project already has stricter product direction: dense operational SaaS screens, Spanish es-AR UI strings, React 18, Tailwind CSS, shadcn-style local components, and no new unapproved UI dependencies.
+
+**Options Considered:** Copy the upstream Claude skills verbatim, install Cult UI components as a dependency, install generic UI design skills directly, ignore the upstream skills and rely only on existing context, or create a local Codex adaptation that uses the useful component, anti-generic-UI, direction-setting, validation, and motion rules while preserving Advanced RAG source-of-truth precedence.
+
+**Decision:** Create the local Codex skill `advanced-rag-product-ui-polish` as a Task 17.5 quality gate and add the effective Task 17.5 UI polish rules to `context/ui-context.md`. Cult UI, Uncodixfy, and `codex-design-skill` are treated as selective references, not installed project dependencies.
+
+**Rationale:** A local adaptation gives the implementation a concrete checklist for accessibility, component boundaries, Tailwind styling, state completeness, motion restraint, anti-generic-UI review, visual direction, and final validation without weakening the approved architecture or introducing a new component dependency.
+
+**Tradeoffs:** The skill lives in the local Codex skills directory, so the canonical project rules still need to live in `context/ui-context.md`. The skill should guide implementation discipline, but project context remains authoritative.
+
+**Consequences:** Task 17.5 should use the skill before and during UI edits. Cult UI remains inspiration/process guidance only unless a later implementation decision explicitly approves copying a specific component or adding a dependency. Uncodixfy contributes anti-pattern guardrails. `codex-design-skill` contributes the direction-setting and validation-pass pattern only; its Next.js and 21st.dev assumptions do not apply to this Vite React project.
+
+## 2026-05-19 - Task 17.5 Bootstrap Concurrency And Base Roles
+
+**Context:** A clean deployment has no users and no guaranteed role rows. First-run setup must be public enough for an operator to create the first administrator, but it must close permanently once an Admin exists and must not allow two concurrent first-admin creations.
+
+**Options Considered:** Seed roles/admin users through SQL, create roles in migrations, create roles during first-run setup without a lock, or create roles during first-run setup under a database transaction lock.
+
+**Decision:** `POST /api/setup/admin` creates the first active Admin under a PostgreSQL transaction-level advisory lock, ensures the base roles `Admin`, `DocumentManager`, and `Viewer` exist, assigns the Admin role and the default USD 5 monthly AI budget, then permanently blocks future setup attempts with stable code `SETUP_ALREADY_COMPLETED`.
+
+**Rationale:** Setup is the only human-safe bootstrap path for clean deployments. Creating base roles during setup keeps migrations neutral and avoids hidden SQL seed requirements. The advisory lock prevents concurrent setup requests from creating multiple first administrators.
+
+**Tradeoffs:** The setup repository now uses a PostgreSQL-specific advisory lock, which is acceptable because PostgreSQL is the approved database for the MVP. Local technical E2E can still seed data directly, but product first-run no longer depends on SQL seeding.
+
+**Consequences:** Management UI can start from `/api/setup/status`; once any Admin role assignment exists, setup is closed even if that user is later deactivated. Operators must recover from a lost/deactivated only-admin scenario through an explicit operational procedure rather than reopening public setup.
+
+## 2026-05-20 - Task 17.5 Management Information Architecture
+
+**Context:** User review found that the management app had duplicate or misplaced screens: `Usuarios y grupos` and `Presupuestos IA` showed the same user-budget surface, `Feedback` was a standalone screen even though feedback is audit evidence, and `Documentos` lacked a create action, a stronger HTML editor, and filters across the visible document attributes.
+
+**Options Considered:** Keep the Task 15 navigation unchanged, add more separate management screens, or consolidate duplicate surfaces into the workflow where operators naturally need them.
+
+**Decision:** Keep management navigation focused on `Documentos`, `Usuarios y grupos`, `Auditoria`, and `Configuracion`. Per-user AI budget controls remain inside `Usuarios y grupos`. Feedback review is embedded inside `Auditoria`. The document list exposes filters for search text, lifecycle state, indexing state, instruction type, audience, and access-group coverage. The document summary API includes `instructionType`, `audience`, and `allowedGroupIds` so the frontend can filter without opening each document. The Task 17.5 editor uses a dependency-free local HTML editor toolbar as an interim implementation until the approved TipTap dependencies are installed.
+
+**Rationale:** The consolidated navigation removes duplicate destinations and aligns screens with operator mental models: budgets are user configuration, while chat feedback belongs to audit/reporting. Document filtering needs list-level metadata to stay fast and predictable. The local editor improves the MVP immediately without adding a dependency installation checkpoint in the middle of the user review pass.
+
+**Tradeoffs:** The interim editor is less robust than the approved TipTap target and should be replaced when frontend dependency installation is scheduled. Adding document metadata to the list response slightly expands the `.NET` document summary contract, but it avoids inefficient client-side detail fetching for basic filters.
+
+**Consequences:** Future management UI work should not reintroduce separate `Feedback` or `Presupuestos IA` navigation entries unless the product gains distinct workflows. Task 17.5 E2E/browser verification must cover document creation and audit feedback from the consolidated navigation.
+
+**Evidence:** Verified on 2026-05-20 with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`24 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, `dotnet build services\dotnet-api\AdvancedRag.sln`, and `dotnet test services\dotnet-api\AdvancedRag.sln --filter Document` (`22 passed`). `.NET` commands emitted the existing `NU1900` warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`; build and tests passed.
+
+## 2026-05-20 - Task 17.5 Management Workspace Refinement And TipTap
+
+**Context:** Follow-up user review found that document creation should not be a modal because it is a complex screen, requested TipTap in the editor, requested logical user deactivation, asked for clearer audit meaning, and asked to move session identity/logout from the top bar into the lower sidebar.
+
+**Options Considered:** Keep the document editor as a modal and only swap the inner editor, create a separate navigation item for document creation, or keep creation inside `Documentos` as a full workspace tab.
+
+**Decision:** `Documentos` now uses internal `Listado` and `Editor` tabs. Creating or editing a document opens the full workspace editor tab. The editor uses TipTap with starter kit, link, image, underline, and table extensions. Users can be logically deactivated/reactivated from `Usuarios y grupos` through the existing `.NET` `PATCH /api/users/{id}/status` endpoint. The management shell shows session identity and logout at the bottom of the sidebar. `Auditoria` now labels functional management events separately from embedded chat feedback evidence.
+
+**Rationale:** Document authoring needs enough room for metadata, group access, import, validation, and rich editing controls, so a modal creates unnecessary cramped workflow. TipTap is the approved editor foundation and table/underline extensions close the editor capability gap already documented in UI context. Logical deactivation preserves auditability and recovery. Moving session controls into the sidebar removes a redundant top chrome row and leaves more vertical space for dense workspaces.
+
+**Tradeoffs:** TipTap increases the management bundle size and Vite reports a chunk-size warning during build. This is acceptable for the MVP because the editor is core management functionality; later optimization can lazy-load the editor workspace if startup weight becomes a user-visible problem. Functional audit events still need a dedicated read model before the table can show real event rows.
+
+**Consequences:** Future management UI work should treat document authoring as a workspace-level flow rather than a modal. User status changes must remain logical, not physical deletes. Audit work should connect a functional-event read model instead of mixing placeholder rows with chat feedback data.
+
+**Evidence:** Verified on 2026-05-20 with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`26 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. The build passed with the expected Vite chunk-size warning after adding TipTap.
+
+## 2026-05-20 - Task 17.5 Feedback And Functional Audit Separation
+
+**Context:** User review found that the audit workspace looked empty from an activity perspective while also containing chat feedback. The embedded feedback table made it harder to understand that functional audit events are still missing a dedicated read model.
+
+**Options Considered:** Keep feedback embedded in `Auditoria`, rename the embedded section, or restore `Feedback` as a separate management destination while reserving `Auditoria` for functional activity.
+
+**Decision:** Restore `Feedback` as a separate management navigation entry and route. Remove the embedded feedback table from `Auditoria`. Keep `Auditoria` focused on functional management activity and leave its current empty state until a real audit-event read model is implemented.
+
+**Rationale:** Feedback is audit evidence, but it is not a substitute for functional activity logs. A separate feedback workspace makes the available reporting explicit and keeps the audit placeholder honest about the missing event stream.
+
+**Tradeoffs:** Management navigation now has one more item again. This is preferable to implying that chat feedback is the same thing as functional audit activity.
+
+**Consequences:** Future functional audit work should add a real event list under `Auditoria`. Feedback review remains backed by `.NET` `/api/reporting/feedback` and should not be embedded back into audit unless functional audit rows exist and the combined view is clearly useful.
+
+**Evidence:** Verified on 2026-05-20 with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`29 passed`).
+
+## 2026-05-20 - Task 17.5 Functional Audit Read Model
+
+**Context:** After feedback was separated from `Auditoria`, the audit workspace still did not show any functional activity. The system already persisted document lifecycle events in `app.audit_events`, but the management app had no API or frontend read model for those rows.
+
+**Options Considered:** Keep the audit placeholder until a larger reporting task, show locally mocked events in the frontend, or expose a scoped `.NET` read endpoint over `app.audit_events`.
+
+**Decision:** Add `.NET` `GET /api/audit/events` for `Admin` and `DocumentManager`, backed by `app.audit_events`, and update the management audit workspace to load, filter, and render those functional events. The local demo seed with `-WithSampleInstruction` inserts a matching `instruction.created` row so the screen can show a visible audit event without using chat feedback as a substitute.
+
+**Rationale:** Functional audit is already persisted by document lifecycle workflows and is part of the management service boundary. Exposing it through `.NET` keeps the management frontend on the approved same-origin API path and gives operators a real activity view immediately.
+
+**Tradeoffs:** The first read model is intentionally narrow: it shows document lifecycle events already written to `app.audit_events`. User/group/budget mutations still need their own audit writes in a later backend hardening pass before those event types appear naturally.
+
+**Consequences:** `Auditoria` should now remain a real functional event view and must not embed feedback reporting. Document create/update/review/archive/restore actions generate visible rows, and demo environments can seed one with `infra/compose/Seed-LocalDemoData.ps1 -WithSampleInstruction`.
+
+**Evidence:** Verified on 2026-05-20 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter ManagementAudit` (`2 passed`), `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`29 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, and `dotnet test services\dotnet-api\AdvancedRag.sln --filter "ManagementAudit|Document"` (`24 passed`). `.NET` commands emitted the existing `NU1900` warnings because NuGet vulnerability metadata could not be fetched; tests passed.

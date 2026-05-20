@@ -153,7 +153,7 @@ All three React frontends share the same stack. Each app has its own `package.js
 | Server state | `@tanstack/react-query` v5 | Caches, retries, suspense-ready. All API calls go through it. |
 | Client state | `zustand` | Use sparingly; prefer URL state and react-query cache. |
 | Forms | `react-hook-form` + `zod` + `@hookform/resolvers` | Schemas mirror backend DTOs; no duplicate validation logic. |
-| Rich text editor (management) | `@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/extension-link` + `@tiptap/extension-image` | Output is sanitized HTML stored in `app.instruction_versions`. |
+| Rich text editor (management) | `@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/extension-link` + `@tiptap/extension-image` + `@tiptap/extension-underline` + TipTap table extensions | Output is sanitized HTML stored in `app.instruction_versions`. |
 | HTML sanitization | `dompurify` | Sanitize HTML before rendering instruction content in the viewer and before submitting from the editor. |
 | Routing | `react-router-dom` v6 | Server-side rendering is out of scope for the MVP. |
 | Testing (unit/component) | `vitest` + `@testing-library/react` + `@testing-library/user-event` + `msw` for API mocks | Mock at the network boundary, not at the hook level. |

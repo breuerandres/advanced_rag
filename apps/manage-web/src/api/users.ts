@@ -24,6 +24,22 @@ export interface SetAiBudgetRequest {
   isDisabled: boolean
 }
 
+export interface CreateGroupRequest {
+  name: string
+}
+
+export interface CreateUserRequest {
+  email: string
+  displayName: string
+  password: string
+  roles: string[]
+  groupIds: string[]
+}
+
+export interface SetUserStatusRequest {
+  isActive: boolean
+}
+
 let csrfToken: string | null = null
 
 export async function listUsers(): Promise<UserSummary[]> {
@@ -34,6 +50,18 @@ export async function listGroups(): Promise<GroupSummary[]> {
   return requestJson<GroupSummary[]>('/api/groups')
 }
 
+export async function createGroup(request: CreateGroupRequest): Promise<GroupSummary> {
+  await ensureCsrfToken()
+
+  return requestJson<GroupSummary>('/api/groups', jsonRequest('POST', request))
+}
+
+export async function createUser(request: CreateUserRequest): Promise<UserSummary> {
+  await ensureCsrfToken()
+
+  return requestJson<UserSummary>('/api/users', jsonRequest('POST', request))
+}
+
 export async function updateUserBudget(
   userId: string,
   request: SetAiBudgetRequest,
@@ -41,13 +69,30 @@ export async function updateUserBudget(
   await ensureCsrfToken()
 
   return requestJson<UserSummary>(`/api/users/${userId}/ai-budget`, {
-    method: 'PUT',
+    ...jsonRequest('PUT', request),
+  })
+}
+
+export async function updateUserStatus(
+  userId: string,
+  request: SetUserStatusRequest,
+): Promise<UserSummary> {
+  await ensureCsrfToken()
+
+  return requestJson<UserSummary>(`/api/users/${userId}/status`, {
+    ...jsonRequest('PATCH', request),
+  })
+}
+
+function jsonRequest(method: 'PATCH' | 'POST' | 'PUT', body: unknown): RequestInit {
+  return {
+    method,
     headers: {
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken ?? '',
     },
-    body: JSON.stringify(request),
-  })
+    body: JSON.stringify(body),
+  }
 }
 
 async function ensureCsrfToken(): Promise<void> {

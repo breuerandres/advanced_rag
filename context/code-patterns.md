@@ -109,6 +109,7 @@ Codes are stable strings, UPPER_SNAKE_CASE. Document new codes in this file when
 | `CSRF_TOKEN_INVALID` | 400 | Missing or invalid CSRF cookie/header pair on a mutating browser request. |
 | `NOT_FOUND` | 404 | Resource does not exist or is not visible to the caller. |
 | `CONFLICT` | 409 | Concurrent modification or invalid state transition. |
+| `SETUP_ALREADY_COMPLETED` | 409 | First-run admin setup is permanently closed because an Admin already exists. |
 | `INVALID_LIFECYCLE_TRANSITION` | 409 | Document lifecycle transition is not allowed in the current state. |
 | `RATE_LIMITED` | 429 | Generic rate-limit trip. |
 | `LOGIN_IP_RATE_LIMITED` | 429 | Login attempts from one origin IP exceeded the configured technical limit. |

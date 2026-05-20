@@ -4,9 +4,13 @@ import { Button } from '../../components/ui/button'
 
 type PolarityFilter = 'all' | 'negative'
 
-export function FeedbackReviewPage() {
+export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean }) {
   const [items, setItems] = useState<FeedbackReportItem[]>([])
   const [polarity, setPolarity] = useState<PolarityFilter>('all')
+  const [citedDocumentId, setCitedDocumentId] = useState('')
+  const [userId, setUserId] = useState('')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
@@ -21,6 +25,10 @@ export function FeedbackReviewPage() {
     try {
       const rows = await listFeedbackReport({
         negativeOnly: withFilters && polarity === 'negative',
+        citedDocumentId: withFilters ? citedDocumentId.trim() : '',
+        userId: withFilters ? userId.trim() : '',
+        from: withFilters && from ? `${from}T00:00:00Z` : '',
+        to: withFilters && to ? `${to}T23:59:59Z` : '',
       })
       setItems(rows)
       setHasLoadedOnce(true)
@@ -32,17 +40,15 @@ export function FeedbackReviewPage() {
   }
 
   return (
-    <>
-
-      <section className="workspace" id="feedback">
+    <section className={embedded ? 'audit-feedback-panel' : 'workspace'} id="feedback">
         <header className="workspace-header">
           <div>
-            <p className="eyebrow">Reporting</p>
-            <h1>Revision de feedback</h1>
+            <p className="eyebrow">Revision de chat</p>
+            {embedded ? <h2>Feedback auditado</h2> : <h1>Feedback auditado</h1>}
           </div>
         </header>
 
-        <section className="filter-bar" aria-label="Filtros de feedback">
+        <section className="feedback-filter-grid" aria-label="Filtros de feedback">
           <label className="field filter-status">
             <span>Polaridad</span>
             <select
@@ -52,6 +58,40 @@ export function FeedbackReviewPage() {
               <option value="all">Todas</option>
               <option value="negative">Negativo</option>
             </select>
+          </label>
+          <label className="field">
+            <span>Documento citado</span>
+            <input
+              type="text"
+              placeholder="ID de documento"
+              value={citedDocumentId}
+              onChange={(event) => setCitedDocumentId(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Usuario</span>
+            <input
+              type="text"
+              placeholder="ID de usuario"
+              value={userId}
+              onChange={(event) => setUserId(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Desde</span>
+            <input
+              type="date"
+              value={from}
+              onChange={(event) => setFrom(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Hasta</span>
+            <input
+              type="date"
+              value={to}
+              onChange={(event) => setTo(event.target.value)}
+            />
           </label>
           <Button
             className="primary-button"
@@ -104,7 +144,6 @@ export function FeedbackReviewPage() {
             </table>
           </div>
         ) : null}
-      </section>
-    </>
+    </section>
   )
 }

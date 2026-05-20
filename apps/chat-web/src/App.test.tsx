@@ -12,8 +12,10 @@ test('shows the empty initial chat state', () => {
   render(<App />)
 
   expect(screen.getByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
+  expect(screen.getByText('Token de chat temporal')).toBeInTheDocument()
   expect(screen.getByText('Hacé una pregunta sobre las instrucciones publicadas.')).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeEnabled()
+  expect(screen.getByText('0 / 4000')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Enviar pregunta' })).toBeDisabled()
 })
 
@@ -111,7 +113,7 @@ test('shows a successful answer with citations and cache hit indicator', async (
           ],
         },
       ],
-      ['usage', { input_tokens: 0, cached_tokens: 0, output_tokens: 0, cost_usd: 0 }],
+      ['usage', { input_tokens: 42, cached_tokens: 10, output_tokens: 18, cost_usd: 0.000001 }],
       ['done', {}],
     ]),
   ])
@@ -124,6 +126,7 @@ test('shows a successful answer with citations and cache hit indicator', async (
 
   expect(await screen.findByText('Consultá el procedimiento de seguridad.')).toBeInTheDocument()
   expect(screen.getByText('Respuesta desde caché semántico')).toBeInTheDocument()
+  expect(screen.getByText('Costo estimado: USD 0.000001')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Abrir cita Seguridad' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Me sirvió' })).toBeInTheDocument()
 })

@@ -258,14 +258,67 @@
   - Design system: `assets/df5cbb6e08e34c07abdf928b24898e57`.
   - Generated screens cover login/first-run bootstrap, management console, chat app, and instruction viewer states.
 - Inserted Task 17.5 into `docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md` and user approved implementing it before Task 18 when token budget is available.
+- Created local Codex skill `advanced-rag-product-ui-polish` to adapt Cult UI `components-build` and `fixing-motion-performance` guidance into a Task 17.5 UI quality gate.
+- Updated `context/ui-context.md` and `context/design-decisions.md` so the effective Task 17.5 UI polish rules are project memory, not only local skill state.
+- Reviewed `cyxzdev/Uncodixfy` and `hursh-shah/codex-design-skill` as additional Task 17.5 UI references. Integrated Uncodixfy anti-generic-UI guardrails and the codex-design-skill direction/validation pattern into the local skill and project UI context; rejected their direct installation as project dependencies.
+- Started Task 17.5 implementation:
+  - Added .NET first-run setup application tests and API integration tests first, observed the expected RED failures for missing setup types/routes, then implemented `GET /api/setup/status` and `POST /api/setup/admin`.
+  - The setup API creates the first active `Admin`, ensures base roles (`Admin`, `DocumentManager`, `Viewer`) exist, assigns the default USD 5 monthly AI budget, supports login after setup, and blocks later setup attempts with stable code `SETUP_ALREADY_COMPLETED`.
+  - Verified targeted backend setup work with `dotnet test services/dotnet-api/tests/AdvancedRag.App.Tests/AdvancedRag.App.Tests.csproj --filter SetupService` (`4 passed`) and `dotnet test services/dotnet-api/tests/AdvancedRag.Api.Tests/AdvancedRag.Api.Tests.csproj --filter SetupEndpoint` (`2 passed`). The commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`; tests passed.
+  - Added `manage-web` first-run setup, login/session handling, logout, and authenticated shell tests before implementation.
+  - Added management UI creation flows for groups and users with CSRF-backed API calls, compact dialogs, local validation, and Spanish user-facing messages.
+  - Verified the management UI checkpoint with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`23 passed`) and `pnpm.cmd --dir apps\manage-web typecheck`.
+  - Added `infra/compose/Seed-LocalDemoData.ps1` for local demo seeding with deterministic demo users, group, model pricing, budgets, and optional sample instruction data. The script prints demo credentials only at runtime and does not create or commit secrets.
+  - Added `tests/e2e/specs/first-run-product-flow.spec.ts` to reset the local E2E data state, complete first-run admin setup through the browser, create a group and viewer from management UI, publish a document through product APIs, and verify chat/viewer authenticated and no-session states.
+  - Polished `chat-web` and `docs-web` to align with the Stitch direction: warm operational background, teal action/status accents, compact state strips, chat character count and usage/cost display, and viewer token-expiry context in a metadata side rail.
+  - Verified local non-Compose checks: `pnpm.cmd -r test -- --run` (`42 frontend tests passed; E2E package skipped recursive unit run by design`), `pnpm.cmd -r typecheck`, `pnpm.cmd -r build`, `dotnet test services\dotnet-api\AdvancedRag.sln` (`68 passed`; NU1900 warnings because NuGet vulnerability metadata could not be fetched), `Set-Location services\rag-api; uv run pytest -q; Set-Location ..\..` (`32 passed`), `pnpm.cmd --dir tests\e2e typecheck`, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`, and `git diff --check` (only LF/CRLF warnings, no whitespace errors).
+  - Docker Compose services are not currently running (`docker compose ... ps` returned no running services), so Playwright E2E and Browser visual verification are pending a user-owned stack startup checkpoint.
+- Addressed 2026-05-20 management app review feedback within Task 17.5:
+  - Removed duplicate `Feedback` and `Presupuestos IA` management navigation entries.
+  - Kept AI budget controls in `Usuarios y grupos` and embedded feedback review inside `Auditoria`.
+  - Added document creation from the management document list.
+  - Expanded the document list and `.NET` document summary contract with instruction type, audience, and allowed group ids for list-level filtering.
+  - Added document filters for search text, lifecycle state, indexing state, instruction type, audience, and access-group coverage.
+  - Replaced the plain textarea with a local dependency-free HTML editor toolbar as an interim Task 17.5 implementation until the approved TipTap dependencies are installed.
+  - Verified the checkpoint with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`24 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, `dotnet build services\dotnet-api\AdvancedRag.sln`, and `dotnet test services\dotnet-api\AdvancedRag.sln --filter Document` (`22 passed`). `.NET` commands emitted the existing NU1900 warnings because NuGet vulnerability metadata could not be fetched; build and tests passed.
+- Addressed the follow-up 2026-05-20 management app review:
+  - Converted document creation/editing from a modal into full `Documentos` workspace tabs for `Listado` and `Editor`.
+  - Installed TipTap dependencies in `apps/manage-web` and replaced the interim HTML editor with a TipTap editor supporting headings, bold, italic, underline, lists, code blocks, links, images, and tables.
+  - Added logical user deactivation/reactivation from `Usuarios y grupos` through the existing `.NET` user status endpoint.
+  - Moved active session identity and logout controls to the bottom of the management sidebar.
+  - Clarified `Auditoria` by separating functional management events from embedded audited chat feedback.
+  - Added Vitest jsdom geometry polyfills required by ProseMirror/TipTap component tests.
+  - Verified this checkpoint with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`26 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. The build passed with the expected Vite chunk-size warning after adding TipTap.
+- Added management action-button tooltips:
+  - Icon-only action buttons now derive native `title` and visual hover/focus tooltip text from their accessible `aria-label`.
+  - Covered user actions, document row actions, refresh actions, configuration refresh, and TipTap editor toolbar actions through the shared local `Button` component.
+  - Verified with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`28 passed`).
+- Separated feedback from functional audit again after user review:
+  - Restored `Feedback` as a standalone management navigation entry and route.
+  - Removed embedded feedback review from `Auditoria` so audit remains focused on functional activity.
+  - Documented that the audit workspace still needs a real functional event read model before it can show activity rows.
+  - Verified with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`29 passed`).
+- Addressed the next 2026-05-20 management review pass:
+  - Removed native browser `title` attributes from icon action buttons so only the custom visual tooltip appears.
+  - Reduced management workspace horizontal overflow by removing global workspace/table minimum horizontal scrolling and allowing table/filter wrapping.
+  - Replaced the default document import file input with an accessible styled file picker that shows the PDF/DOCX 10 MB limit and validates oversized files client-side.
+  - Added `.NET` `GET /api/audit/events` over `app.audit_events`, a management frontend audit table with search/type filters, and a demo seed `instruction.created` audit event when `Seed-LocalDemoData.ps1 -WithSampleInstruction` is used.
+  - Verified with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`29 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter ManagementAudit` (`2 passed`), and `dotnet test services\dotnet-api\AdvancedRag.sln --filter "ManagementAudit|Document"` (`24 passed`). `.NET` commands emitted the existing `NU1900` warnings because NuGet vulnerability metadata could not be fetched; tests passed.
+- Addressed the 2026-05-20 document lifecycle action visibility bug:
+  - Passed authenticated session roles into the management document workspace.
+  - Added a role/state action matrix so `Draft` documents show `Enviar a revision`, `In Review` documents show `Publicar` only for `Admin`, and `DocumentManager` users no longer see invalid review/publish actions.
+  - Restricted failed-indexing retry to `Admin` users on `In Review` documents and aligned archive/restore/viewer row actions with existing lifecycle authority rules.
+  - Added regression coverage for `Admin` publish visibility and `DocumentManager` in-review action hiding.
+  - Verified with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`31 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, and `git diff --check -- apps\manage-web\src\App.tsx apps\manage-web\src\App.test.tsx apps\manage-web\src\features\documents\DocumentsPage.tsx`. The Vite build still emits the known TipTap chunk-size warning; build succeeded.
 
 ## In Progress
 
-- No implementation task is currently in progress.
+- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes, including the follow-up TipTap/sidebar/user-status/audit-feedback refinements and functional audit event read model, are locally verified but still need browser/Compose verification with the rest of Task 17.5.
 
 ## Next Up
 
 - Implement Task 17.5 UI stabilization, first-run setup, and product polish.
+- Use the local `advanced-rag-product-ui-polish` skill during Task 17.5 UI implementation and review.
 
 ## Next Implementation Checkpoint
 
@@ -360,8 +413,9 @@ Current state:
 - Task 15 management frontend workflow is complete and committed.
 - Task 16 operational hardening is complete and committed.
 - Task 17 end-to-end MVP verification is complete and committed.
-- Task 17.5 UI stabilization, first-run setup, and product polish is documented and approved, but not implemented.
+- Task 17.5 UI stabilization is partially implemented and locally verified: first-run setup API, management setup/login/user/group UI, local demo seed script, first-run Playwright spec, chat/docs polish, and the 2026-05-20 management navigation/document/audit refinements are in place.
+- Task 17.5 still needs the user-owned Compose startup checkpoint, then Playwright E2E and browser visual verification.
 
 Next safe implementation work:
 
-- Start Task 17.5 when token budget is available. Do not start Task 18 until Task 17.5 is implemented and verified.
+- Do not start Task 18 until Task 17.5 Playwright E2E and browser verification pass against the local Compose stack.

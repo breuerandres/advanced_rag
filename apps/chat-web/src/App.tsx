@@ -1,5 +1,14 @@
 import { useState, type FormEvent } from 'react'
-import { AlertCircle, ExternalLink, MessageSquareText, Send, ThumbsDown, ThumbsUp } from 'lucide-react'
+import {
+  AlertCircle,
+  Clock3,
+  ExternalLink,
+  MessageSquareText,
+  Send,
+  ShieldCheck,
+  ThumbsDown,
+  ThumbsUp,
+} from 'lucide-react'
 import {
   createViewerLink,
   renewChatToken,
@@ -7,12 +16,14 @@ import {
   submitQuestion,
   type ChatCitation,
   type ChatResult,
+  type ChatUsage,
   type FeedbackValue,
 } from './api/chat'
 import { ApiError } from './lib/api-error'
 import './App.css'
 
 type ChatStatus = 'idle' | 'submitting'
+const MaxQuestionChars = 4000
 
 interface ChatErrorState {
   title: string
@@ -26,6 +37,7 @@ export default function App() {
   const [answer, setAnswer] = useState('')
   const [queryAuditEventId, setQueryAuditEventId] = useState<string | null>(null)
   const [citations, setCitations] = useState<ChatCitation[]>([])
+  const [usage, setUsage] = useState<ChatUsage | null>(null)
   const [cacheHit, setCacheHit] = useState(false)
   const [feedbackValue, setFeedbackValue] = useState<FeedbackValue | null>(null)
   const [comment, setComment] = useState('')
@@ -47,6 +59,7 @@ export default function App() {
     setError(null)
     setAnswer('')
     setCitations([])
+    setUsage(null)
     setCacheHit(false)
     setFeedbackValue(null)
     setFeedbackSubmitted(false)
@@ -57,6 +70,7 @@ export default function App() {
       setQueryAuditEventId(result.queryAuditEventId)
       setCitations(result.citations)
       setCacheHit(result.cacheHit)
+      setUsage(result.usage)
     } catch (caught) {
       setError(toChatError(caught))
     } finally {
@@ -100,6 +114,16 @@ export default function App() {
           <h1>Chat de instrucciones</h1>
           <p className="header-copy">Hacé una pregunta sobre las instrucciones publicadas.</p>
         </div>
+        <div className="chat-status-strip" aria-label="Estado del chat">
+          <span>
+            <ShieldCheck size={16} aria-hidden="true" />
+            Token de chat temporal
+          </span>
+          <span>
+            <Clock3 size={16} aria-hidden="true" />
+            Citas trazables
+          </span>
+        </div>
       </header>
 
       <section className="chat-panel" aria-label="Chat de instrucciones">
@@ -107,16 +131,22 @@ export default function App() {
           <label className="field">
             <span>Pregunta</span>
             <textarea
+              maxLength={MaxQuestionChars}
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               disabled={isSubmitting}
               placeholder="Escribí tu consulta..."
             />
           </label>
-          <button className="primary-button" type="submit" disabled={isSubmitting || !normalizedQuestion}>
-            <Send size={16} />
-            <span>{isSubmitting ? 'Enviando' : 'Enviar pregunta'}</span>
-          </button>
+          <div className="question-form-footer">
+            <span>
+              {question.length} / {MaxQuestionChars}
+            </span>
+            <button className="primary-button" type="submit" disabled={isSubmitting || !normalizedQuestion}>
+              <Send size={16} />
+              <span>{isSubmitting ? 'Enviando' : 'Enviar pregunta'}</span>
+            </button>
+          </div>
         </form>
 
         {error ? <ChatErrorMessage error={error} /> : null}
@@ -142,6 +172,20 @@ export default function App() {
               {cacheHit ? <span className="cache-badge">Respuesta desde caché semántico</span> : null}
             </div>
             <p>{answer}</p>
+            {usage ? (
+              <dl className="usage-row" aria-label="Uso de IA">
+                <div>
+                  <dt>Tokens</dt>
+                  <dd>
+                    Entrada {usage.inputTokens} / caché {usage.cachedTokens} / salida {usage.outputTokens}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Costo</dt>
+                  <dd>{formatUsageCost(usage.costUsd)}</dd>
+                </div>
+              </dl>
+            ) : null}
             {citations.length > 0 ? (
               <div className="citation-list" aria-label="Citas">
                 {citations.map((citation) => (
@@ -235,6 +279,10 @@ function ChatErrorMessage({ error }: { error: ChatErrorState }) {
       {error.requestId ? <p className="status-detail">ID de solicitud: {error.requestId}</p> : null}
     </section>
   )
+}
+
+function formatUsageCost(value: number): string {
+  return `Costo estimado: USD ${value.toFixed(6)}`
 }
 
 function toChatError(caught: unknown): ChatErrorState {

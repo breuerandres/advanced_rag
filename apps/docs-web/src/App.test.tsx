@@ -63,6 +63,7 @@ test('renders document after successful exchange and load', async () => {
 
   expect(await screen.findByRole('heading', { name: 'Procedimiento publicado' })).toBeInTheDocument()
   expect(screen.getByText('Usa el equipo de seguridad.')).toBeInTheDocument()
+  expect(screen.getByText('Token vigente hasta')).toBeInTheDocument()
   expect(screen.getByText('Publicado')).toBeInTheDocument()
   expect(replaceState).toHaveBeenCalledWith({}, '', '/open')
 })
