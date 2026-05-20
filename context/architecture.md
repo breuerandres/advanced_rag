@@ -312,7 +312,7 @@ Rate limit exceedances must use stable safe error codes and must not expose inte
 - .NET uses EF Core migrations for the `app` schema.
 - FastAPI uses Alembic migrations for the `rag` schema.
 - Services must not modify tables outside their owned schema except through explicitly granted read permissions or internal API contracts.
-- FastAPI may read `.NET`-owned `app.document_permissions` for retrieval permission filtering and `app.user_ai_budget_limits` for budget enforcement through explicit read-only grants. FastAPI must not write to any `app` table.
+- FastAPI may read `.NET`-owned `app.document_permissions` for retrieval permission filtering and `app.user_ai_budget_limits` for budget enforcement through explicit read-only grants applied by `.NET` EF migrations after those tables exist. FastAPI must not write to any `app` table.
 
 ## Initial Database Entities
 
@@ -370,8 +370,8 @@ Readiness must verify critical dependencies such as DB connectivity and required
      - `app_reporting_reader` (read-only across the FastAPI-owned reporting views, used by `.NET` for management reporting)
   4. Sets or updates those role passwords from Compose secret files.
   5. Creates the schemas `app` and `rag` with the right owners.
-    6. Grants schema USAGE to the reporting reader role.
-    7. Grants FastAPI's `rag_owner` read-only access to the approved `.NET` tables needed for RAG: `app.document_permissions` and `app.user_ai_budget_limits`.
+  6. Grants schema USAGE to the reporting reader role.
+  7. Grants schema USAGE on `app` to `rag_owner` so later table-level read grants can be used.
 - `postgres-init` exits 0 once the script completes. Compose's `depends_on: service_completed_successfully` gates `dotnet-api` and `rag-api` on this.
 
 ### Migration Order
@@ -379,6 +379,7 @@ Readiness must verify critical dependencies such as DB connectivity and required
 - `.NET` runs EF Core migrations on startup against the `app` schema only.
 - FastAPI runs Alembic migrations on startup against the `rag` schema only.
 - Both can run in parallel because their schemas do not overlap. The only cross-schema interaction is FastAPI creating reporting views and granting SELECT to `app_reporting_reader` (next section).
+- `.NET` EF migrations own table-level read grants from `app` to `rag_owner` because `postgres-init` runs before `.NET` tables may exist. EF migrations conditionally grant `SELECT` on `app.document_permissions` and `app.user_ai_budget_limits` after creating or renaming those tables.
 - Each service's `entrypoint` script is `wait-for-postgres && run-migrations && start-server`. On migration failure, the container exits non-zero and Compose's restart policy retries with backoff. Operators see the failure in the technical JSON log under event `migration.failed` with the SQL error.
 
 ### Reporting Views

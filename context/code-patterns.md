@@ -574,7 +574,7 @@ The current Postgres initialization scripts live in:
 - `infra/compose/postgres-init/init.sh`
 - `infra/compose/postgres-init/init.sql`
 
-The scripts must stay idempotent. They create the database if missing, enable `pgvector`, create or update service role passwords from Compose secrets, create the `app` and `rag` schemas, assign schema ownership, and grant reporting access.
+The scripts must stay idempotent. They create the database if missing, enable `pgvector`, create or update service role passwords from Compose secrets, create the `app` and `rag` schemas, assign schema ownership, grant reporting access, and grant `rag_owner` USAGE on the `app` schema. They must not grant table-level access to `.NET`-owned tables because `postgres-init` runs before EF migrations create or rename those tables. `.NET` EF migrations apply the conditional `SELECT` grants for `app.document_permissions` and `app.user_ai_budget_limits`.
 
 ## Logger Setup
 

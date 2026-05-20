@@ -318,10 +318,13 @@
   - Added a compatibility Alembic migration for existing RAG databases with old `instruction_id` and `instruction_version_id` columns.
   - Updated frontend API types, tests, E2E SQL setup/cleanup, Compose demo seed script, project context, specs, and plan vocabulary.
   - Verified with `dotnet test services\dotnet-api\AdvancedRag.sln` (`70 passed`; existing NU1900 warnings), `uv run pytest -q` (`32 passed`), `uv run ruff check .`, `uv run mypy src tests`, `pnpm.cmd -r test -- --run` (`50 frontend tests passed; E2E package skipped by design), `pnpm.cmd -r typecheck`, `pnpm.cmd -r build` (known TipTap chunk-size warning), `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`, and `git diff --check` (CRLF warnings only).
+- Diagnosed the 2026-05-20 `postgres-init` exit 3 failure after the documents rename: `postgres-init` was granting table-level SELECT on `app.document_permissions` before `.NET` EF migrations could create or rename that table.
+- Moved `.NET` app-table read grants for `rag_owner` out of `postgres-init` and into an EF migration that runs after `app.document_permissions` and `app.user_ai_budget_limits` exist, while keeping `postgres-init` responsible for roles, schemas, and schema USAGE.
+- Verified the focused fix with `uv run pytest tests/test_migrations.py -q` (`3 passed`) and `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter EfMigration_CreatesOnlyAppSchemaTables` (`1 passed`; existing NU1900 warnings).
 
 ## In Progress
 
-- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes and the structural documents vocabulary rename are locally verified but still need browser/Compose verification with the rest of Task 17.5.
+- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes, structural documents vocabulary rename, and `postgres-init` grant-order fix are locally verified but still need browser/Compose verification with the rest of Task 17.5.
 
 ## Next Up
 

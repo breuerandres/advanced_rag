@@ -44,6 +44,7 @@ public sealed class AppDbContextMigrationTests
             .Options;
 
         await using var db = new AppDbContext(options);
+        await db.Database.ExecuteSqlRawAsync("create role rag_owner");
         await db.Database.MigrateAsync();
 
         var schemas = await db.Database
@@ -76,9 +77,29 @@ public sealed class AppDbContextMigrationTests
                 order by column_name
                 """)
             .ToListAsync();
+        var ragOwnerPrivileges = await db.Database
+            .SqlQueryRaw<string>(
+                """
+                select privilege::text as "Value"
+                from (
+                    values
+                        (
+                            'document_permissions',
+                            has_table_privilege('rag_owner', 'app.document_permissions', 'SELECT')
+                        ),
+                        (
+                            'user_ai_budget_limits',
+                            has_table_privilege('rag_owner', 'app.user_ai_budget_limits', 'SELECT')
+                        )
+                ) as checked_privileges(privilege, has_select)
+                where has_select
+                order by privilege
+                """)
+            .ToListAsync();
 
         schemas.Should().BeEquivalentTo(["app"]);
         appTables.Should().BeEquivalentTo(ExpectedAppTables);
         documentVersionColumns.Should().Contain("indexing_status");
+        ragOwnerPrivileges.Should().BeEquivalentTo(["document_permissions", "user_ai_budget_limits"]);
     }
 }

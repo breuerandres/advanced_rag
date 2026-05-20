@@ -1436,3 +1436,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Future product, database, API, RAG, frontend, and documentation work must use `documents` vocabulary. Any remaining `instruction_*` references should be limited to compatibility migration logic that renames old database objects forward or downgrades them.
 
 **Evidence:** Verified on 2026-05-20 with `dotnet test services\dotnet-api\AdvancedRag.sln` (`70 passed`), `uv run pytest -q` (`32 passed`), `uv run ruff check .`, `uv run mypy src tests`, `pnpm.cmd -r test -- --run` (`50 frontend tests passed; E2E package intentionally skipped in recursive unit run`), `pnpm.cmd -r typecheck`, `pnpm.cmd -r build`, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`, and `git diff --check`. `.NET` commands emitted the existing NU1900 warnings because NuGet vulnerability metadata could not be fetched; Vite emitted the known management bundle-size warning after TipTap.
+
+## 2026-05-20 - App Table Grants Applied By EF Migrations
+
+**Context:** After the documents vocabulary rename, local Compose startup failed with `postgres-init` exit 3. The init script ran before `.NET` EF migrations but attempted to grant `SELECT` on `app.document_permissions`, which may not exist yet in a clean database and may still be named `app.instruction_permissions` in an existing local database until the compatibility EF migration runs.
+
+**Options Considered:** Ask operators to run manual `ALTER TABLE` statements, make `postgres-init` conditionally grant whichever legacy or new table exists, or move table-level grants to the `.NET` migration owner after table creation/rename.
+
+**Decision:** Keep `postgres-init` responsible for database creation, extension setup, roles, schemas, passwords, schema ownership, and schema USAGE only. Apply the `rag_owner` table-level `SELECT` grants for `app.document_permissions` and `app.user_ai_budget_limits` from `.NET` EF migrations after those tables exist.
+
+**Rationale:** `.NET` owns the `app` schema and knows when its tables have been created or renamed. Moving grants to EF removes the startup ordering bug without requiring manual database surgery or broad app-schema privileges.
+
+**Tradeoffs:** The EF migration currently targets the approved Compose role name `rag_owner` and guards the grant when the role is absent, which keeps non-Compose tests safe. If deployments later rename the RAG database role, migration configuration must be revisited.
+
+**Consequences:** `postgres-init` must not grant table-level access to `.NET`-owned tables. Future `.NET` migrations that add new app tables needed by FastAPI must include conditional grants after creating those tables.
+
+**Evidence:** Verified on 2026-05-20 with `uv run pytest tests/test_migrations.py -q` (`3 passed`) and `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter EfMigration_CreatesOnlyAppSchemaTables` (`1 passed`). `.NET` emitted existing NU1900 warnings because NuGet vulnerability metadata could not be fetched.

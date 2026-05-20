@@ -67,7 +67,7 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
   - `exp`, `iat`, `iss`, `aud`, `jti`, `kid` (header)
 - FastAPI validates and trusts the signed claims as the user's scope inputs. It uses `access_scope_hash` for cache partitioning and audit, and uses `role` + `groups` + `attributes` + `corpus` for the SQL permission filter.
 - `access_scope_hash` is not an authorization mechanism and must never be used by itself to decide whether a chunk is retrievable.
-- For the MVP, the retrieval SQL filter resolves group/attribute rules directly against `app.document_permissions` through read-only grants. FastAPI may also read `app.user_ai_budget_limits` for budget enforcement through a read-only grant. These are the only approved FastAPI reads from the `app` schema and are documented in `architecture.md` Operations.
+- For the MVP, the retrieval SQL filter resolves group/attribute rules directly against `app.document_permissions` through read-only grants applied by `.NET` EF migrations after the tables exist. FastAPI may also read `app.user_ai_budget_limits` for budget enforcement through the same grant path. These are the only approved FastAPI reads from the `app` schema and are documented in `architecture.md` Operations.
 
 ## `access_scope_hash` Algorithm
 

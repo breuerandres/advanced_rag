@@ -41,9 +41,3 @@ SELECT format('GRANT USAGE ON SCHEMA rag TO %I', :'reporting_user')
 
 SELECT format('GRANT USAGE ON SCHEMA app TO %I', :'rag_user')
 \gexec
-
-SELECT format('GRANT SELECT ON app.document_permissions TO %I', :'rag_user')
-\gexec
-
-SELECT format('GRANT SELECT ON app.user_ai_budget_limits TO %I', :'rag_user')
-\gexec

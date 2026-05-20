@@ -93,14 +93,14 @@ def test_alembic_migration_runs_as_runtime_rag_owner_without_database_create_pri
     assert state["vector_extension_exists"] is True
 
 
-def test_postgres_init_grants_rag_owner_read_only_access_to_approved_app_tables() -> None:
+def test_postgres_init_does_not_grant_table_access_before_app_migrations() -> None:
     init_sql = (REPO_ROOT / "infra" / "compose" / "postgres-init" / "init.sql").read_text(
         encoding="utf-8"
     )
 
     assert "GRANT USAGE ON SCHEMA app TO %I" in init_sql
-    assert "GRANT SELECT ON app.document_permissions TO %I" in init_sql
-    assert "GRANT SELECT ON app.user_ai_budget_limits TO %I" in init_sql
+    assert "GRANT SELECT ON app.document_permissions" not in init_sql
+    assert "GRANT SELECT ON app.user_ai_budget_limits" not in init_sql
 
 
 def _async_sqlalchemy_url(host: str, port: str | int) -> str:
