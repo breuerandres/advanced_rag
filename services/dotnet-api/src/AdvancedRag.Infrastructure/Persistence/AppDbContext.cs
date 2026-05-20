@@ -16,10 +16,10 @@ public sealed class AppDbContext : DbContext
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<UserGroup> UserGroups => Set<UserGroup>();
-    public DbSet<Instruction> Instructions => Set<Instruction>();
-    public DbSet<InstructionVersion> InstructionVersions => Set<InstructionVersion>();
-    public DbSet<InstructionPermission> InstructionPermissions => Set<InstructionPermission>();
-    public DbSet<InstructionTag> InstructionTags => Set<InstructionTag>();
+    public DbSet<Document> Documents => Set<Document>();
+    public DbSet<DocumentVersion> DocumentVersions => Set<DocumentVersion>();
+    public DbSet<DocumentPermission> DocumentPermissions => Set<DocumentPermission>();
+    public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
     public DbSet<ReviewComment> ReviewComments => Set<ReviewComment>();
     public DbSet<ImportMetadata> ImportMetadata => Set<ImportMetadata>();
     public DbSet<ViewerExchangeCode> ViewerExchangeCodes => Set<ViewerExchangeCode>();
@@ -79,9 +79,9 @@ public sealed class AppDbContext : DbContext
             entity.HasOne<Group>().WithMany().HasForeignKey(item => item.GroupId).OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<Instruction>(entity =>
+        modelBuilder.Entity<Document>(entity =>
         {
-            entity.ToTable("instructions", Schema);
+            entity.ToTable("documents", Schema);
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Title).HasColumnName("title").HasMaxLength(240).IsRequired();
             entity.Property(item => item.CurrentState).HasColumnName("current_state").HasMaxLength(32).IsRequired();
@@ -94,15 +94,15 @@ public sealed class AppDbContext : DbContext
             entity.HasIndex(item => item.CurrentState);
         });
 
-        modelBuilder.Entity<InstructionVersion>(entity =>
+        modelBuilder.Entity<DocumentVersion>(entity =>
         {
-            entity.ToTable("instruction_versions", Schema);
+            entity.ToTable("document_versions", Schema);
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.InstructionId).HasColumnName("instruction_id");
+            entity.Property(item => item.DocumentId).HasColumnName("document_id");
             entity.Property(item => item.VersionNumber).HasColumnName("version_number");
             entity.Property(item => item.State).HasColumnName("state").HasMaxLength(32).IsRequired();
             entity.Property(item => item.Title).HasColumnName("title").HasMaxLength(240).IsRequired();
-            entity.Property(item => item.InstructionType).HasColumnName("instruction_type").HasMaxLength(80).IsRequired();
+            entity.Property(item => item.DocumentType).HasColumnName("document_type").HasMaxLength(80).IsRequired();
             entity.Property(item => item.Audience).HasColumnName("audience").HasMaxLength(160).IsRequired();
             entity.Property(item => item.ContentHtml).HasColumnName("content_html").IsRequired();
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
@@ -112,48 +112,48 @@ public sealed class AppDbContext : DbContext
             entity.Property(item => item.PublishedByUserId).HasColumnName("published_by_user_id");
             entity.Property(item => item.IndexingJobId).HasColumnName("indexing_job_id");
             entity.Property(item => item.IndexingStatus).HasColumnName("indexing_status").HasMaxLength(32).HasDefaultValue("None").IsRequired();
-            entity.HasOne<Instruction>().WithMany().HasForeignKey(item => item.InstructionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Document>().WithMany().HasForeignKey(item => item.DocumentId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.SubmittedForReviewByUserId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.PublishedByUserId).OnDelete(DeleteBehavior.Restrict);
-            entity.HasIndex(item => new { item.InstructionId, item.VersionNumber }).IsUnique();
-            entity.HasIndex(item => new { item.InstructionId, item.State });
+            entity.HasIndex(item => new { item.DocumentId, item.VersionNumber }).IsUnique();
+            entity.HasIndex(item => new { item.DocumentId, item.State });
         });
 
-        modelBuilder.Entity<InstructionPermission>(entity =>
+        modelBuilder.Entity<DocumentPermission>(entity =>
         {
-            entity.ToTable("instruction_permissions", Schema);
+            entity.ToTable("document_permissions", Schema);
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.InstructionId).HasColumnName("instruction_id");
+            entity.Property(item => item.DocumentId).HasColumnName("document_id");
             entity.Property(item => item.GroupId).HasColumnName("group_id");
             entity.Property(item => item.AttributeKey).HasColumnName("attribute_key").HasMaxLength(64);
             entity.Property(item => item.AttributeValue).HasColumnName("attribute_value").HasMaxLength(256);
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
-            entity.HasOne<Instruction>().WithMany().HasForeignKey(item => item.InstructionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Document>().WithMany().HasForeignKey(item => item.DocumentId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<Group>().WithMany().HasForeignKey(item => item.GroupId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(item => item.InstructionId);
+            entity.HasIndex(item => item.DocumentId);
             entity.HasIndex(item => item.GroupId);
             entity.HasIndex(item => new { item.AttributeKey, item.AttributeValue });
         });
 
-        modelBuilder.Entity<InstructionTag>(entity =>
+        modelBuilder.Entity<DocumentTag>(entity =>
         {
-            entity.ToTable("instruction_tags", Schema);
+            entity.ToTable("document_tags", Schema);
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.InstructionId).HasColumnName("instruction_id");
+            entity.Property(item => item.DocumentId).HasColumnName("document_id");
             entity.Property(item => item.Name).HasColumnName("name").HasMaxLength(80).IsRequired();
-            entity.HasOne<Instruction>().WithMany().HasForeignKey(item => item.InstructionId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(item => new { item.InstructionId, item.Name }).IsUnique();
+            entity.HasOne<Document>().WithMany().HasForeignKey(item => item.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(item => new { item.DocumentId, item.Name }).IsUnique();
         });
 
         modelBuilder.Entity<ReviewComment>(entity =>
         {
             entity.ToTable("review_comments", Schema);
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.InstructionVersionId).HasColumnName("instruction_version_id");
+            entity.Property(item => item.DocumentVersionId).HasColumnName("document_version_id");
             entity.Property(item => item.ActorUserId).HasColumnName("actor_user_id");
             entity.Property(item => item.Comment).HasColumnName("comment").HasMaxLength(2000).IsRequired();
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
-            entity.HasOne<InstructionVersion>().WithMany().HasForeignKey(item => item.InstructionVersionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<DocumentVersion>().WithMany().HasForeignKey(item => item.DocumentVersionId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.ActorUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -161,7 +161,7 @@ public sealed class AppDbContext : DbContext
         {
             entity.ToTable("import_metadata", Schema);
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.InstructionVersionId).HasColumnName("instruction_version_id");
+            entity.Property(item => item.DocumentVersionId).HasColumnName("document_version_id");
             entity.Property(item => item.OriginalFilename).HasColumnName("original_filename").HasMaxLength(260).IsRequired();
             entity.Property(item => item.MimeType).HasColumnName("mime_type").HasMaxLength(120).IsRequired();
             entity.Property(item => item.SizeBytes).HasColumnName("size_bytes");
@@ -169,7 +169,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(item => item.ImportedByUserId).HasColumnName("imported_by_user_id");
             entity.Property(item => item.ExtractionStatus).HasColumnName("extraction_status").HasMaxLength(32).IsRequired();
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
-            entity.HasOne<InstructionVersion>().WithMany().HasForeignKey(item => item.InstructionVersionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<DocumentVersion>().WithMany().HasForeignKey(item => item.DocumentVersionId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.ImportedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -178,14 +178,14 @@ public sealed class AppDbContext : DbContext
             entity.ToTable("viewer_exchange_codes", Schema);
             entity.HasKey(item => item.Id);
             entity.Property(item => item.CodeHash).HasColumnName("code_hash").HasMaxLength(128).IsRequired();
-            entity.Property(item => item.InstructionId).HasColumnName("instruction_id");
+            entity.Property(item => item.DocumentId).HasColumnName("document_id");
             entity.Property(item => item.UserId).HasColumnName("user_id");
             entity.Property(item => item.Purpose).HasColumnName("purpose").HasMaxLength(64).IsRequired();
             entity.Property(item => item.AllowedStatuses).HasColumnName("allowed_statuses").HasMaxLength(160).IsRequired();
             entity.Property(item => item.ExpiresAt).HasColumnName("expires_at");
             entity.Property(item => item.ConsumedAt).HasColumnName("consumed_at");
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
-            entity.HasOne<Instruction>().WithMany().HasForeignKey(item => item.InstructionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Document>().WithMany().HasForeignKey(item => item.DocumentId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(item => item.CodeHash).IsUnique();
             entity.HasIndex(item => item.ExpiresAt);
@@ -196,12 +196,12 @@ public sealed class AppDbContext : DbContext
             entity.ToTable("viewer_token_audit", Schema);
             entity.HasKey(item => item.Id);
             entity.Property(item => item.ViewerTokenId).HasColumnName("viewer_token_id").HasMaxLength(128).IsRequired();
-            entity.Property(item => item.InstructionId).HasColumnName("instruction_id");
+            entity.Property(item => item.DocumentId).HasColumnName("document_id");
             entity.Property(item => item.UserId).HasColumnName("user_id");
             entity.Property(item => item.Purpose).HasColumnName("purpose").HasMaxLength(64).IsRequired();
             entity.Property(item => item.IssuedAt).HasColumnName("issued_at").HasDefaultValueSql("now()");
             entity.Property(item => item.ExpiresAt).HasColumnName("expires_at");
-            entity.HasOne<Instruction>().WithMany().HasForeignKey(item => item.InstructionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Document>().WithMany().HasForeignKey(item => item.DocumentId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(item => item.ViewerTokenId).IsUnique();
         });

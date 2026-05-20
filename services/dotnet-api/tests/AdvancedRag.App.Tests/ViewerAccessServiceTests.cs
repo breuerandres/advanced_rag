@@ -6,8 +6,8 @@ namespace AdvancedRag.App.Tests;
 public sealed class ViewerAccessServiceTests
 {
     private static readonly Guid UserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    private static readonly Guid PublishedInstructionId = Guid.Parse("22222222-2222-2222-2222-222222222222");
-    private static readonly Guid DraftInstructionId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+    private static readonly Guid PublishedDocumentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private static readonly Guid DraftDocumentId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
     [Fact]
     public async Task CreateLink_ForChatPersistsSixtySecondSingleUseCodeForPublishedDocuments()
@@ -17,7 +17,7 @@ public sealed class ViewerAccessServiceTests
         ViewerAccessService service = new(repository, tokenService);
 
         ViewerLinkResult result = await service.CreateLinkAsync(
-            new CreateViewerLinkCommand(PublishedInstructionId, UserId, ["Viewer"], "chat"),
+            new CreateViewerLinkCommand(PublishedDocumentId, UserId, ["Viewer"], "chat"),
             CancellationToken.None);
 
         result.Url.Should().StartWith("https://docs.client.com/open?code=");
@@ -34,7 +34,7 @@ public sealed class ViewerAccessServiceTests
         ViewerAccessService service = new(SeedRepository(), new RecordingViewerTokenService());
 
         Func<Task> act = () => service.CreateLinkAsync(
-            new CreateViewerLinkCommand(DraftInstructionId, UserId, ["Viewer"], "chat"),
+            new CreateViewerLinkCommand(DraftDocumentId, UserId, ["Viewer"], "chat"),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<ViewerAccessException>().Where(error => error.Code == "AUTH_FORBIDDEN");
@@ -47,7 +47,7 @@ public sealed class ViewerAccessServiceTests
         ViewerAccessService service = new(repository, new RecordingViewerTokenService());
 
         await service.CreateLinkAsync(
-            new CreateViewerLinkCommand(DraftInstructionId, UserId, ["DocumentManager"], "management"),
+            new CreateViewerLinkCommand(DraftDocumentId, UserId, ["DocumentManager"], "management"),
             CancellationToken.None);
 
         repository.ExchangeCodes.Single().AllowedStatuses.Should().Be("Draft,In Review,Published");
@@ -60,7 +60,7 @@ public sealed class ViewerAccessServiceTests
         RecordingViewerTokenService tokenService = new();
         ViewerAccessService service = new(repository, tokenService);
         ViewerLinkResult link = await service.CreateLinkAsync(
-            new CreateViewerLinkCommand(PublishedInstructionId, UserId, ["Viewer"], "chat"),
+            new CreateViewerLinkCommand(PublishedDocumentId, UserId, ["Viewer"], "chat"),
             CancellationToken.None);
         string code = new Uri(link.Url).Query.Split("code=", StringSplitOptions.None)[1];
 
@@ -71,7 +71,7 @@ public sealed class ViewerAccessServiceTests
         result.Token.Should().Be("viewer-token");
         repository.ExchangeCodes.Single().ConsumedAt.Should().NotBeNull();
         repository.TokenAudit.Should().ContainSingle(audit =>
-            audit.ViewerTokenId == "viewer-token-id" && audit.InstructionId == PublishedInstructionId);
+            audit.ViewerTokenId == "viewer-token-id" && audit.DocumentId == PublishedDocumentId);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class ViewerAccessServiceTests
         InMemoryViewerAccessRepository repository = SeedRepository();
         ViewerAccessService service = new(repository, new RecordingViewerTokenService());
         ViewerLinkResult link = await service.CreateLinkAsync(
-            new CreateViewerLinkCommand(PublishedInstructionId, UserId, ["Viewer"], "chat"),
+            new CreateViewerLinkCommand(PublishedDocumentId, UserId, ["Viewer"], "chat"),
             CancellationToken.None);
         string code = new Uri(link.Url).Query.Split("code=", StringSplitOptions.None)[1];
         await service.ExchangeCodeAsync(new ExchangeViewerCodeCommand(code), CancellationToken.None);
@@ -104,18 +104,18 @@ public sealed class ViewerAccessServiceTests
             CancellationToken.None);
 
         first.Title.Should().Be("Published procedure");
-        second.InstructionId.Should().Be(first.InstructionId);
+        second.DocumentId.Should().Be(first.DocumentId);
     }
 
     private static InMemoryViewerAccessRepository SeedRepository()
     {
         InMemoryViewerAccessRepository repository = new();
-        repository.Instructions[PublishedInstructionId] = new ViewerInstructionAccess(
-            PublishedInstructionId,
+        repository.Documents[PublishedDocumentId] = new ViewerDocumentAccess(
+            PublishedDocumentId,
             "Published procedure",
             "Published",
             null,
-            new ViewerInstructionVersion(
+            new ViewerDocumentVersion(
                 Guid.Parse("44444444-4444-4444-4444-444444444444"),
                 1,
                 "Published",
@@ -123,11 +123,11 @@ public sealed class ViewerAccessServiceTests
                 "Policy",
                 "Operations",
                 "<p>Contenido publicado</p>"));
-        repository.Instructions[DraftInstructionId] = new ViewerInstructionAccess(
-            DraftInstructionId,
+        repository.Documents[DraftDocumentId] = new ViewerDocumentAccess(
+            DraftDocumentId,
             "Draft procedure",
             "Draft",
-            new ViewerInstructionVersion(
+            new ViewerDocumentVersion(
                 Guid.Parse("55555555-5555-5555-5555-555555555555"),
                 1,
                 "Draft",
@@ -141,14 +141,14 @@ public sealed class ViewerAccessServiceTests
 
     private sealed class InMemoryViewerAccessRepository : IViewerAccessRepository
     {
-        public Dictionary<Guid, ViewerInstructionAccess> Instructions { get; } = [];
+        public Dictionary<Guid, ViewerDocumentAccess> Documents { get; } = [];
         public List<ViewerExchangeCodeRecord> ExchangeCodes { get; } = [];
         public List<ViewerTokenAuditRecord> TokenAudit { get; } = [];
 
-        public Task<ViewerInstructionAccess?> FindInstructionAsync(Guid instructionId, CancellationToken ct)
+        public Task<ViewerDocumentAccess?> FindDocumentAsync(Guid documentId, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            return Task.FromResult(Instructions.GetValueOrDefault(instructionId));
+            return Task.FromResult(Documents.GetValueOrDefault(documentId));
         }
 
         public Task SaveExchangeCodeAsync(ViewerExchangeCodeRecord code, CancellationToken ct)
@@ -187,7 +187,7 @@ public sealed class ViewerAccessServiceTests
             return new IssuedViewerToken(
                 "viewer-token",
                 "viewer-token-id",
-                request.InstructionId,
+                request.DocumentId,
                 request.UserId,
                 request.Purpose,
                 request.ExpiresAt);
@@ -202,7 +202,7 @@ public sealed class ViewerAccessServiceTests
 
             return new ViewerTokenClaims(
                 "viewer-token-id",
-                PublishedInstructionId,
+                PublishedDocumentId,
                 UserId,
                 "chat",
                 ["Published"],

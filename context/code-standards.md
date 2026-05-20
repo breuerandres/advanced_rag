@@ -72,7 +72,7 @@
 
 - `.NET` writes the `app` schema; FastAPI writes the `rag` schema.
 - Cross-schema writes are not allowed except through explicit API/internal contracts.
-- Store canonical normalized instruction HTML and metadata in Postgres.
+- Store canonical normalized document HTML and metadata in Postgres.
 - Model MVP document access through groups/departments and attributes. Do not add per-user document ACLs unless a later requirement explicitly changes the access model.
 - Store per-user AI budget configuration in the `app` schema and RAG spend evidence in `rag.query_audit_events`.
 - Store functional audit in Postgres and technical logs as daily JSON files on mounted volumes.
@@ -82,7 +82,7 @@
 
 - `apps/manage-web/` - management frontend.
 - `apps/chat-web/` - chat frontend.
-- `apps/docs-web/` - instruction viewer frontend.
+- `apps/docs-web/` - document viewer frontend.
 - `services/dotnet-api/` - .NET API and `app` schema owner.
 - `services/rag-api/` - FastAPI service and `rag` schema owner.
 - `infra/compose/` - Docker Compose, Caddy, volumes, health checks, and secrets wiring.
@@ -102,11 +102,11 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | Migrations | EF Core Migrations | One DbContext owning `app` schema. |
 | Validation | `FluentValidation` + `FluentValidation.AspNetCore` | Returns shared error envelope, not raw `ValidationProblemDetails`. |
 | Logging | `Serilog` + `Serilog.Sinks.File` (JSON formatter) + `Serilog.AspNetCore` | Daily rolling JSON files mounted on volume. Use `Serilog.Enrichers.CorrelationId` for `X-Request-ID`. |
-| HTTP client | `HttpClient` via `IHttpClientFactory` + `Microsoft.Extensions.Http.Polly` | Retry with jitter and circuit breaker for `.NET → FastAPI` internal calls. |
+| HTTP client | `HttpClient` via `IHttpClientFactory` + `Microsoft.Extensions.Http.Polly` | Retry with jitter and circuit breaker for `.NET â†’ FastAPI` internal calls. |
 | OpenAI | Not used directly from .NET in the MVP | All AI provider calls live in FastAPI. |
 | PDF extraction | `PdfPig` `0.1.14` | Assisted import only. |
 | DOCX extraction | `DocumentFormat.OpenXml` `3.5.1` | Assisted import only. |
-| HTML sanitization | `Ganss.Xss` via `HtmlSanitizer` `9.0.892` | Sanitize stored normalized instruction HTML and any review comment input that may render HTML. |
+| HTML sanitization | `Ganss.Xss` via `HtmlSanitizer` `9.0.892` | Sanitize stored normalized document HTML and any review comment input that may render HTML. |
 | Authentication | Cookie authentication plus local users in `app.users`; hand-rolled PBKDF2-SHA256 password hashing using `Rfc2898DeriveBytes` | Decided during Task 7 implementation. Session cookies are host-only `__Host-advanced-rag-session` cookies. |
 | CSRF | Signed double-submit token using `__Host-CSRF` cookie plus `X-CSRF-Token` header | HMAC secret is shared with FastAPI through `csrf_signing_key`; see `architecture.md`. |
 | JWT signing/validation | `System.IdentityModel.Tokens.Jwt` `8.14.0` + `Microsoft.IdentityModel.Tokens` | RS256, `kid` header, two active keys for rotation. |
@@ -153,8 +153,8 @@ All three React frontends share the same stack. Each app has its own `package.js
 | Server state | `@tanstack/react-query` v5 | Caches, retries, suspense-ready. All API calls go through it. |
 | Client state | `zustand` | Use sparingly; prefer URL state and react-query cache. |
 | Forms | `react-hook-form` + `zod` + `@hookform/resolvers` | Schemas mirror backend DTOs; no duplicate validation logic. |
-| Rich text editor (management) | `@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/extension-link` + `@tiptap/extension-image` + `@tiptap/extension-underline` + TipTap table extensions | Output is sanitized HTML stored in `app.instruction_versions`. |
-| HTML sanitization | `dompurify` | Sanitize HTML before rendering instruction content in the viewer and before submitting from the editor. |
+| Rich text editor (management) | `@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/extension-link` + `@tiptap/extension-image` + `@tiptap/extension-underline` + TipTap table extensions | Output is sanitized HTML stored in `app.document_versions`. |
+| HTML sanitization | `dompurify` | Sanitize HTML before rendering document content in the viewer and before submitting from the editor. |
 | Routing | `react-router-dom` v6 | Server-side rendering is out of scope for the MVP. |
 | Testing (unit/component) | `vitest` + `@testing-library/react` + `@testing-library/user-event` + `msw` for API mocks | Mock at the network boundary, not at the hook level. |
 | Testing (E2E) | `playwright` | Runs against the full Docker Compose stack via Caddy. |
@@ -185,7 +185,7 @@ The product UI for end users (chat, viewer, management) is **Spanish (Argentine 
 | Error envelope `code` values | English UPPER_SNAKE_CASE | Stable, never localized; e.g. `AI_BUDGET_EXCEEDED`. |
 | Error envelope `message` field | English | Technical, safe-for-log; never shown raw to end users. |
 | Project documentation in `context/` and `docs/` | English | No exceptions. |
-| OpenAI system prompts and answer generation | Spanish | The model is instructed to respond in Spanish. The system prompt itself is written in English with an explicit instruction to answer in Spanish. |
+| OpenAI system prompts and answer generation | Spanish | The model is instructed to respond in Spanish. The system prompt itself is written in English with an explicit document to answer in Spanish. |
 
 ### i18n Approach
 

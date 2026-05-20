@@ -94,8 +94,8 @@ def test_valid_indexing_request_persists_job_chunks_and_embedding_dimensions() -
 
 def _indexing_payload() -> dict[str, str]:
     return {
-        "instructionId": str(uuid4()),
-        "instructionVersionId": str(uuid4()),
+        "documentId": str(uuid4()),
+        "documentVersionId": str(uuid4()),
         "contentHtml": "<h1>Safety</h1><p>Wear visible credentials.</p>",
         "corpusMode": "published",
     }
@@ -120,7 +120,7 @@ async def _read_indexing_state(dsn: str, job_id: UUID) -> dict[str, Any]:
     try:
         job = await connection.fetchrow(
             """
-            select status, instruction_version_id
+            select status, document_version_id
             from rag.indexing_jobs
             where id = $1
             """,
@@ -134,9 +134,9 @@ async def _read_indexing_state(dsn: str, job_id: UUID) -> dict[str, Any]:
             """
             select count(*)
             from rag.document_chunks
-            where instruction_version_id = $1 and is_active = true
+            where document_version_id = $1 and is_active = true
             """,
-            job["instruction_version_id"],
+            job["document_version_id"],
         )
         embedding_type = await connection.fetchval(
             """

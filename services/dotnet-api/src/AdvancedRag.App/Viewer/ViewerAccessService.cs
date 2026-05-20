@@ -30,9 +30,9 @@ public sealed class ViewerAccessService : IViewerAccessService
     public async Task<ViewerLinkResult> CreateLinkAsync(CreateViewerLinkCommand command, CancellationToken ct)
     {
         string purpose = NormalizePurpose(command.Purpose);
-        ViewerInstructionAccess instruction = await RequireInstructionAsync(command.InstructionId, ct);
+        ViewerDocumentAccess document = await RequireDocumentAsync(command.DocumentId, ct);
         IReadOnlyList<string> allowedStatuses = AllowedStatusesFor(purpose, command.Roles);
-        RequireInstructionAllowed(instruction, allowedStatuses);
+        RequireDocumentAllowed(document, allowedStatuses);
 
         string code = CreateCode();
         DateTimeOffset now = _timeProvider.GetUtcNow();
@@ -41,7 +41,7 @@ public sealed class ViewerAccessService : IViewerAccessService
             new ViewerExchangeCodeRecord(
                 Guid.NewGuid(),
                 HashCode(code),
-                command.InstructionId,
+                command.DocumentId,
                 command.UserId,
                 purpose,
                 string.Join(',', allowedStatuses),
@@ -73,14 +73,14 @@ public sealed class ViewerAccessService : IViewerAccessService
             throw new ViewerAccessException("VIEWER_CODE_EXPIRED", 410, "Viewer exchange code has expired.");
         }
 
-        ViewerInstructionAccess instruction = await RequireInstructionAsync(code.InstructionId, ct);
+        ViewerDocumentAccess document = await RequireDocumentAsync(code.DocumentId, ct);
         IReadOnlyList<string> allowedStatuses = ParseAllowedStatuses(code.AllowedStatuses);
-        RequireInstructionAllowed(instruction, allowedStatuses);
+        RequireDocumentAllowed(document, allowedStatuses);
 
         await _repository.MarkExchangeCodeConsumedAsync(code.Id, now, ct);
         IssuedViewerToken issued = _tokenService.Issue(
             new ViewerTokenIssueRequest(
-                code.InstructionId,
+                code.DocumentId,
                 code.UserId,
                 code.Purpose,
                 allowedStatuses,
@@ -89,7 +89,7 @@ public sealed class ViewerAccessService : IViewerAccessService
             new ViewerTokenAuditRecord(
                 Guid.NewGuid(),
                 issued.ViewerTokenId,
-                issued.InstructionId,
+                issued.DocumentId,
                 issued.UserId,
                 issued.Purpose,
                 now,
@@ -99,7 +99,7 @@ public sealed class ViewerAccessService : IViewerAccessService
         return new ViewerExchangeResult(
             issued.Token,
             issued.ViewerTokenId,
-            issued.InstructionId,
+            issued.DocumentId,
             issued.UserId,
             issued.Purpose,
             issued.ExpiresAt);
@@ -108,25 +108,25 @@ public sealed class ViewerAccessService : IViewerAccessService
     public async Task<ViewerDocumentResult> GetDocumentAsync(GetViewerDocumentCommand command, CancellationToken ct)
     {
         ViewerTokenClaims claims = _tokenService.Validate(command.Token);
-        ViewerInstructionAccess instruction = await RequireInstructionAsync(claims.InstructionId, ct);
-        RequireInstructionAllowed(instruction, claims.AllowedStatuses);
-        ViewerInstructionVersion version = SelectVersion(instruction, claims.AllowedStatuses);
+        ViewerDocumentAccess document = await RequireDocumentAsync(claims.DocumentId, ct);
+        RequireDocumentAllowed(document, claims.AllowedStatuses);
+        ViewerDocumentVersion version = SelectVersion(document, claims.AllowedStatuses);
 
         return new ViewerDocumentResult(
-            instruction.InstructionId,
+            document.DocumentId,
             version.Id,
             version.Title,
-            instruction.State,
-            version.InstructionType,
+            document.State,
+            version.DocumentType,
             version.Audience,
             version.ContentHtml,
             claims.ExpiresAt);
     }
 
-    private async Task<ViewerInstructionAccess> RequireInstructionAsync(Guid instructionId, CancellationToken ct)
+    private async Task<ViewerDocumentAccess> RequireDocumentAsync(Guid documentId, CancellationToken ct)
     {
-        return await _repository.FindInstructionAsync(instructionId, ct)
-            ?? throw new ViewerAccessException("NOT_FOUND", 404, "Instruction not found.");
+        return await _repository.FindDocumentAsync(documentId, ct)
+            ?? throw new ViewerAccessException("NOT_FOUND", 404, "Document not found.");
     }
 
     private static string NormalizePurpose(string purpose)
@@ -160,37 +160,37 @@ public sealed class ViewerAccessService : IViewerAccessService
         throw new ViewerAccessException("AUTH_FORBIDDEN", 403, "Viewer link is not allowed.");
     }
 
-    private static void RequireInstructionAllowed(
-        ViewerInstructionAccess instruction,
+    private static void RequireDocumentAllowed(
+        ViewerDocumentAccess document,
         IReadOnlyList<string> allowedStatuses)
     {
-        if (!allowedStatuses.Contains(instruction.State, StringComparer.Ordinal))
+        if (!allowedStatuses.Contains(document.State, StringComparer.Ordinal))
         {
             throw new ViewerAccessException("AUTH_FORBIDDEN", 403, "Viewer access is not allowed.");
         }
 
-        _ = SelectVersion(instruction, allowedStatuses);
+        _ = SelectVersion(document, allowedStatuses);
     }
 
-    private static ViewerInstructionVersion SelectVersion(
-        ViewerInstructionAccess instruction,
+    private static ViewerDocumentVersion SelectVersion(
+        ViewerDocumentAccess document,
         IReadOnlyList<string> allowedStatuses)
     {
-        if (instruction.State == "Published"
+        if (document.State == "Published"
             && allowedStatuses.Contains("Published", StringComparer.Ordinal)
-            && instruction.PublishedVersion is not null)
+            && document.PublishedVersion is not null)
         {
-            return instruction.PublishedVersion;
+            return document.PublishedVersion;
         }
 
-        if ((instruction.State == "Draft" || instruction.State == "In Review")
-            && allowedStatuses.Contains(instruction.State, StringComparer.Ordinal)
-            && instruction.DraftVersion is not null)
+        if ((document.State == "Draft" || document.State == "In Review")
+            && allowedStatuses.Contains(document.State, StringComparer.Ordinal)
+            && document.DraftVersion is not null)
         {
-            return instruction.DraftVersion;
+            return document.DraftVersion;
         }
 
-        throw new ViewerAccessException("NOT_FOUND", 404, "Instruction version not found.");
+        throw new ViewerAccessException("NOT_FOUND", 404, "Document version not found.");
     }
 
     private static IReadOnlyList<string> ParseAllowedStatuses(string value)

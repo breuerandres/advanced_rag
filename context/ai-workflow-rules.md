@@ -61,7 +61,7 @@ If a change cannot be verified end to end quickly, the scope is too broad and mu
 
 ## Protected Files
 
-Do not modify these without explicit instruction:
+Do not modify these without explicit document:
 
 - Third-party library internals.
 - Generated dependency lockfiles except through the relevant package manager.

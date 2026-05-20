@@ -10,20 +10,20 @@ public sealed record ViewerLinkResponse(string Url, DateTimeOffset ExpiresAt)
     }
 }
 
-public sealed record ViewerExchangeResponse(Guid InstructionId, DateTimeOffset ExpiresAt)
+public sealed record ViewerExchangeResponse(Guid DocumentId, DateTimeOffset ExpiresAt)
 {
     public static ViewerExchangeResponse FromResult(ViewerExchangeResult result)
     {
-        return new ViewerExchangeResponse(result.InstructionId, result.ExpiresAt);
+        return new ViewerExchangeResponse(result.DocumentId, result.ExpiresAt);
     }
 }
 
 public sealed record ViewerDocumentResponse(
-    Guid InstructionId,
-    Guid InstructionVersionId,
+    Guid DocumentId,
+    Guid DocumentVersionId,
     string Title,
     string State,
-    string InstructionType,
+    string DocumentType,
     string Audience,
     string ContentHtml,
     DateTimeOffset TokenExpiresAt)
@@ -31,11 +31,11 @@ public sealed record ViewerDocumentResponse(
     public static ViewerDocumentResponse FromResult(ViewerDocumentResult result)
     {
         return new ViewerDocumentResponse(
-            result.InstructionId,
-            result.InstructionVersionId,
+            result.DocumentId,
+            result.DocumentVersionId,
             result.Title,
             result.State,
-            result.InstructionType,
+            result.DocumentType,
             result.Audience,
             result.ContentHtml,
             result.TokenExpiresAt);

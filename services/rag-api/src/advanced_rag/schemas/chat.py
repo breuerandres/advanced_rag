@@ -11,15 +11,15 @@ class CitationSchema(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     chunk_id: str = Field(alias="chunkId")
-    instruction_id: str = Field(alias="instructionId")
-    instruction_version_id: str = Field(alias="instructionVersionId")
+    document_id: str = Field(alias="documentId")
+    document_version_id: str = Field(alias="documentVersionId")
     heading_path: list[str] = Field(alias="headingPath")
 
 
 class CacheInvalidationRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    instruction_ids: list[str] = Field(alias="instructionIds")
+    document_ids: list[str] = Field(alias="documentIds")
 
 
 class CacheInvalidationResponse(BaseModel):

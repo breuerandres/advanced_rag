@@ -8,13 +8,13 @@ Approved for written-spec review. No implementation plan has been created yet, a
 
 ## Purpose
 
-Advanced RAG Instruction Platform is a sellable single-tenant corporate instruction management and RAG product. It centralizes internal instructions, controls their lifecycle, and lets authorized viewers ask questions through a secure RAG chat experience that only retrieves content allowed by their effective access scope.
+Advanced RAG Document Platform is a sellable single-tenant corporate document management and RAG product. It centralizes internal documents, controls their lifecycle, and lets authorized viewers ask questions through a secure RAG chat experience that only retrieves content allowed by their effective access scope.
 
 The first implementation unit is the complete base architecture. This spec defines the MVP system boundaries, security model, data ownership, API contract groups, lifecycle behavior, RAG behavior, audit, operations, and UI foundation.
 
 ## Goals
 
-1. Provide a secure instruction lifecycle from draft to published content with explicit roles, audit, and publication control.
+1. Provide a secure document lifecycle from draft to published content with explicit roles, audit, and publication control.
 2. Serve end users with a RAG chat experience that retrieves only published content matching their effective access scope.
 3. Keep deployment sellable as a per-customer Docker Compose product with isolated data, secrets, logs, and configuration.
 4. Capture operational and quality signals, including query audit, token/cost metadata, cache behavior, citations, feedback, and latency.
@@ -40,7 +40,7 @@ The product uses a monorepo with clear service and frontend boundaries.
 | --- | --- |
 | `apps/manage-web` | Management frontend |
 | `apps/chat-web` | Chat frontend |
-| `apps/docs-web` | Instruction viewer frontend |
+| `apps/docs-web` | Document viewer frontend |
 | `services/dotnet-api` | .NET API and `app` schema owner |
 | `services/rag-api` | FastAPI service and `rag` schema owner |
 | `infra/compose` | Docker Compose, Caddy, volumes, health checks, secrets wiring |
@@ -56,7 +56,7 @@ The MVP deployment is single-tenant per customer using Docker Compose. Each cust
 | Reverse proxy | Caddy | TLS termination, routing, same-origin API gateway, request IDs, access logs |
 | Management frontend | React TypeScript | Document management, users/groups, audit, feedback review, AI budgets, configuration |
 | Chat frontend | React TypeScript | End-user RAG chat, citations, feedback, budget-limited chat states |
-| Docs frontend | React TypeScript | Token-gated instruction viewer |
+| Docs frontend | React TypeScript | Token-gated document viewer |
 | Management/API backend | .NET 8 | Identity, users, roles, groups, document lifecycle, imports, viewer links/tokens, AI budget config, management audit |
 | RAG backend | FastAPI | Chat, retrieval, embeddings, semantic cache, RAG audit, feedback submission, indexing jobs |
 | Database | PostgreSQL with pgvector | Relational data, vectors, audit, cache, jobs, pricing |
@@ -68,7 +68,7 @@ The MVP deployment is single-tenant per customer using Docker Compose. Each cust
 | --- | --- |
 | `manage.client.com` | Management frontend |
 | `chat.client.com` | Chat frontend |
-| `docs.client.com` | Instruction viewer frontend |
+| `docs.client.com` | Document viewer frontend |
 | `api.client.com` | Optional controlled direct .NET API surface |
 | `rag.client.com` | Optional controlled direct FastAPI API surface |
 
@@ -122,7 +122,7 @@ Chat token behavior:
 | Role | Permissions |
 | --- | --- |
 | `Admin` | Full access, including publishing, user/group management, audit, configuration, and AI budget management |
-| `DocumentManager` | Can create, edit, import, manage metadata, send to review, return/reject review with comment, archive eligible unpublished instructions, restore archived instructions to draft, and review feedback |
+| `DocumentManager` | Can create, edit, import, manage metadata, send to review, return/reject review with comment, archive eligible unpublished documents, restore archived documents to draft, and review feedback |
 | `Viewer` | Cannot access management. Can use chat and open allowed published documents |
 
 Document access is based on groups/departments plus document attributes. Per-user document ACL exceptions are out of scope for the MVP. Exceptional access should be modeled by creating a dedicated group and assigning the user to that group.
@@ -146,7 +146,7 @@ Invalid, expired, already-used, or unauthorized exchange codes must not expose d
 
 ## Document Lifecycle
 
-Instruction states:
+Document states:
 
 - `Draft`
 - `In Review`
@@ -157,10 +157,10 @@ Rules:
 
 - Each successful publication creates an immutable version such as `v1`, `v2`, and so on.
 - Viewer and public RAG use the latest successfully published version.
-- Editing a published instruction creates a new draft version while the latest published version remains active.
+- Editing a published document creates a new draft version while the latest published version remains active.
 - `Admin` publishes directly from `In Review` to `Published`.
 - `DocumentManager` cannot publish.
-- Moving a draft to `In Review` requires title, instruction type, allowed groups/departments, audience/user type, non-empty sanitized HTML, and valid sanitized content. Tags are optional.
+- Moving a draft to `In Review` requires title, document type, allowed groups/departments, audience/user type, non-empty sanitized HTML, and valid sanitized content. Tags are optional.
 - Sending to review may include an optional internal comment.
 - Returning/rejecting from `In Review` back to `Draft` requires an internal comment.
 - `Admin` and `DocumentManager` can return/reject from review with the required comment.
@@ -168,7 +168,7 @@ Rules:
 
 Publishing starts pre-publication indexing through FastAPI. The document remains `In Review` while indexing is pending or running. It transitions to `Published` only after indexing succeeds. If indexing fails, the document remains unavailable to public chat and normal viewer access. Management UI must show a safe error summary and a manual retry action.
 
-Archiving applies to the entire instruction. `Admin` can archive any instruction. `DocumentManager` can archive only instructions in `Draft` or `In Review` that do not have an active published version. Restore moves an archived instruction to `Draft` and does not reactivate previous public access or RAG entries.
+Archiving applies to the entire document. `Admin` can archive any document. `DocumentManager` can archive only documents in `Draft` or `In Review` that do not have an active published version. Restore moves an archived document to `Draft` and does not reactivate previous public access or RAG entries.
 
 ## Assisted Imports
 
@@ -181,7 +181,7 @@ Rules:
 - Import size limit is 10 MB per file.
 - Originals are not retained.
 - Extracted text is inserted into the editor for user correction.
-- The user remains responsible for final formatting, title, instruction type, access attributes, and review readiness.
+- The user remains responsible for final formatting, title, document type, access attributes, and review readiness.
 - If the user abandons the import without saving, extracted text and import metadata are not persisted as business data.
 - Scanned PDFs or files with no extractable text are rejected with stable code `IMPORT_TEXT_NOT_EXTRACTABLE`.
 
@@ -237,10 +237,10 @@ One PostgreSQL database is used per customer deployment.
 - `user_roles`
 - `groups`
 - `user_groups`
-- `instructions`
-- `instruction_versions`
-- `instruction_permissions`
-- `instruction_tags`
+- `documents`
+- `document_versions`
+- `document_permissions`
+- `document_tags`
 - `review_comments`
 - `import_metadata`
 - `viewer_exchange_codes`
@@ -248,7 +248,7 @@ One PostgreSQL database is used per customer deployment.
 - `user_ai_budget_limits`
 - `audit_events`
 
-`instruction_permissions` stores group/department and attribute access rules, not per-user ACL rows.
+`document_permissions` stores group/department and attribute access rules, not per-user ACL rows.
 
 ### `rag` Schema, Owned By FastAPI
 
@@ -379,7 +379,7 @@ Management UI includes documents, users/groups, audit, feedback review, AI budge
 
 Chat UI prioritizes fast question entry, citations, answer feedback, expired/budget-limited states, and safe links to `docs.client.com`.
 
-Docs UI prioritizes readable instruction content, token exchange/loading states, expired-code handling, unauthorized states, token-expired states, and successful document rendering.
+Docs UI prioritizes readable document content, token exchange/loading states, expired-code handling, unauthorized states, token-expired states, and successful document rendering.
 
 ## Invariants
 

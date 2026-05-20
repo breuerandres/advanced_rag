@@ -12,10 +12,10 @@ public sealed class AppDbContextMigrationTests
         "audit_events",
         "groups",
         "import_metadata",
-        "instruction_permissions",
-        "instruction_tags",
-        "instruction_versions",
-        "instructions",
+        "document_permissions",
+        "document_tags",
+        "document_versions",
+        "documents",
         "review_comments",
         "roles",
         "user_ai_budget_limits",
@@ -66,19 +66,19 @@ public sealed class AppDbContextMigrationTests
                 order by table_name
                 """)
             .ToListAsync();
-        var instructionVersionColumns = await db.Database
+        var documentVersionColumns = await db.Database
             .SqlQueryRaw<string>(
                 """
                 select column_name::text as "Value"
                 from information_schema.columns
                 where table_schema = 'app'
-                  and table_name = 'instruction_versions'
+                  and table_name = 'document_versions'
                 order by column_name
                 """)
             .ToListAsync();
 
         schemas.Should().BeEquivalentTo(["app"]);
         appTables.Should().BeEquivalentTo(ExpectedAppTables);
-        instructionVersionColumns.Should().Contain("indexing_status");
+        documentVersionColumns.Should().Contain("indexing_status");
     }
 }

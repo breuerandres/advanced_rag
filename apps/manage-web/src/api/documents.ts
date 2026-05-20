@@ -4,7 +4,7 @@ export interface DocumentSummary {
   id: string
   title: string
   state: string
-  instructionType: string
+  documentType: string
   audience: string
   allowedGroupIds: string[]
   draftVersionNumber: number | null
@@ -18,7 +18,7 @@ export interface DocumentVersion {
   versionNumber: number
   state: string
   title: string
-  instructionType: string
+  documentType: string
   audience: string
   contentHtml: string
   indexingStatus: string
@@ -36,7 +36,7 @@ export interface DocumentDetail {
 
 export interface SaveDocumentDraftRequest {
   title: string
-  instructionType: string
+  documentType: string
   audience: string
   contentHtml: string
   allowedGroupIds: string[]
@@ -124,7 +124,7 @@ export async function createManagementViewerLink(id: string): Promise<ViewerLink
   await ensureCsrfToken()
   return requestJson<ViewerLinkResult>(
     '/api/viewer/links',
-    jsonInit('POST', { instructionId: id, purpose: 'management' }),
+    jsonInit('POST', { documentId: id, purpose: 'management' }),
   )
 }
 

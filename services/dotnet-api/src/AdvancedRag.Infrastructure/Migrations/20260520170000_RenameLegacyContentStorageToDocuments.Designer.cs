@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace AdvancedRag.Infrastructure.Migrations;
 
 [DbContext(typeof(AppDbContext))]
-[Migration("20260517090000_AddInstructionVersionIndexingStatus")]
-partial class AddInstructionVersionIndexingStatus
+[Migration("20260520170000_RenameLegacyContentStorageToDocuments")]
+partial class RenameLegacyContentStorageToDocuments
 {
 }

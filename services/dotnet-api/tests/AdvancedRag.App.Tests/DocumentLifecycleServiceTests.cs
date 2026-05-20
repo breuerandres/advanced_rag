@@ -45,12 +45,12 @@ public sealed class DocumentLifecycleServiceTests
             new SendToReviewCommand(DocumentId, "Ready for review", ActorId, "request-2"),
             CancellationToken.None);
 
-        document.State.Should().Be(InstructionState.InReview);
-        document.CurrentDraftVersion!.State.Should().Be(InstructionVersionState.InReview);
+        document.State.Should().Be(DocumentState.InReview);
+        document.CurrentDraftVersion!.State.Should().Be(DocumentVersionState.InReview);
         repository.ReviewComments.Should().ContainSingle(comment =>
-            comment.InstructionVersionId == VersionId && comment.Comment == "Ready for review");
+            comment.DocumentVersionId == VersionId && comment.Comment == "Ready for review");
         repository.AuditEvents.Should().ContainSingle(audit =>
-            audit.EventType == "instruction.send_to_review" && audit.RequestId == "request-2");
+            audit.EventType == "document.send_to_review" && audit.RequestId == "request-2");
     }
 
     [Fact]
@@ -81,19 +81,19 @@ public sealed class DocumentLifecycleServiceTests
             new RequestPublishCommand(DocumentId, ActorId, ["Admin"], "request-4"),
             CancellationToken.None);
 
-        document.State.Should().Be(InstructionState.Published);
+        document.State.Should().Be(DocumentState.Published);
         document.CurrentDraftVersion.Should().BeNull();
         document.CurrentPublishedVersion!.IndexingStatus.Should().Be(IndexingStatus.Succeeded);
         document.CurrentPublishedVersion.IndexingJobId.Should().Be(indexing.JobId);
         indexing.Requests.Should().ContainSingle(request =>
-            request.InstructionId == DocumentId
-            && request.InstructionVersionId == VersionId
+            request.DocumentId == DocumentId
+            && request.DocumentVersionId == VersionId
             && request.CorpusMode == "published"
             && request.ContentHtml == "<p>Wear protective equipment.</p>");
         repository.AuditEvents.Should().ContainSingle(audit =>
-            audit.EventType == "instruction.publish_requested");
+            audit.EventType == "document.publish_requested");
         repository.AuditEvents.Should().ContainSingle(audit =>
-            audit.EventType == "instruction.published");
+            audit.EventType == "document.published");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class DocumentLifecycleServiceTests
         await act.Should()
             .ThrowAsync<DocumentLifecycleException>()
             .Where(error => error.Code == "INDEXING_FAILED");
-        repository.Documents[DocumentId].State.Should().Be(InstructionState.InReview);
+        repository.Documents[DocumentId].State.Should().Be(DocumentState.InReview);
         repository.Documents[DocumentId].CurrentDraftVersion!.IndexingStatus.Should().Be(IndexingStatus.Failed);
     }
 
@@ -151,7 +151,7 @@ public sealed class DocumentLifecycleServiceTests
                 "request-6"),
             CancellationToken.None);
 
-        document.State.Should().Be(InstructionState.Draft);
+        document.State.Should().Be(DocumentState.Draft);
         document.CurrentPublishedVersion.Should().NotBeNull();
         document.CurrentDraftVersion.Should().NotBeNull();
         document.CurrentDraftVersion!.VersionNumber.Should().Be(2);
@@ -181,14 +181,14 @@ public sealed class DocumentLifecycleServiceTests
     }
 
     [Fact]
-    public async Task ArchiveAsync_DocumentManagerCannotArchiveActivePublishedInstruction()
+    public async Task ArchiveAsync_DocumentManagerCannotArchiveActivePublishedDocument()
     {
         var repository = new InMemoryDocumentRepository();
         repository.Documents[DocumentId] = PublishedDocument();
         var service = new DocumentLifecycleService(repository);
 
         var act = () => service.ArchiveAsync(
-            new ArchiveInstructionCommand(DocumentId, ActorId, ["DocumentManager"], "request-7"),
+            new ArchiveDocumentCommand(DocumentId, ActorId, ["DocumentManager"], "request-7"),
             CancellationToken.None);
 
         await act.Should()
@@ -197,18 +197,18 @@ public sealed class DocumentLifecycleServiceTests
     }
 
     [Fact]
-    public async Task RestoreAsync_ArchivedInstructionReturnsToDraftWithoutReactivatingPublishedVersion()
+    public async Task RestoreAsync_ArchivedDocumentReturnsToDraftWithoutReactivatingPublishedVersion()
     {
         var repository = new InMemoryDocumentRepository();
-        var archived = PublishedDocument() with { State = InstructionState.Archived };
+        var archived = PublishedDocument() with { State = DocumentState.Archived };
         repository.Documents[DocumentId] = archived;
         var service = new DocumentLifecycleService(repository);
 
         var document = await service.RestoreAsync(
-            new RestoreInstructionCommand(DocumentId, ActorId, "request-8"),
+            new RestoreDocumentCommand(DocumentId, ActorId, "request-8"),
             CancellationToken.None);
 
-        document.State.Should().Be(InstructionState.Draft);
+        document.State.Should().Be(DocumentState.Draft);
         document.CurrentPublishedVersion.Should().BeNull();
         document.CurrentDraftVersion.Should().NotBeNull();
         document.CurrentDraftVersion!.VersionNumber.Should().Be(2);
@@ -232,10 +232,10 @@ public sealed class DocumentLifecycleServiceTests
         var draft = ValidDraft();
         return draft with
         {
-            State = InstructionState.InReview,
+            State = DocumentState.InReview,
             CurrentDraftVersion = draft.CurrentDraftVersion! with
             {
-                State = InstructionVersionState.InReview,
+                State = DocumentVersionState.InReview,
                 SubmittedForReviewAt = DateTimeOffset.UtcNow,
                 SubmittedForReviewByUserId = ActorId,
             },
@@ -248,7 +248,7 @@ public sealed class DocumentLifecycleServiceTests
             VersionId,
             DocumentId,
             1,
-            InstructionVersionState.Published,
+            DocumentVersionState.Published,
             "Safety policy",
             "Policy",
             "All staff",
@@ -264,7 +264,7 @@ public sealed class DocumentLifecycleServiceTests
         return new DocumentAggregate(
             DocumentId,
             "Safety policy",
-            InstructionState.Published,
+            DocumentState.Published,
             null,
             publishedVersion,
             [OperationsGroupId],
@@ -286,10 +286,10 @@ public sealed class DocumentLifecycleServiceTests
                 Documents.Values.Select(DocumentSummary.FromAggregate).ToArray());
         }
 
-        public Task<DocumentAggregate?> FindAsync(Guid instructionId, CancellationToken ct)
+        public Task<DocumentAggregate?> FindAsync(Guid documentId, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            return Task.FromResult(Documents.GetValueOrDefault(instructionId));
+            return Task.FromResult(Documents.GetValueOrDefault(documentId));
         }
 
         public Task SaveAsync(
@@ -306,7 +306,7 @@ public sealed class DocumentLifecycleServiceTests
         }
     }
 
-    private sealed class StubHtmlSanitizer : IInstructionHtmlSanitizer
+    private sealed class StubHtmlSanitizer : IDocumentHtmlSanitizer
     {
         public string Sanitize(string html)
         {

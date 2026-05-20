@@ -146,11 +146,11 @@
 - User verified the local Compose/Postgres auth and user administration path manually: `GET /api/csrf`, `POST /api/auth/login`, `POST /api/users`, and `GET /api/users`.
 - Added .NET startup migration execution behind `Database__RunMigrationsOnStartup=true` in Compose so the `dotnet-api` container applies EF Core `app` schema migrations before serving requests.
 - Added Task 9 document lifecycle application tests for review readiness validation, send-to-review, publish request authorization, return-to-draft comments, edit-after-publish draft creation, archive rules, restore behavior, and server-side HTML sanitization.
-- Implemented Task 9 `.NET` document lifecycle use cases, EF repository, MVC documents controller, API DTOs, and `app.instruction_versions.indexing_status` migration column. Publish requests now mark the draft version as indexing `Pending`; the actual FastAPI indexing pipeline remains Task 10 scope.
-- Added Task 9 assisted import extraction tests and adapters using `DocumentFormat.OpenXml` `3.5.1` for DOCX, `PdfPig` `0.1.14` for PDF, and `HtmlSanitizer` `9.0.892` for stored instruction HTML sanitization.
+- Implemented Task 9 `.NET` document lifecycle use cases, EF repository, MVC documents controller, API DTOs, and `app.document_versions.indexing_status` migration column. Publish requests now mark the draft version as indexing `Pending`; the actual FastAPI indexing pipeline remains Task 10 scope.
+- Added Task 9 assisted import extraction tests and adapters using `DocumentFormat.OpenXml` `3.5.1` for DOCX, `PdfPig` `0.1.14` for PDF, and `HtmlSanitizer` `9.0.892` for stored document HTML sanitization.
 - Added the management document UI with document list filters, indexing status display, draft editor dirty state, import loading/success/error behavior, review validation, and archive/restore actions.
 - Verified Task 9 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Document|Import|Lifecycle"`, `pnpm.cmd --dir apps\manage-web test -- --run`, `dotnet test services\dotnet-api\AdvancedRag.sln`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. Verification passed; .NET commands emitted NU1900 warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`.
-- Fixed a Task 9 EF migration discovery bug: `20260517090000_AddInstructionVersionIndexingStatus` was missing the EF migration metadata designer partial, so startup migrations did not add `app.instruction_versions.indexing_status` in local Compose. Added a migration test assertion for the column and verified it with `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter EfMigration_CreatesOnlyAppSchemaTables`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Migration|Document|Import|Lifecycle"`, and `dotnet build services\dotnet-api\AdvancedRag.sln`.
+- Fixed a Task 9 EF migration discovery bug: `20260517090000_AddDocumentVersionIndexingStatus` was missing the EF migration metadata designer partial, so startup migrations did not add `app.document_versions.indexing_status` in local Compose. Added a migration test assertion for the column and verified it with `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter EfMigration_CreatesOnlyAppSchemaTables`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Migration|Document|Import|Lifecycle"`, and `dotnet build services\dotnet-api\AdvancedRag.sln`.
 - Fixed a Task 9 EF query translation bug in `EfDocumentRepository.BuildAggregateAsync`: Npgsql could not translate ordering after projecting nullable `GroupId.Value`. Added a Postgres-backed repository regression test and changed the query to order by `GroupId` before projecting. Verified with `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter FindAsync_LoadsAllowedGroupIdsFromPostgres`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Document|Import|Lifecycle|Repository"`, and `dotnet build services\dotnet-api\AdvancedRag.sln`.
 - Implemented Task 10 internal indexing pipeline:
   - Added `.NET` publish/index integration through `IInternalIndexingClient` and `FastApiInternalIndexingClient`.
@@ -166,7 +166,7 @@
 - Added a regression test that runs Alembic as a runtime `rag_owner` role without database create privilege after bootstrapping the schema like `postgres-init`. Verified with `uv run pytest tests/test_migrations.py -q`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, `docker build -f services/rag-api/Dockerfile services/rag-api`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config --no-path-resolution --no-consistency -q`.
 - Implemented Task 11 FastAPI public chat/RAG core:
   - Added `/api/chat` SSE response flow with signed chat-token claims, published-corpus enforcement for viewers, retrieval, citations, usage events, and shared error behavior.
-  - Added SQL-level retrieval filtering against `.NET`-owned `app.instruction_permissions` using signed group claims; `access_scope_hash` is used for cache partitioning and audit, not authorization.
+  - Added SQL-level retrieval filtering against `.NET`-owned `app.document_permissions` using signed group claims; `access_scope_hash` is used for cache partitioning and audit, not authorization.
   - Added query audit writes to `rag.query_audit_events` and `rag.query_audit_citations`, including model IDs, embedding dimensions, token counts, pricing snapshot, estimated cost, latency, request ID, corpus, prompt version, and chunker version.
   - Added semantic cache lookup/write keyed by `(corpus, access_scope_hash)` plus question embedding similarity, source tracking in `rag.semantic_cache_sources`, and internal cache invalidation at `/internal/cache-invalidations`.
   - Added AI budget enforcement before paid embedding/chat provider calls by reading `app.user_ai_budget_limits` and current-period spend from `rag.query_audit_events`.
@@ -181,7 +181,7 @@
 - Diagnosed local Postman `/api/chat` failure after successful chat-token issuance: FastAPI returned `AUTH_TOKEN_INVALID_KEY` because the RAG service accepted `DOTNET_JWKS_URL` in Compose but did not use it to load `.NET` public signing keys.
 - Implemented FastAPI JWKS-backed chat token validation using PyJWT's `PyJWKClient` when `DOTNET_JWKS_URL` is configured, while preserving the static public-key validator for tests and non-Compose configuration.
 - Verified the JWKS fix with `uv run pytest tests/test_auth_tokens.py -q` (`8 passed`), `uv run pytest tests/test_chat_rag.py tests/test_auth_tokens.py -q` (`11 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`23 passed`).
-- Diagnosed local Postman `/api/chat` failure after JWKS fix: FastAPI connected as `rag_owner` and received `permission denied for schema app` when reading `.NET`-owned permission/budget tables. Added `postgres-init` grants for `rag_owner` to use schema `app` and select only `app.instruction_permissions` and `app.user_ai_budget_limits`.
+- Diagnosed local Postman `/api/chat` failure after JWKS fix: FastAPI connected as `rag_owner` and received `permission denied for schema app` when reading `.NET`-owned permission/budget tables. Added `postgres-init` grants for `rag_owner` to use schema `app` and select only `app.document_permissions` and `app.user_ai_budget_limits`.
 - Verified the RAG read-grant fix with `uv run pytest tests/test_migrations.py -q` (`3 passed`), `uv run pytest tests/test_chat_rag.py tests/test_migrations.py -q` (`6 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and `uv run pytest -q` (`24 passed`).
 - Diagnosed local document publication failure during pre-publication indexing: `.NET` received `401` from FastAPI's internal indexing endpoint because Windows PowerShell 5 wrote `internal_service_token.txt` with a UTF-8 BOM. .NET consumed the BOM while FastAPI preserved it, so the logical token values differed. Updated FastAPI secret reading to ignore a leading UTF-8 BOM and updated `New-LocalDevSecrets.ps1` to write future generated secret files as UTF-8 without BOM.
 - Verified the internal service token BOM fix with `uv run pytest tests/test_config.py -q` (`2 passed`), `uv run pytest -q` (`25 passed`), `uv run ruff check .` (`All checks passed!`), `uv run mypy src tests` (`Success: no issues found in 28 source files`), and PowerShell parser validation for `infra/compose/New-LocalDevSecrets.ps1`.
@@ -256,7 +256,7 @@
 - Created Stitch design reference for Task 17.5:
   - Project: `projects/544909270556047969`.
   - Design system: `assets/df5cbb6e08e34c07abdf928b24898e57`.
-  - Generated screens cover login/first-run bootstrap, management console, chat app, and instruction viewer states.
+  - Generated screens cover login/first-run bootstrap, management console, chat app, and document viewer states.
 - Inserted Task 17.5 into `docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md` and user approved implementing it before Task 18 when token budget is available.
 - Created local Codex skill `advanced-rag-product-ui-polish` to adapt Cult UI `components-build` and `fixing-motion-performance` guidance into a Task 17.5 UI quality gate.
 - Updated `context/ui-context.md` and `context/design-decisions.md` so the effective Task 17.5 UI polish rules are project memory, not only local skill state.
@@ -268,7 +268,7 @@
   - Added `manage-web` first-run setup, login/session handling, logout, and authenticated shell tests before implementation.
   - Added management UI creation flows for groups and users with CSRF-backed API calls, compact dialogs, local validation, and Spanish user-facing messages.
   - Verified the management UI checkpoint with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`23 passed`) and `pnpm.cmd --dir apps\manage-web typecheck`.
-  - Added `infra/compose/Seed-LocalDemoData.ps1` for local demo seeding with deterministic demo users, group, model pricing, budgets, and optional sample instruction data. The script prints demo credentials only at runtime and does not create or commit secrets.
+  - Added `infra/compose/Seed-LocalDemoData.ps1` for local demo seeding with deterministic demo users, group, model pricing, budgets, and optional sample document data. The script prints demo credentials only at runtime and does not create or commit secrets.
   - Added `tests/e2e/specs/first-run-product-flow.spec.ts` to reset the local E2E data state, complete first-run admin setup through the browser, create a group and viewer from management UI, publish a document through product APIs, and verify chat/viewer authenticated and no-session states.
   - Polished `chat-web` and `docs-web` to align with the Stitch direction: warm operational background, teal action/status accents, compact state strips, chat character count and usage/cost display, and viewer token-expiry context in a metadata side rail.
   - Verified local non-Compose checks: `pnpm.cmd -r test -- --run` (`42 frontend tests passed; E2E package skipped recursive unit run by design`), `pnpm.cmd -r typecheck`, `pnpm.cmd -r build`, `dotnet test services\dotnet-api\AdvancedRag.sln` (`68 passed`; NU1900 warnings because NuGet vulnerability metadata could not be fetched), `Set-Location services\rag-api; uv run pytest -q; Set-Location ..\..` (`32 passed`), `pnpm.cmd --dir tests\e2e typecheck`, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`, and `git diff --check` (only LF/CRLF warnings, no whitespace errors).
@@ -277,8 +277,8 @@
   - Removed duplicate `Feedback` and `Presupuestos IA` management navigation entries.
   - Kept AI budget controls in `Usuarios y grupos` and embedded feedback review inside `Auditoria`.
   - Added document creation from the management document list.
-  - Expanded the document list and `.NET` document summary contract with instruction type, audience, and allowed group ids for list-level filtering.
-  - Added document filters for search text, lifecycle state, indexing state, instruction type, audience, and access-group coverage.
+  - Expanded the document list and `.NET` document summary contract with document type, audience, and allowed group ids for list-level filtering.
+  - Added document filters for search text, lifecycle state, indexing state, document type, audience, and access-group coverage.
   - Replaced the plain textarea with a local dependency-free HTML editor toolbar as an interim Task 17.5 implementation until the approved TipTap dependencies are installed.
   - Verified the checkpoint with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`24 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, `dotnet build services\dotnet-api\AdvancedRag.sln`, and `dotnet test services\dotnet-api\AdvancedRag.sln --filter Document` (`22 passed`). `.NET` commands emitted the existing NU1900 warnings because NuGet vulnerability metadata could not be fetched; build and tests passed.
 - Addressed the follow-up 2026-05-20 management app review:
@@ -302,7 +302,7 @@
   - Removed native browser `title` attributes from icon action buttons so only the custom visual tooltip appears.
   - Reduced management workspace horizontal overflow by removing global workspace/table minimum horizontal scrolling and allowing table/filter wrapping.
   - Replaced the default document import file input with an accessible styled file picker that shows the PDF/DOCX 10 MB limit and validates oversized files client-side.
-  - Added `.NET` `GET /api/audit/events` over `app.audit_events`, a management frontend audit table with search/type filters, and a demo seed `instruction.created` audit event when `Seed-LocalDemoData.ps1 -WithSampleInstruction` is used.
+  - Added `.NET` `GET /api/audit/events` over `app.audit_events`, a management frontend audit table with search/type filters, and a demo seed `document.created` audit event when `Seed-LocalDemoData.ps1 -WithSampleDocument` is used.
   - Verified with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`29 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, `dotnet test services\dotnet-api\AdvancedRag.sln --filter ManagementAudit` (`2 passed`), and `dotnet test services\dotnet-api\AdvancedRag.sln --filter "ManagementAudit|Document"` (`24 passed`). `.NET` commands emitted the existing `NU1900` warnings because NuGet vulnerability metadata could not be fetched; tests passed.
 - Addressed the 2026-05-20 document lifecycle action visibility bug:
   - Passed authenticated session roles into the management document workspace.
@@ -310,10 +310,18 @@
   - Restricted failed-indexing retry to `Admin` users on `In Review` documents and aligned archive/restore/viewer row actions with existing lifecycle authority rules.
   - Added regression coverage for `Admin` publish visibility and `DocumentManager` in-review action hiding.
   - Verified with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`31 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, and `git diff --check -- apps\manage-web\src\App.tsx apps\manage-web\src\App.test.tsx apps\manage-web\src\features\documents\DocumentsPage.tsx`. The Vite build still emits the known TipTap chunk-size warning; build succeeded.
+- Completed the 2026-05-20 structural vocabulary rename from the legacy `instruction` domain to `documents`:
+  - Renamed .NET application and persistence identifiers to `Document*`, including document lifecycle commands, viewer access types, HTML sanitizer naming, EF entity mappings, and API DTO fields.
+  - Renamed app schema mappings to `app.documents`, `app.document_versions`, `app.document_permissions`, `app.document_tags`, `document_id`, `document_version_id`, and `document_type`.
+  - Added a compatibility EF migration for existing local databases that still have the old `instruction_*` objects.
+  - Renamed FastAPI RAG request schemas, chat/citation/cache/indexing code, Alembic schema columns/indexes, reporting views, and invalidation payloads to `document*`.
+  - Added a compatibility Alembic migration for existing RAG databases with old `instruction_id` and `instruction_version_id` columns.
+  - Updated frontend API types, tests, E2E SQL setup/cleanup, Compose demo seed script, project context, specs, and plan vocabulary.
+  - Verified with `dotnet test services\dotnet-api\AdvancedRag.sln` (`70 passed`; existing NU1900 warnings), `uv run pytest -q` (`32 passed`), `uv run ruff check .`, `uv run mypy src tests`, `pnpm.cmd -r test -- --run` (`50 frontend tests passed; E2E package skipped by design), `pnpm.cmd -r typecheck`, `pnpm.cmd -r build` (known TipTap chunk-size warning), `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`, and `git diff --check` (CRLF warnings only).
 
 ## In Progress
 
-- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes, including the follow-up TipTap/sidebar/user-status/audit-feedback refinements and functional audit event read model, are locally verified but still need browser/Compose verification with the rest of Task 17.5.
+- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes and the structural documents vocabulary rename are locally verified but still need browser/Compose verification with the rest of Task 17.5.
 
 ## Next Up
 

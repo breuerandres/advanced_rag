@@ -3,7 +3,7 @@ using Ganss.Xss;
 
 namespace AdvancedRag.Infrastructure.Documents;
 
-public sealed class GanssInstructionHtmlSanitizer : IInstructionHtmlSanitizer
+public sealed class GanssDocumentHtmlSanitizer : IDocumentHtmlSanitizer
 {
     private readonly HtmlSanitizer _sanitizer = new();
 

@@ -46,13 +46,13 @@ test('renders document after successful exchange and load', async () => {
   const replaceState = vi.spyOn(window.history, 'replaceState')
   mockFetch([
     csrfResponse(),
-    jsonResponse({ instructionId: 'doc-1', expiresAt: '2026-05-18T12:15:00Z' }),
+    jsonResponse({ documentId: 'doc-1', expiresAt: '2026-05-18T12:15:00Z' }),
     jsonResponse({
-      instructionId: 'doc-1',
-      instructionVersionId: 'version-1',
+      documentId: 'doc-1',
+      documentVersionId: 'version-1',
       title: 'Procedimiento publicado',
       state: 'Published',
-      instructionType: 'Politica',
+      documentType: 'Politica',
       audience: 'Operaciones',
       contentHtml: '<h2>Contenido publicado</h2><p>Usa el equipo de seguridad.</p>',
       tokenExpiresAt: '2026-05-18T12:15:00Z',

@@ -13,28 +13,28 @@ public sealed class EfViewerAccessRepository : IViewerAccessRepository
         _db = db;
     }
 
-    public async Task<ViewerInstructionAccess?> FindInstructionAsync(Guid instructionId, CancellationToken ct)
+    public async Task<ViewerDocumentAccess?> FindDocumentAsync(Guid documentId, CancellationToken ct)
     {
-        Instruction? instruction = await _db.Instructions
+        Document? document = await _db.Documents
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == instructionId, ct);
+            .SingleOrDefaultAsync(item => item.Id == documentId, ct);
 
-        if (instruction is null)
+        if (document is null)
         {
             return null;
         }
 
-        ViewerInstructionVersion? draft = instruction.CurrentDraftVersionId is null
+        ViewerDocumentVersion? draft = document.CurrentDraftVersionId is null
             ? null
-            : await FindVersionAsync(instruction.CurrentDraftVersionId.Value, ct);
-        ViewerInstructionVersion? published = instruction.CurrentPublishedVersionId is null
+            : await FindVersionAsync(document.CurrentDraftVersionId.Value, ct);
+        ViewerDocumentVersion? published = document.CurrentPublishedVersionId is null
             ? null
-            : await FindVersionAsync(instruction.CurrentPublishedVersionId.Value, ct);
+            : await FindVersionAsync(document.CurrentPublishedVersionId.Value, ct);
 
-        return new ViewerInstructionAccess(
-            instruction.Id,
-            instruction.Title,
-            instruction.CurrentState,
+        return new ViewerDocumentAccess(
+            document.Id,
+            document.Title,
+            document.CurrentState,
             draft,
             published);
     }
@@ -45,7 +45,7 @@ public sealed class EfViewerAccessRepository : IViewerAccessRepository
         {
             Id = code.Id,
             CodeHash = code.CodeHash,
-            InstructionId = code.InstructionId,
+            DocumentId = code.DocumentId,
             UserId = code.UserId,
             Purpose = code.Purpose,
             AllowedStatuses = code.AllowedStatuses,
@@ -77,7 +77,7 @@ public sealed class EfViewerAccessRepository : IViewerAccessRepository
         {
             Id = audit.Id,
             ViewerTokenId = audit.ViewerTokenId,
-            InstructionId = audit.InstructionId,
+            DocumentId = audit.DocumentId,
             UserId = audit.UserId,
             Purpose = audit.Purpose,
             IssuedAt = audit.IssuedAt,
@@ -86,19 +86,19 @@ public sealed class EfViewerAccessRepository : IViewerAccessRepository
         await _db.SaveChangesAsync(ct);
     }
 
-    private async Task<ViewerInstructionVersion?> FindVersionAsync(Guid versionId, CancellationToken ct)
+    private async Task<ViewerDocumentVersion?> FindVersionAsync(Guid versionId, CancellationToken ct)
     {
-        InstructionVersion? version = await _db.InstructionVersions
+        DocumentVersion? version = await _db.DocumentVersions
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == versionId, ct);
         return version is null
             ? null
-            : new ViewerInstructionVersion(
+            : new ViewerDocumentVersion(
                 version.Id,
                 version.VersionNumber,
                 version.State,
                 version.Title,
-                version.InstructionType,
+                version.DocumentType,
                 version.Audience,
                 version.ContentHtml);
     }
@@ -108,7 +108,7 @@ public sealed class EfViewerAccessRepository : IViewerAccessRepository
         return new ViewerExchangeCodeRecord(
             code.Id,
             code.CodeHash,
-            code.InstructionId,
+            code.DocumentId,
             code.UserId,
             code.Purpose,
             code.AllowedStatuses,

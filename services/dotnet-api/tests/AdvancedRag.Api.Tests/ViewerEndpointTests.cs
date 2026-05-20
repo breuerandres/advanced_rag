@@ -31,7 +31,7 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
             client,
             HttpMethod.Post,
             "/api/viewer/links",
-            new { instructionId = FakeViewerAccessService.PublishedInstructionId, purpose = "chat" },
+            new { documentId = FakeViewerAccessService.PublishedDocumentId, purpose = "chat" },
             "chat.localhost",
             session.Csrf,
             session.SessionCookie);
@@ -52,7 +52,7 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
             client,
             HttpMethod.Post,
             "/api/viewer/links",
-            new { instructionId = FakeViewerAccessService.DraftInstructionId, purpose = "chat" },
+            new { documentId = FakeViewerAccessService.DraftDocumentId, purpose = "chat" },
             "chat.localhost",
             session.Csrf,
             session.SessionCookie);
@@ -72,7 +72,7 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
             client,
             HttpMethod.Post,
             "/api/viewer/links",
-            new { instructionId = FakeViewerAccessService.DraftInstructionId, purpose = "management" },
+            new { documentId = FakeViewerAccessService.DraftDocumentId, purpose = "management" },
             "manage.localhost",
             session.Csrf,
             session.SessionCookie);
@@ -214,11 +214,11 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
     private sealed record ViewerLinkResponse(string Url, DateTimeOffset ExpiresAt);
 
     private sealed record ViewerDocumentResponse(
-        Guid InstructionId,
-        Guid InstructionVersionId,
+        Guid DocumentId,
+        Guid DocumentVersionId,
         string Title,
         string State,
-        string InstructionType,
+        string DocumentType,
         string Audience,
         string ContentHtml,
         DateTimeOffset TokenExpiresAt);
@@ -257,8 +257,8 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
 
 public sealed class FakeViewerAccessService : IViewerAccessService
 {
-    public static readonly Guid PublishedInstructionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    public static readonly Guid DraftInstructionId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    public static readonly Guid PublishedDocumentId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    public static readonly Guid DraftDocumentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     public const string ValidCode = "valid-code";
     public const string ExpiredCode = "expired-code";
     public const string UsedCode = "used-code";
@@ -270,7 +270,7 @@ public sealed class FakeViewerAccessService : IViewerAccessService
     {
         ct.ThrowIfCancellationRequested();
         LastCreateCommand = command;
-        if (command.Purpose == "chat" && command.InstructionId != PublishedInstructionId)
+        if (command.Purpose == "chat" && command.DocumentId != PublishedDocumentId)
         {
             throw new ViewerAccessException("AUTH_FORBIDDEN", 403, "Viewer link is not allowed.");
         }
@@ -298,7 +298,7 @@ public sealed class FakeViewerAccessService : IViewerAccessService
             _ => Task.FromResult(new ViewerExchangeResult(
                 "fake-viewer-token",
                 "viewer-token-id",
-                PublishedInstructionId,
+                PublishedDocumentId,
                 ViewerFakeAuthService.TargetUserId,
                 "chat",
                 DateTimeOffset.UtcNow.AddMinutes(15))),
@@ -314,7 +314,7 @@ public sealed class FakeViewerAccessService : IViewerAccessService
         }
 
         return Task.FromResult(new ViewerDocumentResult(
-            PublishedInstructionId,
+            PublishedDocumentId,
             Guid.Parse("33333333-3333-3333-3333-333333333333"),
             "Published procedure",
             "Published",

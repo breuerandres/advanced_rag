@@ -28,14 +28,14 @@ EXPECTED_TABLES = {
 }
 
 EXPECTED_INDEXES = {
-    "ix_indexing_jobs_instruction_version_id",
-    "ix_document_chunks_instruction_version_id",
+    "ix_indexing_jobs_document_version_id",
+    "ix_document_chunks_document_version_id",
     "ix_document_chunks_corpus_is_active",
     "ix_document_chunks_embedding_hnsw",
     "ix_semantic_cache_entries_scope_lookup",
     "ix_query_audit_events_created_at",
     "ix_query_audit_events_user_created_at",
-    "ix_query_audit_citations_instruction_id",
+    "ix_query_audit_citations_document_id",
 }
 
 
@@ -99,7 +99,7 @@ def test_postgres_init_grants_rag_owner_read_only_access_to_approved_app_tables(
     )
 
     assert "GRANT USAGE ON SCHEMA app TO %I" in init_sql
-    assert "GRANT SELECT ON app.instruction_permissions TO %I" in init_sql
+    assert "GRANT SELECT ON app.document_permissions TO %I" in init_sql
     assert "GRANT SELECT ON app.user_ai_budget_limits TO %I" in init_sql
 
 

@@ -21,8 +21,8 @@ public sealed class FastApiInternalIndexingClient : IInternalIndexingClient
         using var message = new HttpRequestMessage(HttpMethod.Post, "/internal/indexing-jobs")
         {
             Content = JsonContent.Create(new InternalIndexingHttpRequest(
-                request.InstructionId,
-                request.InstructionVersionId,
+                request.DocumentId,
+                request.DocumentVersionId,
                 request.ContentHtml,
                 request.CorpusMode,
                 request.Retry)),
@@ -60,8 +60,8 @@ public sealed class FastApiInternalIndexingClient : IInternalIndexingClient
     }
 
     private sealed record InternalIndexingHttpRequest(
-        Guid InstructionId,
-        Guid InstructionVersionId,
+        Guid DocumentId,
+        Guid DocumentVersionId,
         string ContentHtml,
         string CorpusMode,
         bool Retry);

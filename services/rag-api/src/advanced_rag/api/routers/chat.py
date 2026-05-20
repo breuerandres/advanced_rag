@@ -98,7 +98,7 @@ async def invalidate_cache(
             "Internal service token is invalid.",
         )
     service: ChatService = request.app.state.chat_service
-    invalidated = await service.invalidate_sources([UUID(value) for value in body.instruction_ids])
+    invalidated = await service.invalidate_sources([UUID(value) for value in body.document_ids])
     return CacheInvalidationResponse(invalidated=invalidated)
 
 
@@ -114,8 +114,8 @@ async def _stream_answer(answer: ChatAnswer, request_id: str):
             "citations": [
                 {
                     "chunk_id": str(citation.chunk_id),
-                    "document_id": str(citation.instruction_id),
-                    "instruction_version_id": str(citation.instruction_version_id),
+                    "document_id": str(citation.document_id),
+                    "document_version_id": str(citation.document_version_id),
                     "heading_path": citation.heading_path,
                 }
                 for citation in answer.citations

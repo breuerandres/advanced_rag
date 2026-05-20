@@ -1,6 +1,6 @@
-# Advanced RAG Instruction Platform
+# Advanced RAG Document Platform
 
-Single-tenant corporate instruction management and RAG platform.
+Single-tenant corporate document management and RAG platform.
 
 ## Current Status
 
@@ -12,7 +12,7 @@ The project is in implementation planning. The approved base architecture spec l
 
 - `apps/manage-web` - management frontend
 - `apps/chat-web` - chat frontend
-- `apps/docs-web` - instruction viewer frontend
+- `apps/docs-web` - document viewer frontend
 - `services/dotnet-api` - .NET 8 management API
 - `services/rag-api` - FastAPI RAG service
 - `infra/compose` - Docker Compose deployment

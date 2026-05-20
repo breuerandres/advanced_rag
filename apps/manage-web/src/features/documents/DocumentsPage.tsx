@@ -82,7 +82,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
   }
 
   const documentTypes = useMemo(
-    () => uniqueValues(documents.map((document) => document.instructionType)),
+    () => uniqueValues(documents.map((document) => document.documentType)),
     [documents],
   );
   const audiences = useMemo(
@@ -99,7 +99,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
       const matchesIndexing =
         indexingFilter === "all" || document.indexingStatus === indexingFilter;
       const matchesType =
-        typeFilter === "all" || document.instructionType === typeFilter;
+        typeFilter === "all" || document.documentType === typeFilter;
       const matchesAudience =
         audienceFilter === "all" || document.audience === audienceFilter;
       const matchesAccess =
@@ -129,7 +129,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
         document.title,
         document.state,
         document.indexingStatus,
-        document.instructionType,
+        document.documentType,
         document.audience,
         document.updatedAt,
         ...groupNames,
@@ -429,7 +429,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                       <tr key={document.id}>
                         <th scope="row">{document.title}</th>
                         <td>{displayState(document.state)}</td>
-                        <td>{document.instructionType || "-"}</td>
+                        <td>{document.documentType || "-"}</td>
                         <td>{document.audience || "-"}</td>
                         <td>
                           {displayGroups(groups, document.allowedGroupIds)}
@@ -538,8 +538,8 @@ function DocumentEditor({
 }) {
   const draft = documentDetail.currentDraftVersion;
   const [title, setTitle] = useState(draft?.title ?? documentDetail.title);
-  const [instructionType, setInstructionType] = useState(
-    draft?.instructionType ?? "",
+  const [documentType, setDocumentType] = useState(
+    draft?.documentType ?? "",
   );
   const [audience, setAudience] = useState(draft?.audience ?? "");
   const [contentHtml, setContentHtml] = useState(draft?.contentHtml ?? "");
@@ -566,7 +566,7 @@ function DocumentEditor({
     try {
       const request = {
         title,
-        instructionType,
+        documentType,
         audience,
         contentHtml: normalizeEditorHtml(contentHtml),
         allowedGroupIds,
@@ -588,7 +588,7 @@ function DocumentEditor({
   async function sendToReview() {
     if (
       title.trim().length === 0 ||
-      instructionType.trim().length === 0 ||
+      documentType.trim().length === 0 ||
       audience.trim().length === 0 ||
       plainText(contentHtml).length === 0 ||
       allowedGroupIds.length === 0
@@ -689,9 +689,9 @@ function DocumentEditor({
             <span>Tipo</span>
             <input
               type="text"
-              value={instructionType}
+              value={documentType}
               onChange={(event) => {
-                setInstructionType(event.target.value);
+                setDocumentType(event.target.value);
                 setIsDirty(true);
               }}
             />
@@ -825,7 +825,7 @@ function toSummary(document: DocumentDetail): DocumentSummary {
     id: document.id,
     title: document.title,
     state: document.state,
-    instructionType: version?.instructionType ?? "",
+    documentType: version?.documentType ?? "",
     audience: version?.audience ?? "",
     allowedGroupIds: document.allowedGroupIds.map((groupId) =>
       groupId.toString(),
@@ -913,7 +913,7 @@ function emptyDocument(): DocumentDetail {
       versionNumber: 1,
       state: "Draft",
       title: "",
-      instructionType: "",
+      documentType: "",
       audience: "",
       contentHtml: "",
       indexingStatus: "None",

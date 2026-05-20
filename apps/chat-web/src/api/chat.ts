@@ -19,7 +19,7 @@ export type FeedbackValue = 'up' | 'down'
 
 export interface ChatCitation {
   documentId: string
-  instructionVersionId: string
+  documentVersionId: string
   headingPath: string[]
 }
 
@@ -97,7 +97,7 @@ export async function createViewerLink(documentId: string): Promise<string> {
       'X-CSRF-Token': csrfToken ?? '',
       'X-Request-ID': createRequestId(),
     },
-    body: JSON.stringify({ instructionId: documentId, purpose: 'chat' }),
+    body: JSON.stringify({ documentId: documentId, purpose: 'chat' }),
   })
   const body = safeJson(await response.text())
   if (!response.ok) {
@@ -146,11 +146,11 @@ function parseChatStream(stream: string): ChatResult {
         for (const citation of payload.citations as Record<string, unknown>[]) {
           if (
             typeof citation.document_id === 'string' &&
-            typeof citation.instruction_version_id === 'string'
+            typeof citation.document_version_id === 'string'
           ) {
             citations.push({
               documentId: citation.document_id,
-              instructionVersionId: citation.instruction_version_id,
+              documentVersionId: citation.document_version_id,
               headingPath: Array.isArray(citation.heading_path)
                 ? citation.heading_path.filter((item): item is string => typeof item === 'string')
                 : [],

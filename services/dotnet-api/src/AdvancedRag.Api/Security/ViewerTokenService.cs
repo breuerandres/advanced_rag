@@ -28,7 +28,7 @@ public sealed class ViewerTokenService : IViewerTokenService
             ["iss"] = _configuration["Jwt:Issuer"] ?? "advanced-rag-dotnet-api",
             ["aud"] = _configuration["Jwt:ViewerAudience"] ?? "advanced-rag-viewer",
             ["sub"] = request.UserId.ToString(),
-            ["document_id"] = request.InstructionId.ToString(),
+            ["document_id"] = request.DocumentId.ToString(),
             ["purpose"] = request.Purpose,
             ["allowed_statuses"] = request.AllowedStatuses.ToArray(),
             ["jti"] = viewerTokenId,
@@ -40,7 +40,7 @@ public sealed class ViewerTokenService : IViewerTokenService
         return new IssuedViewerToken(
             new JwtSecurityTokenHandler().WriteToken(token),
             viewerTokenId,
-            request.InstructionId,
+            request.DocumentId,
             request.UserId,
             request.Purpose,
             request.ExpiresAt);

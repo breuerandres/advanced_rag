@@ -1,25 +1,25 @@
 # Context Index
 
-This directory is the durable memory for the Advanced RAG Instruction Platform project. Files here are the **source of truth** for product behavior, technical decisions, and current state. Anything in chat that contradicts these files is wrong until the files are updated.
+This directory is the durable memory for the Advanced RAG Document Platform project. Files here are the **source of truth** for product behavior, technical decisions, and current state. Anything in chat that contradicts these files is wrong until the files are updated.
 
 ## Reading Order For A New Session
 
 Read these in order. Each builds on the previous.
 
-1. **`project-overview.md`** — what the product is, who uses it, success criteria.
-2. **`architecture.md`** — how the system is built. The single source of truth for technical rules and invariants.
-3. **`code-standards.md`** — library choices, versions, language policy, conventions per stack.
-4. **`rag-spec.md`** — RAG-specific decisions (chunking, retrieval, generation, cache, `access_scope_hash`).
-5. **`ui-context.md`** — UI direction, components, editor, streaming.
-6. **`code-patterns.md`** — concrete reference patterns (error envelope, controllers, migrations, Caddyfile, compose, tests). Copy from here when implementing.
-7. **`progress-tracker.md`** — current status, open questions, handoff for the next session.
-8. **`design-decisions.md`** — chronological log of decisions with rationale. Read when you need to know *why* a rule exists.
-9. **`ai-workflow-rules.md`** — process rules for working on this project with an AI assistant.
+1. **`project-overview.md`** â€” what the product is, who uses it, success criteria.
+2. **`architecture.md`** â€” how the system is built. The single source of truth for technical rules and invariants.
+3. **`code-standards.md`** â€” library choices, versions, language policy, conventions per stack.
+4. **`rag-spec.md`** â€” RAG-specific decisions (chunking, retrieval, generation, cache, `access_scope_hash`).
+5. **`ui-context.md`** â€” UI direction, components, editor, streaming.
+6. **`code-patterns.md`** â€” concrete reference patterns (error envelope, controllers, migrations, Caddyfile, compose, tests). Copy from here when implementing.
+7. **`progress-tracker.md`** â€” current status, open questions, handoff for the next session.
+8. **`design-decisions.md`** â€” chronological log of decisions with rationale. Read when you need to know *why* a rule exists.
+9. **`ai-workflow-rules.md`** â€” process rules for working on this project with an AI assistant.
 
 For deeper formal artifacts:
 
-- **`../docs/superpowers/specs/2026-05-11-base-architecture-design.md`** — formal architecture spec. Mirrors `architecture.md` with additional narrative; refer to `architecture.md` first.
-- **`../docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md`** — the 18-task MVP implementation roadmap with scaffold commands, directory tree, and per-task verification. Read when starting any implementation work.
+- **`../docs/superpowers/specs/2026-05-11-base-architecture-design.md`** â€” formal architecture spec. Mirrors `architecture.md` with additional narrative; refer to `architecture.md` first.
+- **`../docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md`** â€” the 18-task MVP implementation roadmap with scaffold commands, directory tree, and per-task verification. Read when starting any implementation work.
 
 ## Source-Of-Truth Rules
 

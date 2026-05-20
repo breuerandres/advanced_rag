@@ -189,7 +189,7 @@ function detailsText(details: Record<string, unknown>) {
 
 function displayEntityType(entityType: string) {
   const labels: Record<string, string> = {
-    instruction: 'Documento',
+    document: 'Documento',
     user: 'Usuario',
     group: 'Grupo',
     budget: 'Presupuesto',

@@ -96,7 +96,7 @@ function DocumentView({ document }: { document: ViewerDocument }) {
     <article className="document-view">
       <header className="document-header">
         <div>
-          <p className="eyebrow">{document.instructionType}</p>
+          <p className="eyebrow">{document.documentType}</p>
           <h2>{document.title}</h2>
         </div>
       </header>

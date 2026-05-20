@@ -30,14 +30,14 @@ DENIED_GROUP_ID = UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
 
 def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() -> None:
     with _postgres() as database:
-        allowed_instruction_id = uuid4()
-        denied_instruction_id = uuid4()
-        preview_instruction_id = uuid4()
+        allowed_document_id = uuid4()
+        denied_document_id = uuid4()
+        preview_document_id = uuid4()
         asyncio.run(
             database.seed_chat_corpus(
-                allowed_instruction_id=allowed_instruction_id,
-                denied_instruction_id=denied_instruction_id,
-                preview_instruction_id=preview_instruction_id,
+                allowed_document_id=allowed_document_id,
+                denied_document_id=denied_document_id,
+                preview_document_id=preview_document_id,
                 monthly_budget=Decimal("5.0000"),
             )
         )
@@ -75,12 +75,12 @@ def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() 
         assert response.status_code == 200
         assert "event: answer-token" in body
         assert "Wear visible credentials." in body
-        assert str(denied_instruction_id) not in body
-        assert str(preview_instruction_id) not in body
+        assert str(denied_document_id) not in body
+        assert str(preview_document_id) not in body
         state = asyncio.run(database.read_audit_state())
 
     assert state["audit_count"] == 1
-    assert state["citation_instruction_ids"] == [allowed_instruction_id]
+    assert state["citation_document_ids"] == [allowed_document_id]
     assert state["audit"]["request_id"] == "req-chat-1"
     assert state["audit"]["cache_hit"] is False
     assert state["audit"]["access_scope_hash"] == "scope-allowed"
@@ -91,12 +91,12 @@ def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() 
 
 def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated() -> None:
     with _postgres() as database:
-        instruction_id = uuid4()
+        document_id = uuid4()
         asyncio.run(
             database.seed_chat_corpus(
-                allowed_instruction_id=instruction_id,
-                denied_instruction_id=uuid4(),
-                preview_instruction_id=uuid4(),
+                allowed_document_id=document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
                 monthly_budget=Decimal("5.0000"),
             )
         )
@@ -148,10 +148,10 @@ def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated
         )
         invalidation = client.post(
             "/internal/cache-invalidations",
-            json={"instructionIds": [str(instruction_id)]},
+            json={"documentIds": [str(document_id)]},
             headers={"X-Internal-Service-Token": "test-internal"},
         )
-        invalidated_source_count = asyncio.run(database.count_cache_entries_for_instruction(instruction_id))
+        invalidated_source_count = asyncio.run(database.count_cache_entries_for_document(document_id))
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -167,9 +167,9 @@ def test_budget_exhaustion_blocks_before_paid_provider_calls() -> None:
     with _postgres() as database:
         asyncio.run(
             database.seed_chat_corpus(
-                allowed_instruction_id=uuid4(),
-                denied_instruction_id=uuid4(),
-                preview_instruction_id=uuid4(),
+                allowed_document_id=uuid4(),
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
                 monthly_budget=Decimal("0.0001"),
                 existing_spend=Decimal("0.0001"),
             )
@@ -261,7 +261,7 @@ class ChatDatabase:
             )
             await connection.execute(
                 """
-                CREATE TABLE app.instructions (
+                CREATE TABLE app.documents (
                     "Id" uuid primary key,
                     title text not null,
                     current_state text not null,
@@ -275,9 +275,9 @@ class ChatDatabase:
             )
             await connection.execute(
                 """
-                CREATE TABLE app.instruction_permissions (
+                CREATE TABLE app.document_permissions (
                     "Id" uuid primary key,
-                    instruction_id uuid not null,
+                    document_id uuid not null,
                     group_id uuid null,
                     attribute_key text null,
                     attribute_value text null,
@@ -302,9 +302,9 @@ class ChatDatabase:
     async def seed_chat_corpus(
         self,
         *,
-        allowed_instruction_id: UUID,
-        denied_instruction_id: UUID,
-        preview_instruction_id: UUID,
+        allowed_document_id: UUID,
+        denied_document_id: UUID,
+        preview_document_id: UUID,
         monthly_budget: Decimal,
         existing_spend: Decimal = Decimal("0"),
     ) -> None:
@@ -327,27 +327,27 @@ class ChatDatabase:
                 USER_ID,
                 monthly_budget,
             )
-            for instruction_id, title, group_id in [
-                (allowed_instruction_id, "Allowed", ALLOWED_GROUP_ID),
-                (denied_instruction_id, "Denied", DENIED_GROUP_ID),
-                (preview_instruction_id, "Preview", ALLOWED_GROUP_ID),
+            for document_id, title, group_id in [
+                (allowed_document_id, "Allowed", ALLOWED_GROUP_ID),
+                (denied_document_id, "Denied", DENIED_GROUP_ID),
+                (preview_document_id, "Preview", ALLOWED_GROUP_ID),
             ]:
                 await connection.execute(
                     """
-                    INSERT INTO app.instructions ("Id", title, current_state, created_by_user_id)
+                    INSERT INTO app.documents ("Id", title, current_state, created_by_user_id)
                     VALUES ($1, $2, 'Published', $3)
                     """,
-                    instruction_id,
+                    document_id,
                     title,
                     USER_ID,
                 )
                 await connection.execute(
                     """
-                    INSERT INTO app.instruction_permissions ("Id", instruction_id, group_id)
+                    INSERT INTO app.document_permissions ("Id", document_id, group_id)
                     VALUES ($1, $2, $3)
                     """,
                     uuid4(),
-                    instruction_id,
+                    document_id,
                     group_id,
                 )
             chat_price_id = uuid4()
@@ -383,16 +383,16 @@ class ChatDatabase:
                     chat_price_id,
                     existing_spend,
                 )
-            await self._insert_chunk(connection, allowed_instruction_id, "published", "Wear visible credentials.")
-            await self._insert_chunk(connection, denied_instruction_id, "published", "Denied group content.")
-            await self._insert_chunk(connection, preview_instruction_id, "preview", "Preview-only content.")
+            await self._insert_chunk(connection, allowed_document_id, "published", "Wear visible credentials.")
+            await self._insert_chunk(connection, denied_document_id, "published", "Denied group content.")
+            await self._insert_chunk(connection, preview_document_id, "preview", "Preview-only content.")
         finally:
             await connection.close()
 
     async def _insert_chunk(
         self,
         connection: asyncpg.Connection,
-        instruction_id: UUID,
+        document_id: UUID,
         corpus: str,
         content: str,
     ) -> None:
@@ -401,21 +401,21 @@ class ChatDatabase:
         await connection.execute(
             """
             INSERT INTO rag.indexing_jobs (
-                id, instruction_id, instruction_version_id, corpus, status,
+                id, document_id, document_version_id, corpus, status,
                 attempts, chunker_version, embedding_dimensions, chunk_count,
                 embedding_model, embedding_tokens
             )
             VALUES ($1, $2, $3, $4, 'Succeeded', 1, 1, 1536, 1, 'text-embedding-3-small', 4)
             """,
             job_id,
-            instruction_id,
+            document_id,
             version_id,
             corpus,
         )
         await connection.execute(
             """
             INSERT INTO rag.document_chunks (
-                id, indexing_job_id, instruction_id, instruction_version_id,
+                id, indexing_job_id, document_id, document_version_id,
                 corpus, chunk_index, heading_path, token_count, char_count,
                 content, content_html, embedding, embedding_model, is_active
             )
@@ -425,7 +425,7 @@ class ChatDatabase:
             """,
             uuid4(),
             job_id,
-            instruction_id,
+            document_id,
             version_id,
             corpus,
             len(content),
@@ -439,7 +439,7 @@ class ChatDatabase:
             audit = await connection.fetchrow("SELECT * FROM rag.query_audit_events ORDER BY created_at DESC LIMIT 1")
             citation_ids = await connection.fetch(
                 """
-                SELECT instruction_id
+                SELECT document_id
                 FROM rag.query_audit_citations
                 WHERE query_audit_event_id = $1
                 ORDER BY created_at
@@ -451,11 +451,11 @@ class ChatDatabase:
             await connection.close()
         return {
             "audit": dict(audit),
-            "citation_instruction_ids": [row["instruction_id"] for row in citation_ids],
+            "citation_document_ids": [row["document_id"] for row in citation_ids],
             "audit_count": audit_count,
         }
 
-    async def count_cache_entries_for_instruction(self, instruction_id: UUID) -> int:
+    async def count_cache_entries_for_document(self, document_id: UUID) -> int:
         connection = await asyncpg.connect(self.dsn)
         try:
             return int(
@@ -463,9 +463,9 @@ class ChatDatabase:
                     """
                     SELECT count(*)
                     FROM rag.semantic_cache_sources
-                    WHERE instruction_id = $1
+                    WHERE document_id = $1
                     """,
-                    instruction_id,
+                    document_id,
                 )
             )
         finally:

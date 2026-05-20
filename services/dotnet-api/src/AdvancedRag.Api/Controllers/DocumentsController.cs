@@ -34,7 +34,7 @@ public sealed class DocumentsController : ApiControllerBase
     {
         DocumentAggregate? document = await _documents.GetAsync(id, ct);
         return document is null
-            ? Error(404, "NOT_FOUND", "Instruction not found.")
+            ? Error(404, "NOT_FOUND", "Document not found.")
             : Ok(DocumentDetailResponse.FromAggregate(document));
     }
 
@@ -46,7 +46,7 @@ public sealed class DocumentsController : ApiControllerBase
             DocumentAggregate document = await _documents.CreateDraftAsync(
                 new CreateDocumentCommand(
                     request.Title,
-                    request.InstructionType,
+                    request.DocumentType,
                     request.Audience,
                     request.ContentHtml,
                     request.AllowedGroupIds ?? [],
@@ -73,7 +73,7 @@ public sealed class DocumentsController : ApiControllerBase
                 new UpdateDraftCommand(
                     id,
                     request.Title,
-                    request.InstructionType,
+                    request.DocumentType,
                     request.Audience,
                     request.ContentHtml,
                     request.AllowedGroupIds ?? [],
@@ -149,7 +149,7 @@ public sealed class DocumentsController : ApiControllerBase
         try
         {
             DocumentAggregate document = await _documents.ArchiveAsync(
-                new ArchiveInstructionCommand(id, ActorUserId(), ActorRoles(), RequestId()),
+                new ArchiveDocumentCommand(id, ActorUserId(), ActorRoles(), RequestId()),
                 ct);
             return Ok(DocumentDetailResponse.FromAggregate(document));
         }
@@ -165,7 +165,7 @@ public sealed class DocumentsController : ApiControllerBase
         try
         {
             DocumentAggregate document = await _documents.RestoreAsync(
-                new RestoreInstructionCommand(id, ActorUserId(), RequestId()),
+                new RestoreDocumentCommand(id, ActorUserId(), RequestId()),
                 ct);
             return Ok(DocumentDetailResponse.FromAggregate(document));
         }

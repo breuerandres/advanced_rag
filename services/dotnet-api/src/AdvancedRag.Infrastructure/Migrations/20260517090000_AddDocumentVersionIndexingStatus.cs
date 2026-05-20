@@ -4,14 +4,14 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace AdvancedRag.Infrastructure.Migrations;
 
-public partial class AddInstructionVersionIndexingStatus : Migration
+public partial class AddDocumentVersionIndexingStatus : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.AddColumn<string>(
             name: "indexing_status",
             schema: "app",
-            table: "instruction_versions",
+            table: "document_versions",
             type: "character varying(32)",
             maxLength: 32,
             nullable: false,
@@ -23,6 +23,6 @@ public partial class AddInstructionVersionIndexingStatus : Migration
         migrationBuilder.DropColumn(
             name: "indexing_status",
             schema: "app",
-            table: "instruction_versions");
+            table: "document_versions");
     }
 }

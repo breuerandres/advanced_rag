@@ -15,6 +15,6 @@ public sealed record FeedbackReportItemResponse(
     IReadOnlyList<FeedbackReportCitationResponse> Citations);
 
 public sealed record FeedbackReportCitationResponse(
-    Guid InstructionId,
-    Guid InstructionVersionId,
+    Guid DocumentId,
+    Guid DocumentVersionId,
     IReadOnlyList<string> HeadingPath);

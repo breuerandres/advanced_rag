@@ -13,7 +13,7 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - `lucide-react` for icons.
 - `@tanstack/react-query` v5 for server state, `zustand` for the small amount of local state that does not fit URL or query cache.
 - `react-hook-form` + `zod` for forms; same `zod` schemas validate API responses.
-- `@tiptap/react` for the rich text instruction editor in `manage-web`. Output is sanitized HTML.
+- `@tiptap/react` for the rich text document editor in `manage-web`. Output is sanitized HTML.
 - `dompurify` to sanitize HTML before rendering in the viewer.
 - `react-router-dom` v6 for routing.
 - See `context/code-standards.md` for library versions and complete list.
@@ -22,10 +22,10 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 
 ## Product UI Direction
 
-- The product has three independent React frontends: management, chat, and instruction viewer.
+- The product has three independent React frontends: management, chat, and document viewer.
 - Management UI should feel like a dense operational SaaS tool: efficient, scannable, and audit-friendly.
-- Chat UI should prioritize fast question asking, citations, answer feedback, and safe links to the instruction viewer.
-- Instruction viewer UI should prioritize readable instruction content, access validation states, and clear token expiration handling.
+- Chat UI should prioritize fast question asking, citations, answer feedback, and safe links to the document viewer.
+- Document viewer UI should prioritize readable document content, access validation states, and clear token expiration handling.
 - Avoid landing-page composition, marketing hero sections, decorative cards, and visually noisy gradients in product surfaces.
 - Prefer compact tables, forms, filters, detail panels, tabs, dialogs, menus, badges, and status indicators using `shadcn/ui` patterns.
 - Use `lucide-react` icons for actions when a familiar icon exists.
@@ -49,10 +49,10 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - User deactivation is a logical status change exposed from the users/groups table; inactive users remain visible for audit and recovery.
 - Feedback review is a separate management workspace. Chat feedback remains audit evidence tied to RAG query audit rows, but it must not replace functional management audit activity.
 - Active session identity and logout controls live at the bottom of the management sidebar, not in a top workspace bar.
-- The audit workspace is reserved for functional management events and reads `.NET` `/api/audit/events`, backed by `app.audit_events`. Document lifecycle events are visible there, and local demo seeding with `-WithSampleInstruction` inserts a sample `instruction.created` event.
+- The audit workspace is reserved for functional management events and reads `.NET` `/api/audit/events`, backed by `app.audit_events`. Document lifecycle events are visible there, and local demo seeding with `-WithSampleDocument` inserts a sample `document.created` event.
 - Use table/list views for operational review workflows, with filters above or beside the result set.
 - Use detail panels or pages for document lifecycle state, version history, audit events, indexing status, and feedback context.
-- The document list must support filtering across the visible document attributes: search text, lifecycle state, indexing state, instruction type, audience, access-group coverage, and updated metadata when available.
+- The document list must support filtering across the visible document attributes: search text, lifecycle state, indexing state, document type, audience, access-group coverage, and updated metadata when available.
 - Forms must show field-level validation, server errors, dirty state, disabled submission state, and recovery actions.
 - The document editor supports assisted PDF/DOCX import through the .NET API: upload, extraction loading state, extraction error state, extracted text inserted into the editor, and user-controlled formatting before save/review.
 - The import upload control must show the 10 MB per-file limit and validate file size before upload when the browser exposes the size.
@@ -85,7 +85,7 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - Citation links open `docs.client.com` with scoped viewer access tokens.
 - Citation links use one-time exchange-code URLs. If the exchange code has expired, was already used, or is unauthorized, the viewer shows a safe expired-link or access-denied state with navigation back to chat.
 
-## Instruction Viewer UI
+## Document Viewer UI
 
 - The viewer must handle exchange-code loading, expired-code, already-used-code, unauthorized, token-expired, document-not-found, and successful document states.
 - The real viewer access token must never be visible to JavaScript or shown in the URL.
@@ -94,8 +94,8 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 
 - The management document editor is a full workspace tab inside `Documentos`, not a modal, because draft creation/review is a complex workflow with metadata, access groups, import, validation, and rich editing.
 - The management editor uses TipTap with the starter kit plus `Link`, `Image`, `Underline`, and table extensions.
-- Output is HTML stored in `app.instruction_versions.content_html` after server-side sanitization with `Ganss.Xss`.
-- The editor must support headings (h1–h3), bold/italic/underline, ordered/unordered lists, links, inline code, code blocks, and tables.
+- Output is HTML stored in `app.document_versions.content_html` after server-side sanitization with `Ganss.Xss`.
+- The editor must support headings (h1â€“h3), bold/italic/underline, ordered/unordered lists, links, inline code, code blocks, and tables.
 - Disallow raw `<script>`, `<iframe>`, `<style>`, inline `style` attributes (except sanitizer-approved), and `on*` handlers. The sanitizer strips these regardless of UI controls.
 - The assisted PDF/DOCX import inserts extracted plain-text content as paragraph nodes; the user formats afterwards.
 
@@ -108,4 +108,4 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 ## Open UI Decisions
 
 - Responsive breakpoints.
-- Detailed screen layouts for management, chat, and instruction viewer.
+- Detailed screen layouts for management, chat, and document viewer.

@@ -7,7 +7,7 @@ public sealed record ImportExtractionCommand(
     Guid ActorUserId);
 
 public sealed record ImportExtractionMetadata(
-    Guid? InstructionVersionId,
+    Guid? DocumentVersionId,
     string OriginalFilename,
     string MimeType,
     long SizeBytes,

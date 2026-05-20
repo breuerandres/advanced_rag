@@ -190,7 +190,7 @@ export default function App() {
               <div className="citation-list" aria-label="Citas">
                 {citations.map((citation) => (
                   <button
-                    key={`${citation.documentId}-${citation.instructionVersionId}`}
+                    key={`${citation.documentId}-${citation.documentVersionId}`}
                     type="button"
                     className="citation-button"
                     onClick={() => void openCitation(citation)}

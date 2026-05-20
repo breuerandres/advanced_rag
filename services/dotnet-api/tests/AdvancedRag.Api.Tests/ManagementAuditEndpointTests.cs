@@ -31,7 +31,7 @@ public sealed class ManagementAuditEndpointTests
 
         using HttpRequestMessage request = new(
             HttpMethod.Get,
-            "/api/audit/events?eventType=instruction.created&entityType=instruction&limit=25");
+            "/api/audit/events?eventType=document.created&entityType=document&limit=25");
         request.Headers.Host = "manage.localhost";
         request.Headers.Add("Cookie", session.SessionCookie);
 
@@ -45,15 +45,15 @@ public sealed class ManagementAuditEndpointTests
             body ?? throw new InvalidOperationException("Audit response body was null.");
         items.Should().ContainSingle();
         ManagementAuditEventResponse item = items.Single();
-        item.EventType.Should().Be("instruction.created");
+        item.EventType.Should().Be("document.created");
         item.EventLabel.Should().Be("Documento creado");
         item.ActorDisplayName.Should().Be("Admin User");
         item.RequestId.Should().Be("req-audit");
-        item.Details["instructionId"].GetString().Should().Be("55555555-5555-5555-5555-555555555555");
+        item.Details["documentId"].GetString().Should().Be("55555555-5555-5555-5555-555555555555");
         _factory.Audit.LastQuery.Should().Be(
             new ManagementAuditQuery(
-                EventType: "instruction.created",
-                EntityType: "instruction",
+                EventType: "document.created",
+                EntityType: "document",
                 ActorUserId: null,
                 From: null,
                 To: null,
@@ -189,12 +189,12 @@ public sealed class FakeManagementAuditService : IManagementAuditService
                 Id: Guid.Parse("99999999-9999-9999-9999-999999999999"),
                 ActorUserId: FakeAuthService.AdminUserId,
                 ActorDisplayName: "Admin User",
-                EventType: "instruction.created",
-                EntityType: "instruction",
+                EventType: "document.created",
+                EntityType: "document",
                 EntityId: Guid.Parse("55555555-5555-5555-5555-555555555555"),
                 Details: new Dictionary<string, object?>
                 {
-                    ["instructionId"] = "55555555-5555-5555-5555-555555555555",
+                    ["documentId"] = "55555555-5555-5555-5555-555555555555",
                 },
                 RequestId: "req-audit",
                 CreatedAt: DateTimeOffset.Parse("2026-05-20T12:00:00Z"))

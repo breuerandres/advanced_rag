@@ -48,7 +48,7 @@ test('MVP happy path works across management, chat, viewer, feedback, and budget
   const documentManagerApi = await authenticatedApi('manage.localhost', documentManagerEmail)
   const document = await postJson<DocumentDetail>(documentManagerApi, '/api/documents', {
     title: `E2E Seguridad ${Date.now()}`,
-    instructionType: 'Politica',
+    documentType: 'Politica',
     audience: 'Equipo interno',
     contentHtml:
       '<h1>Seguridad</h1><p>Para aprobar una solicitud interna, el colaborador debe validar identidad y registrar el motivo en el sistema.</p>',
@@ -257,45 +257,45 @@ delete from rag.query_audit_citations where query_audit_event_id in (
 );
 delete from rag.query_audit_events where user_id in ('${adminUserId}', '${documentManagerUserId}')
    or user_id in (select "Id" from app.users where email like 'e2e.%@example.com');
-delete from rag.semantic_cache_sources where instruction_id in (
-  select "Id" from app.instructions where title like 'E2E Seguridad%'
+delete from rag.semantic_cache_sources where document_id in (
+  select "Id" from app.documents where title like 'E2E Seguridad%'
 );
-delete from rag.document_chunks where instruction_id in (
-  select "Id" from app.instructions where title like 'E2E Seguridad%'
+delete from rag.document_chunks where document_id in (
+  select "Id" from app.documents where title like 'E2E Seguridad%'
 );
-delete from rag.indexing_jobs where instruction_id in (
-  select "Id" from app.instructions where title like 'E2E Seguridad%'
+delete from rag.indexing_jobs where document_id in (
+  select "Id" from app.documents where title like 'E2E Seguridad%'
 );
 delete from app.viewer_token_audit where user_id in (
   select "Id" from app.users where email like 'e2e.%@example.com'
-) or instruction_id in (
-  select "Id" from app.instructions where title like 'E2E Seguridad%'
+) or document_id in (
+  select "Id" from app.documents where title like 'E2E Seguridad%'
 );
 delete from app.viewer_exchange_codes where user_id in (
   select "Id" from app.users where email like 'e2e.%@example.com'
-) or instruction_id in (
-  select "Id" from app.instructions where title like 'E2E Seguridad%'
+) or document_id in (
+  select "Id" from app.documents where title like 'E2E Seguridad%'
 );
-delete from app.review_comments where instruction_version_id in (
-  select "Id" from app.instruction_versions where instruction_id in (
-    select "Id" from app.instructions where title like 'E2E Seguridad%'
+delete from app.review_comments where document_version_id in (
+  select "Id" from app.document_versions where document_id in (
+    select "Id" from app.documents where title like 'E2E Seguridad%'
   )
 );
-delete from app.import_metadata where instruction_version_id in (
-  select "Id" from app.instruction_versions where instruction_id in (
-    select "Id" from app.instructions where title like 'E2E Seguridad%'
+delete from app.import_metadata where document_version_id in (
+  select "Id" from app.document_versions where document_id in (
+    select "Id" from app.documents where title like 'E2E Seguridad%'
   )
 );
-delete from app.instruction_permissions where instruction_id in (
-  select "Id" from app.instructions where title like 'E2E Seguridad%'
+delete from app.document_permissions where document_id in (
+  select "Id" from app.documents where title like 'E2E Seguridad%'
 );
-delete from app.instruction_tags where instruction_id in (
-  select "Id" from app.instructions where title like 'E2E Seguridad%'
+delete from app.document_tags where document_id in (
+  select "Id" from app.documents where title like 'E2E Seguridad%'
 );
-delete from app.instruction_versions where instruction_id in (
-  select "Id" from app.instructions where title like 'E2E Seguridad%'
+delete from app.document_versions where document_id in (
+  select "Id" from app.documents where title like 'E2E Seguridad%'
 );
-delete from app.instructions where title like 'E2E Seguridad%';
+delete from app.documents where title like 'E2E Seguridad%';
 delete from app.user_ai_budget_limits where user_id in (
   select "Id" from app.users where email like 'e2e.%@example.com'
 );

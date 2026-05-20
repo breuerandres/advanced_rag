@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the MVP foundation for the Advanced RAG Instruction Platform as a sellable single-tenant Docker Compose product with secure document management, RAG chat, token-gated document viewing, audit, AI budgets, and operational controls.
+**Goal:** Build the MVP foundation for the Advanced RAG Document Platform as a sellable single-tenant Docker Compose product with secure document management, RAG chat, token-gated document viewing, audit, AI budgets, and operational controls.
 
 **Architecture:** The system is a monorepo with three React TypeScript frontends, a .NET 8 management API, a FastAPI RAG service, PostgreSQL with `app` and `rag` schemas, Caddy same-origin routing, Docker Compose deployment, secure cookie-based browser sessions, and OpenAI-backed chat/embeddings. Implementation is split into independently verifiable phases so each service boundary is tested before dependent workflows are layered on.
 
@@ -65,7 +65,7 @@
 - `infra/compose/compose.override.yaml` - local development overrides.
 - `infra/compose/Caddyfile` - public host routing and same-origin `/api/*` routes.
 - `infra/compose/.env.example` - non-sensitive config defaults.
-- `infra/compose/secrets/README.md` - local secret file instructions without secret values.
+- `infra/compose/secrets/README.md` - local secret file documents without secret values.
 - `infra/compose/health/` - optional health helper scripts if Compose health checks need shell wrappers.
 
 ### .NET API
@@ -220,7 +220,7 @@ Create root `package.json`:
 
 ```json
 {
-  "name": "advanced-rag-instruction-platform",
+  "name": "advanced-rag-document-platform",
   "private": true,
   "packageManager": "pnpm@10",
   "scripts": {
@@ -237,9 +237,9 @@ Create root `package.json`:
 Create `README.md` with:
 
 ```markdown
-# Advanced RAG Instruction Platform
+# Advanced RAG Document Platform
 
-Single-tenant corporate instruction management and RAG platform.
+Single-tenant corporate document management and RAG platform.
 
 ## Current Status
 
@@ -251,7 +251,7 @@ The project is in implementation planning. The approved base architecture spec l
 
 - `apps/manage-web` - management frontend
 - `apps/chat-web` - chat frontend
-- `apps/docs-web` - instruction viewer frontend
+- `apps/docs-web` - document viewer frontend
 - `services/dotnet-api` - .NET 8 management API
 - `services/rag-api` - FastAPI RAG service
 - `infra/compose` - Docker Compose deployment
@@ -318,7 +318,7 @@ CHAT_FEEDBACK_COMMENT_MAX_CHARS=1000
 REVIEW_COMMENT_MAX_CHARS=2000
 ```
 
-- [x] **Step 2: Create secret instructions**
+- [x] **Step 2: Create secret documents**
 
 Create `infra/compose/secrets/README.md`:
 
@@ -593,9 +593,9 @@ Expected: each app has `components.json`, base CSS variables, and `src/component
 
 For each app, create a test that renders the root app and expects a product-specific shell label:
 
-- Management: `Instruction Management`
-- Chat: `Instruction Chat`
-- Docs: `Instruction Viewer`
+- Management: `Document Management`
+- Chat: `Document Chat`
+- Docs: `Document Viewer`
 
 Run:
 
@@ -737,10 +737,10 @@ Write .NET tests that verify EF Core maps these `app` entities and schema names:
 - `user_roles`
 - `groups`
 - `user_groups`
-- `instructions`
-- `instruction_versions`
-- `instruction_permissions`
-- `instruction_tags`
+- `documents`
+- `document_versions`
+- `document_permissions`
+- `document_tags`
 - `review_comments`
 - `import_metadata`
 - `viewer_exchange_codes`
@@ -944,11 +944,11 @@ Expected: commit succeeds.
 
 Cover:
 
-- Draft requires title, instruction type, allowed groups/departments, audience/user type, sanitized non-empty HTML before `In Review`.
+- Draft requires title, document type, allowed groups/departments, audience/user type, sanitized non-empty HTML before `In Review`.
 - `DocumentManager` can send to review but cannot publish.
 - `Admin` can request publish from `In Review`.
 - Returning/rejecting from review requires comment.
-- Editing a published instruction creates a new draft version.
+- Editing a published document creates a new draft version.
 - Archive/restore rules match the architecture spec.
 
 Expected before implementation: tests fail.
@@ -1089,7 +1089,7 @@ Expected: commit succeeds.
 Cover:
 
 - Public chat retrieves only `Published` corpus.
-- Retrieval filters in SQL against `app.instruction_permissions` using signed chat-token scope claims as inputs.
+- Retrieval filters in SQL against `app.document_permissions` using signed chat-token scope claims as inputs.
 - `access_scope_hash` is used for cache partitioning and audit, not authorization.
 - Cache reuse requires matching `access_scope_hash`.
 - Preview corpus is not used for normal viewer chat.
@@ -1098,7 +1098,7 @@ Expected before implementation: tests fail.
 
 - [x] **Step 2: Implement retrieval service**
 
-Implement vector similarity retrieval over `rag.document_chunks` with corpus filters, active-version filters, and read-only SQL permission filters against `app.instruction_permissions`. Do not trust `access_scope_hash` as authorization.
+Implement vector similarity retrieval over `rag.document_chunks` with corpus filters, active-version filters, and read-only SQL permission filters against `app.document_permissions`. Do not trust `access_scope_hash` as authorization.
 
 - [x] **Step 3: Write query audit tests**
 
@@ -1604,7 +1604,7 @@ Cover:
 
 1. Admin logs in.
 2. Admin creates user/group and assigns Viewer.
-3. DocumentManager creates instruction.
+3. DocumentManager creates document.
 4. DocumentManager sends to review.
 5. Admin requests publish.
 6. Indexing succeeds.
@@ -1671,7 +1671,7 @@ Task 17 proved that the service contracts can work end to end, but the product i
   - Login and first-run admin bootstrap.
   - Management console.
   - Chat app.
-  - Instruction viewer success and access-error states.
+  - Document viewer success and access-error states.
 
 **Files:**
 - Modify: `services/dotnet-api/src/AdvancedRag.Api/Controllers/*`
@@ -1718,7 +1718,7 @@ Expected: a clean deployment can be opened at `https://manage.localhost`, create
 Create a local-only seed script for repeatable demo data:
 
 - Script path: `infra/compose/Seed-LocalDemoData.ps1`.
-- Creates demo admin, document manager, viewer, group, pricing rows, and optional sample instruction data.
+- Creates demo admin, document manager, viewer, group, pricing rows, and optional sample document data.
 - Does not create or commit secrets.
 - Is never run automatically in production.
 - Documents expected credentials in script output only for local demo users.

@@ -22,8 +22,8 @@ public sealed record FeedbackReportItem(
     IReadOnlyList<FeedbackReportCitation> Citations);
 
 public sealed record FeedbackReportCitation(
-    Guid InstructionId,
-    Guid InstructionVersionId,
+    Guid DocumentId,
+    Guid DocumentVersionId,
     IReadOnlyList<string> HeadingPath);
 
 public interface IFeedbackReportingService

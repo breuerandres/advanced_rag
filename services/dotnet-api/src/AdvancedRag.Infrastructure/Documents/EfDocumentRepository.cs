@@ -16,28 +16,28 @@ public sealed class EfDocumentRepository : IDocumentRepository
 
     public async Task<IReadOnlyList<DocumentSummary>> ListAsync(CancellationToken ct)
     {
-        var instructions = await _db.Instructions
+        var documents = await _db.Documents
             .AsNoTracking()
-            .OrderByDescending(instruction => instruction.UpdatedAt)
+            .OrderByDescending(document => document.UpdatedAt)
             .ToListAsync(ct);
 
-        var aggregates = new List<DocumentSummary>(instructions.Count);
-        foreach (var instruction in instructions)
+        var aggregates = new List<DocumentSummary>(documents.Count);
+        foreach (var document in documents)
         {
-            var aggregate = await BuildAggregateAsync(instruction, ct);
+            var aggregate = await BuildAggregateAsync(document, ct);
             aggregates.Add(DocumentSummary.FromAggregate(aggregate));
         }
 
         return aggregates;
     }
 
-    public async Task<DocumentAggregate?> FindAsync(Guid instructionId, CancellationToken ct)
+    public async Task<DocumentAggregate?> FindAsync(Guid documentId, CancellationToken ct)
     {
-        var instruction = await _db.Instructions
+        var document = await _db.Documents
             .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == instructionId, ct);
+            .SingleOrDefaultAsync(item => item.Id == documentId, ct);
 
-        return instruction is null ? null : await BuildAggregateAsync(instruction, ct);
+        return document is null ? null : await BuildAggregateAsync(document, ct);
     }
 
     public async Task SaveAsync(
@@ -46,10 +46,10 @@ public sealed class EfDocumentRepository : IDocumentRepository
         IReadOnlyList<DocumentAuditEvent> auditEvents,
         CancellationToken ct)
     {
-        var existing = await _db.Instructions.SingleOrDefaultAsync(item => item.Id == document.Id, ct);
+        var existing = await _db.Documents.SingleOrDefaultAsync(item => item.Id == document.Id, ct);
         if (existing is null)
         {
-            _db.Instructions.Add(new Instruction
+            _db.Documents.Add(new Document
             {
                 Id = document.Id,
                 Title = document.Title,
@@ -80,13 +80,13 @@ public sealed class EfDocumentRepository : IDocumentRepository
             await UpsertVersionAsync(document.CurrentPublishedVersion, ct);
         }
 
-        await _db.InstructionPermissions
-            .Where(permission => permission.InstructionId == document.Id)
+        await _db.DocumentPermissions
+            .Where(permission => permission.DocumentId == document.Id)
             .ExecuteDeleteAsync(ct);
-        _db.InstructionPermissions.AddRange(document.AllowedGroupIds.Select(groupId => new InstructionPermission
+        _db.DocumentPermissions.AddRange(document.AllowedGroupIds.Select(groupId => new DocumentPermission
         {
             Id = Guid.NewGuid(),
-            InstructionId = document.Id,
+            DocumentId = document.Id,
             GroupId = groupId,
             CreatedAt = DateTimeOffset.UtcNow,
         }));
@@ -94,7 +94,7 @@ public sealed class EfDocumentRepository : IDocumentRepository
         _db.ReviewComments.AddRange(comments.Select(comment => new ReviewComment
         {
             Id = Guid.NewGuid(),
-            InstructionVersionId = comment.InstructionVersionId,
+            DocumentVersionId = comment.DocumentVersionId,
             ActorUserId = comment.ActorUserId,
             Comment = comment.Comment,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -105,7 +105,7 @@ public sealed class EfDocumentRepository : IDocumentRepository
             Id = Guid.NewGuid(),
             ActorUserId = audit.ActorUserId,
             EventType = audit.EventType,
-            EntityType = "instruction",
+            EntityType = "document",
             EntityId = audit.EntityId,
             DetailsJson = JsonSerializer.Serialize(audit.Details),
             RequestId = audit.RequestId,
@@ -115,59 +115,59 @@ public sealed class EfDocumentRepository : IDocumentRepository
         await _db.SaveChangesAsync(ct);
     }
 
-    private async Task<DocumentAggregate> BuildAggregateAsync(Instruction instruction, CancellationToken ct)
+    private async Task<DocumentAggregate> BuildAggregateAsync(Document document, CancellationToken ct)
     {
         DocumentVersionRecord? draft = null;
         DocumentVersionRecord? published = null;
 
-        if (instruction.CurrentDraftVersionId is not null)
+        if (document.CurrentDraftVersionId is not null)
         {
-            var version = await _db.InstructionVersions
+            var version = await _db.DocumentVersions
                 .AsNoTracking()
-                .SingleOrDefaultAsync(item => item.Id == instruction.CurrentDraftVersionId, ct);
+                .SingleOrDefaultAsync(item => item.Id == document.CurrentDraftVersionId, ct);
             draft = version is null ? null : ToRecord(version);
         }
 
-        if (instruction.CurrentPublishedVersionId is not null)
+        if (document.CurrentPublishedVersionId is not null)
         {
-            var version = await _db.InstructionVersions
+            var version = await _db.DocumentVersions
                 .AsNoTracking()
-                .SingleOrDefaultAsync(item => item.Id == instruction.CurrentPublishedVersionId, ct);
+                .SingleOrDefaultAsync(item => item.Id == document.CurrentPublishedVersionId, ct);
             published = version is null ? null : ToRecord(version);
         }
 
-        var groupIds = await _db.InstructionPermissions
+        var groupIds = await _db.DocumentPermissions
             .AsNoTracking()
-            .Where(permission => permission.InstructionId == instruction.Id && permission.GroupId != null)
+            .Where(permission => permission.DocumentId == document.Id && permission.GroupId != null)
             .OrderBy(permission => permission.GroupId)
             .Select(permission => permission.GroupId!.Value)
             .ToArrayAsync(ct);
 
         return new DocumentAggregate(
-            instruction.Id,
-            instruction.Title,
-            ParseEnum<InstructionState>(instruction.CurrentState),
+            document.Id,
+            document.Title,
+            ParseEnum<DocumentState>(document.CurrentState),
             draft,
             published,
             groupIds,
-            instruction.CreatedByUserId,
-            instruction.CreatedAt,
-            instruction.UpdatedAt);
+            document.CreatedByUserId,
+            document.CreatedAt,
+            document.UpdatedAt);
     }
 
     private async Task UpsertVersionAsync(DocumentVersionRecord version, CancellationToken ct)
     {
-        var existing = await _db.InstructionVersions.SingleOrDefaultAsync(item => item.Id == version.Id, ct);
+        var existing = await _db.DocumentVersions.SingleOrDefaultAsync(item => item.Id == version.Id, ct);
         if (existing is null)
         {
-            _db.InstructionVersions.Add(new InstructionVersion
+            _db.DocumentVersions.Add(new DocumentVersion
             {
                 Id = version.Id,
-                InstructionId = version.InstructionId,
+                DocumentId = version.DocumentId,
                 VersionNumber = version.VersionNumber,
                 State = ToStorage(version.State),
                 Title = version.Title,
-                InstructionType = version.InstructionType,
+                DocumentType = version.DocumentType,
                 Audience = version.Audience,
                 ContentHtml = version.ContentHtml,
                 CreatedAt = version.CreatedAt,
@@ -183,7 +183,7 @@ public sealed class EfDocumentRepository : IDocumentRepository
 
         existing.State = ToStorage(version.State);
         existing.Title = version.Title;
-        existing.InstructionType = version.InstructionType;
+        existing.DocumentType = version.DocumentType;
         existing.Audience = version.Audience;
         existing.ContentHtml = version.ContentHtml;
         existing.SubmittedForReviewAt = version.SubmittedForReviewAt;
@@ -194,15 +194,15 @@ public sealed class EfDocumentRepository : IDocumentRepository
         existing.IndexingStatus = ToStorage(version.IndexingStatus);
     }
 
-    private static DocumentVersionRecord ToRecord(InstructionVersion version)
+    private static DocumentVersionRecord ToRecord(DocumentVersion version)
     {
         return new DocumentVersionRecord(
             version.Id,
-            version.InstructionId,
+            version.DocumentId,
             version.VersionNumber,
-            ParseEnum<InstructionVersionState>(version.State),
+            ParseEnum<DocumentVersionState>(version.State),
             version.Title,
-            version.InstructionType,
+            version.DocumentType,
             version.Audience,
             version.ContentHtml,
             version.CreatedAt,
@@ -227,8 +227,8 @@ public sealed class EfDocumentRepository : IDocumentRepository
     {
         return value switch
         {
-            InstructionState.InReview => "In Review",
-            InstructionVersionState.InReview => "In Review",
+            DocumentState.InReview => "In Review",
+            DocumentVersionState.InReview => "In Review",
             _ => value.ToString(),
         };
     }

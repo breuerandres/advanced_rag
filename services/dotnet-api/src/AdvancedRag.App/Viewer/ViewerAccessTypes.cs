@@ -11,7 +11,7 @@ public interface IViewerAccessService
 
 public interface IViewerAccessRepository
 {
-    Task<ViewerInstructionAccess?> FindInstructionAsync(Guid instructionId, CancellationToken ct);
+    Task<ViewerDocumentAccess?> FindDocumentAsync(Guid documentId, CancellationToken ct);
 
     Task SaveExchangeCodeAsync(ViewerExchangeCodeRecord code, CancellationToken ct);
 
@@ -30,7 +30,7 @@ public interface IViewerTokenService
 }
 
 public sealed record CreateViewerLinkCommand(
-    Guid InstructionId,
+    Guid DocumentId,
     Guid UserId,
     IReadOnlyList<string> Roles,
     string Purpose);
@@ -42,33 +42,33 @@ public sealed record ExchangeViewerCodeCommand(string Code);
 public sealed record ViewerExchangeResult(
     string Token,
     string ViewerTokenId,
-    Guid InstructionId,
+    Guid DocumentId,
     Guid UserId,
     string Purpose,
     DateTimeOffset ExpiresAt);
 
 public sealed record GetViewerDocumentCommand(string Token);
 
-public sealed record ViewerInstructionAccess(
-    Guid InstructionId,
+public sealed record ViewerDocumentAccess(
+    Guid DocumentId,
     string Title,
     string State,
-    ViewerInstructionVersion? DraftVersion,
-    ViewerInstructionVersion? PublishedVersion);
+    ViewerDocumentVersion? DraftVersion,
+    ViewerDocumentVersion? PublishedVersion);
 
-public sealed record ViewerInstructionVersion(
+public sealed record ViewerDocumentVersion(
     Guid Id,
     int VersionNumber,
     string State,
     string Title,
-    string InstructionType,
+    string DocumentType,
     string Audience,
     string ContentHtml);
 
 public sealed record ViewerExchangeCodeRecord(
     Guid Id,
     string CodeHash,
-    Guid InstructionId,
+    Guid DocumentId,
     Guid UserId,
     string Purpose,
     string AllowedStatuses,
@@ -79,14 +79,14 @@ public sealed record ViewerExchangeCodeRecord(
 public sealed record ViewerTokenAuditRecord(
     Guid Id,
     string ViewerTokenId,
-    Guid InstructionId,
+    Guid DocumentId,
     Guid UserId,
     string Purpose,
     DateTimeOffset IssuedAt,
     DateTimeOffset ExpiresAt);
 
 public sealed record ViewerTokenIssueRequest(
-    Guid InstructionId,
+    Guid DocumentId,
     Guid UserId,
     string Purpose,
     IReadOnlyList<string> AllowedStatuses,
@@ -95,25 +95,25 @@ public sealed record ViewerTokenIssueRequest(
 public sealed record IssuedViewerToken(
     string Token,
     string ViewerTokenId,
-    Guid InstructionId,
+    Guid DocumentId,
     Guid UserId,
     string Purpose,
     DateTimeOffset ExpiresAt);
 
 public sealed record ViewerTokenClaims(
     string ViewerTokenId,
-    Guid InstructionId,
+    Guid DocumentId,
     Guid UserId,
     string Purpose,
     IReadOnlyList<string> AllowedStatuses,
     DateTimeOffset ExpiresAt);
 
 public sealed record ViewerDocumentResult(
-    Guid InstructionId,
-    Guid InstructionVersionId,
+    Guid DocumentId,
+    Guid DocumentVersionId,
     string Title,
     string State,
-    string InstructionType,
+    string DocumentType,
     string Audience,
     string ContentHtml,
     DateTimeOffset TokenExpiresAt);

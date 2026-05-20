@@ -100,7 +100,7 @@ builder.Services.AddScoped<IInternalIndexingClient>(services =>
             : "InternalService:TokenFile");
     return new FastApiInternalIndexingClient(http, token);
 });
-builder.Services.AddSingleton<IInstructionHtmlSanitizer, GanssInstructionHtmlSanitizer>();
+builder.Services.AddSingleton<IDocumentHtmlSanitizer, GanssDocumentHtmlSanitizer>();
 builder.Services.AddSingleton<IPasswordHashService, Pbkdf2PasswordHashService>();
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
 builder.Services.AddSingleton<JwtSigningKeyStore>();

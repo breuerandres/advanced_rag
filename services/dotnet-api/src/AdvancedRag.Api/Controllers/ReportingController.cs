@@ -52,8 +52,8 @@ public sealed class ReportingController : ApiControllerBase
             item.RequestId,
             item.Citations
                 .Select(citation => new FeedbackReportCitationResponse(
-                    citation.InstructionId,
-                    citation.InstructionVersionId,
+                    citation.DocumentId,
+                    citation.DocumentVersionId,
                     citation.HeadingPath))
                 .ToList());
     }

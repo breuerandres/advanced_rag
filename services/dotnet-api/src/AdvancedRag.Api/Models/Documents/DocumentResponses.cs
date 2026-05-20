@@ -6,7 +6,7 @@ public sealed record DocumentSummaryResponse(
     Guid Id,
     string Title,
     string State,
-    string InstructionType,
+    string DocumentType,
     string Audience,
     IReadOnlyList<Guid> AllowedGroupIds,
     int? DraftVersionNumber,
@@ -20,7 +20,7 @@ public sealed record DocumentSummaryResponse(
             summary.Id,
             summary.Title,
             ToDisplay(summary.State),
-            summary.InstructionType,
+            summary.DocumentType,
             summary.Audience,
             summary.AllowedGroupIds,
             summary.DraftVersionNumber,
@@ -29,9 +29,9 @@ public sealed record DocumentSummaryResponse(
             summary.UpdatedAt);
     }
 
-    private static string ToDisplay(InstructionState state)
+    private static string ToDisplay(DocumentState state)
     {
-        return state == InstructionState.InReview ? "In Review" : state.ToString();
+        return state == DocumentState.InReview ? "In Review" : state.ToString();
     }
 }
 
@@ -56,9 +56,9 @@ public sealed record DocumentDetailResponse(
             document.UpdatedAt);
     }
 
-    private static string ToDisplay(InstructionState state)
+    private static string ToDisplay(DocumentState state)
     {
-        return state == InstructionState.InReview ? "In Review" : state.ToString();
+        return state == DocumentState.InReview ? "In Review" : state.ToString();
     }
 }
 
@@ -67,7 +67,7 @@ public sealed record DocumentVersionResponse(
     int VersionNumber,
     string State,
     string Title,
-    string InstructionType,
+    string DocumentType,
     string Audience,
     string ContentHtml,
     string IndexingStatus)
@@ -77,9 +77,9 @@ public sealed record DocumentVersionResponse(
         return new DocumentVersionResponse(
             version.Id,
             version.VersionNumber,
-            version.State == InstructionVersionState.InReview ? "In Review" : version.State.ToString(),
+            version.State == DocumentVersionState.InReview ? "In Review" : version.State.ToString(),
             version.Title,
-            version.InstructionType,
+            version.DocumentType,
             version.Audience,
             version.ContentHtml,
             version.IndexingStatus.ToString());

@@ -1,6 +1,6 @@
 namespace AdvancedRag.App.Documents;
 
-public enum InstructionState
+public enum DocumentState
 {
     Draft,
     InReview,
@@ -8,7 +8,7 @@ public enum InstructionState
     Archived,
 }
 
-public enum InstructionVersionState
+public enum DocumentVersionState
 {
     Draft,
     InReview,
@@ -26,7 +26,7 @@ public enum IndexingStatus
 
 public sealed record CreateDocumentCommand(
     string Title,
-    string InstructionType,
+    string DocumentType,
     string Audience,
     string ContentHtml,
     IReadOnlyList<Guid> AllowedGroupIds,
@@ -34,40 +34,40 @@ public sealed record CreateDocumentCommand(
     string RequestId);
 
 public sealed record UpdateDraftCommand(
-    Guid InstructionId,
+    Guid DocumentId,
     string Title,
-    string InstructionType,
+    string DocumentType,
     string Audience,
     string ContentHtml,
     IReadOnlyList<Guid> AllowedGroupIds,
     Guid ActorUserId,
     string RequestId);
 
-public sealed record SendToReviewCommand(Guid InstructionId, string? Comment, Guid ActorUserId, string RequestId);
+public sealed record SendToReviewCommand(Guid DocumentId, string? Comment, Guid ActorUserId, string RequestId);
 
-public sealed record ReturnToDraftCommand(Guid InstructionId, string Comment, Guid ActorUserId, string RequestId);
+public sealed record ReturnToDraftCommand(Guid DocumentId, string Comment, Guid ActorUserId, string RequestId);
 
 public sealed record RequestPublishCommand(
-    Guid InstructionId,
+    Guid DocumentId,
     Guid ActorUserId,
     IReadOnlyList<string> ActorRoles,
     string RequestId);
 
-public sealed record ArchiveInstructionCommand(
-    Guid InstructionId,
+public sealed record ArchiveDocumentCommand(
+    Guid DocumentId,
     Guid ActorUserId,
     IReadOnlyList<string> ActorRoles,
     string RequestId);
 
-public sealed record RestoreInstructionCommand(Guid InstructionId, Guid ActorUserId, string RequestId);
+public sealed record RestoreDocumentCommand(Guid DocumentId, Guid ActorUserId, string RequestId);
 
 public sealed record DocumentVersionRecord(
     Guid Id,
-    Guid InstructionId,
+    Guid DocumentId,
     int VersionNumber,
-    InstructionVersionState State,
+    DocumentVersionState State,
     string Title,
-    string InstructionType,
+    string DocumentType,
     string Audience,
     string ContentHtml,
     DateTimeOffset CreatedAt,
@@ -81,7 +81,7 @@ public sealed record DocumentVersionRecord(
 public sealed record DocumentAggregate(
     Guid Id,
     string Title,
-    InstructionState State,
+    DocumentState State,
     DocumentVersionRecord? CurrentDraftVersion,
     DocumentVersionRecord? CurrentPublishedVersion,
     IReadOnlyList<Guid> AllowedGroupIds,
@@ -93,7 +93,7 @@ public sealed record DocumentAggregate(
         Guid id,
         Guid versionId,
         string title,
-        string instructionType,
+        string documentType,
         string audience,
         string contentHtml,
         IReadOnlyList<Guid> allowedGroupIds,
@@ -103,14 +103,14 @@ public sealed record DocumentAggregate(
         return new DocumentAggregate(
             id,
             title,
-            InstructionState.Draft,
+            DocumentState.Draft,
             new DocumentVersionRecord(
                 versionId,
                 id,
                 1,
-                InstructionVersionState.Draft,
+                DocumentVersionState.Draft,
                 title,
-                instructionType,
+                documentType,
                 audience,
                 contentHtml,
                 now,
@@ -131,8 +131,8 @@ public sealed record DocumentAggregate(
 public sealed record DocumentSummary(
     Guid Id,
     string Title,
-    InstructionState State,
-    string InstructionType,
+    DocumentState State,
+    string DocumentType,
     string Audience,
     IReadOnlyList<Guid> AllowedGroupIds,
     int? DraftVersionNumber,
@@ -146,8 +146,8 @@ public sealed record DocumentSummary(
             document.Id,
             document.Title,
             document.State,
-            document.CurrentDraftVersion?.InstructionType
-                ?? document.CurrentPublishedVersion?.InstructionType
+            document.CurrentDraftVersion?.DocumentType
+                ?? document.CurrentPublishedVersion?.DocumentType
                 ?? string.Empty,
             document.CurrentDraftVersion?.Audience
                 ?? document.CurrentPublishedVersion?.Audience
@@ -161,7 +161,7 @@ public sealed record DocumentSummary(
 }
 
 public sealed record ReviewCommentRecord(
-    Guid InstructionVersionId,
+    Guid DocumentVersionId,
     Guid ActorUserId,
     string Comment);
 
@@ -176,7 +176,7 @@ public interface IDocumentRepository
 {
     Task<IReadOnlyList<DocumentSummary>> ListAsync(CancellationToken ct);
 
-    Task<DocumentAggregate?> FindAsync(Guid instructionId, CancellationToken ct);
+    Task<DocumentAggregate?> FindAsync(Guid documentId, CancellationToken ct);
 
     Task SaveAsync(
         DocumentAggregate document,
@@ -186,8 +186,8 @@ public interface IDocumentRepository
 }
 
 public sealed record InternalIndexingRequest(
-    Guid InstructionId,
-    Guid InstructionVersionId,
+    Guid DocumentId,
+    Guid DocumentVersionId,
     string ContentHtml,
     string CorpusMode,
     bool Retry);

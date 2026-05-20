@@ -8,7 +8,7 @@ public interface IDocumentLifecycleService
 
     Task<DocumentAggregate> CreateDraftAsync(CreateDocumentCommand command, CancellationToken ct);
 
-    Task<DocumentAggregate?> GetAsync(Guid instructionId, CancellationToken ct);
+    Task<DocumentAggregate?> GetAsync(Guid documentId, CancellationToken ct);
 
     Task<DocumentAggregate> UpdateDraftAsync(UpdateDraftCommand command, CancellationToken ct);
 
@@ -18,9 +18,9 @@ public interface IDocumentLifecycleService
 
     Task<DocumentAggregate> RequestPublishAsync(RequestPublishCommand command, CancellationToken ct);
 
-    Task<DocumentAggregate> ArchiveAsync(ArchiveInstructionCommand command, CancellationToken ct);
+    Task<DocumentAggregate> ArchiveAsync(ArchiveDocumentCommand command, CancellationToken ct);
 
-    Task<DocumentAggregate> RestoreAsync(RestoreInstructionCommand command, CancellationToken ct);
+    Task<DocumentAggregate> RestoreAsync(RestoreDocumentCommand command, CancellationToken ct);
 }
 
 public sealed class DocumentLifecycleService : IDocumentLifecycleService
@@ -29,16 +29,16 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     private readonly IDocumentRepository _repository;
     private readonly IInternalIndexingClient _indexingClient;
-    private readonly IInstructionHtmlSanitizer _htmlSanitizer;
+    private readonly IDocumentHtmlSanitizer _htmlSanitizer;
 
     public DocumentLifecycleService(
         IDocumentRepository repository,
-        IInstructionHtmlSanitizer? htmlSanitizer = null,
+        IDocumentHtmlSanitizer? htmlSanitizer = null,
         IInternalIndexingClient? indexingClient = null)
     {
         _repository = repository;
         _indexingClient = indexingClient ?? new UnavailableInternalIndexingClient();
-        _htmlSanitizer = htmlSanitizer ?? new PassthroughInstructionHtmlSanitizer();
+        _htmlSanitizer = htmlSanitizer ?? new PassthroughDocumentHtmlSanitizer();
     }
 
     public Task<IReadOnlyList<DocumentSummary>> ListAsync(CancellationToken ct)
@@ -46,9 +46,9 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         return _repository.ListAsync(ct);
     }
 
-    public Task<DocumentAggregate?> GetAsync(Guid instructionId, CancellationToken ct)
+    public Task<DocumentAggregate?> GetAsync(Guid documentId, CancellationToken ct)
     {
-        return _repository.FindAsync(instructionId, ct);
+        return _repository.FindAsync(documentId, ct);
     }
 
     public async Task<DocumentAggregate> CreateDraftAsync(CreateDocumentCommand command, CancellationToken ct)
@@ -57,7 +57,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             Guid.NewGuid(),
             Guid.NewGuid(),
             command.Title.Trim(),
-            command.InstructionType.Trim(),
+            command.DocumentType.Trim(),
             command.Audience.Trim(),
             _htmlSanitizer.Sanitize(command.ContentHtml.Trim()),
             NormalizeGroupIds(command.AllowedGroupIds),
@@ -66,7 +66,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         await _repository.SaveAsync(
             document,
             [],
-            [Audit(command.ActorUserId, "instruction.created", document.Id, command.RequestId)],
+            [Audit(command.ActorUserId, "document.created", document.Id, command.RequestId)],
             ct);
 
         return document;
@@ -74,17 +74,17 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     public async Task<DocumentAggregate> UpdateDraftAsync(UpdateDraftCommand command, CancellationToken ct)
     {
-        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
-        if (document.State == InstructionState.Archived)
+        DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
+        if (document.State == DocumentState.Archived)
         {
             throw new DocumentLifecycleException(
                 "INVALID_LIFECYCLE_TRANSITION",
                 409,
-                "Archived instructions must be restored before editing.");
+                "Archived documents must be restored before editing.");
         }
 
         string normalizedTitle = command.Title.Trim();
-        string normalizedType = command.InstructionType.Trim();
+        string normalizedType = command.DocumentType.Trim();
         string normalizedAudience = command.Audience.Trim();
         string normalizedContent = _htmlSanitizer.Sanitize(command.ContentHtml.Trim());
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -98,7 +98,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 Guid.NewGuid(),
                 document.Id,
                 nextVersionNumber,
-                InstructionVersionState.Draft,
+                DocumentVersionState.Draft,
                 normalizedTitle,
                 normalizedType,
                 normalizedAudience,
@@ -113,7 +113,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         }
         else
         {
-            if (existingDraft.State != InstructionVersionState.Draft)
+            if (existingDraft.State != DocumentVersionState.Draft)
             {
                 throw new DocumentLifecycleException(
                     "INVALID_LIFECYCLE_TRANSITION",
@@ -124,7 +124,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             draft = existingDraft with
             {
                 Title = normalizedTitle,
-                InstructionType = normalizedType,
+                DocumentType = normalizedType,
                 Audience = normalizedAudience,
                 ContentHtml = normalizedContent,
                 IndexingStatus = IndexingStatus.None,
@@ -135,7 +135,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         DocumentAggregate updated = document with
         {
             Title = normalizedTitle,
-            State = InstructionState.Draft,
+            State = DocumentState.Draft,
             CurrentDraftVersion = draft,
             AllowedGroupIds = NormalizeGroupIds(command.AllowedGroupIds),
             UpdatedAt = now,
@@ -144,7 +144,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         await _repository.SaveAsync(
             updated,
             [],
-            [Audit(command.ActorUserId, "instruction.draft_updated", document.Id, command.RequestId)],
+            [Audit(command.ActorUserId, "document.draft_updated", document.Id, command.RequestId)],
             ct);
 
         return updated;
@@ -152,20 +152,20 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     public async Task<DocumentAggregate> SendToReviewAsync(SendToReviewCommand command, CancellationToken ct)
     {
-        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
+        DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
         DocumentVersionRecord draft = RequireDraft(document);
         RequireReadyForReview(document, draft);
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
         DocumentVersionRecord updatedDraft = draft with
         {
-            State = InstructionVersionState.InReview,
+            State = DocumentVersionState.InReview,
             SubmittedForReviewAt = now,
             SubmittedForReviewByUserId = command.ActorUserId,
         };
         DocumentAggregate updated = document with
         {
-            State = InstructionState.InReview,
+            State = DocumentState.InReview,
             CurrentDraftVersion = updatedDraft,
             UpdatedAt = now,
         };
@@ -176,7 +176,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         await _repository.SaveAsync(
             updated,
             comments,
-            [Audit(command.ActorUserId, "instruction.send_to_review", document.Id, command.RequestId)],
+            [Audit(command.ActorUserId, "document.send_to_review", document.Id, command.RequestId)],
             ct);
 
         return updated;
@@ -185,11 +185,11 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     public async Task<DocumentAggregate> ReturnToDraftAsync(ReturnToDraftCommand command, CancellationToken ct)
     {
         string comment = RequireComment(command.Comment);
-        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
+        DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
         DocumentVersionRecord? draft = document.CurrentDraftVersion;
-        if (document.State != InstructionState.InReview
+        if (document.State != DocumentState.InReview
             || draft is null
-            || draft.State != InstructionVersionState.InReview)
+            || draft.State != DocumentVersionState.InReview)
         {
             throw new DocumentLifecycleException(
                 "INVALID_LIFECYCLE_TRANSITION",
@@ -199,14 +199,14 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
         DocumentVersionRecord updatedDraft = draft with
         {
-            State = InstructionVersionState.Draft,
+            State = DocumentVersionState.Draft,
             SubmittedForReviewAt = null,
             SubmittedForReviewByUserId = null,
             IndexingStatus = IndexingStatus.None,
         };
         DocumentAggregate updated = document with
         {
-            State = InstructionState.Draft,
+            State = DocumentState.Draft,
             CurrentDraftVersion = updatedDraft,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
@@ -214,7 +214,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         await _repository.SaveAsync(
             updated,
             [new ReviewCommentRecord(draft.Id, command.ActorUserId, comment)],
-            [Audit(command.ActorUserId, "instruction.return_to_draft", document.Id, command.RequestId)],
+            [Audit(command.ActorUserId, "document.return_to_draft", document.Id, command.RequestId)],
             ct);
 
         return updated;
@@ -223,11 +223,11 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     public async Task<DocumentAggregate> RequestPublishAsync(RequestPublishCommand command, CancellationToken ct)
     {
         RequireRole(command.ActorRoles, "Admin");
-        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
+        DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
         DocumentVersionRecord? draft = document.CurrentDraftVersion;
-        if (document.State != InstructionState.InReview
+        if (document.State != DocumentState.InReview
             || draft is null
-            || draft.State != InstructionVersionState.InReview)
+            || draft.State != DocumentVersionState.InReview)
         {
             throw new DocumentLifecycleException(
                 "INVALID_LIFECYCLE_TRANSITION",
@@ -244,7 +244,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         await _repository.SaveAsync(
             pending,
             [],
-            [Audit(command.ActorUserId, "instruction.publish_requested", document.Id, command.RequestId)],
+            [Audit(command.ActorUserId, "document.publish_requested", document.Id, command.RequestId)],
             ct);
 
         InternalIndexingResult result = await _indexingClient.CreateIndexingJobAsync(
@@ -270,7 +270,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             await _repository.SaveAsync(
                 failed,
                 [],
-                [Audit(command.ActorUserId, "instruction.indexing_failed", document.Id, command.RequestId)],
+                [Audit(command.ActorUserId, "document.indexing_failed", document.Id, command.RequestId)],
                 ct);
             throw new DocumentLifecycleException(
                 "INDEXING_FAILED",
@@ -286,7 +286,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         DateTimeOffset now = DateTimeOffset.UtcNow;
         DocumentVersionRecord publishedVersion = draft with
         {
-            State = InstructionVersionState.Published,
+            State = DocumentVersionState.Published,
             PublishedAt = now,
             PublishedByUserId = command.ActorUserId,
             IndexingStatus = IndexingStatus.Succeeded,
@@ -294,7 +294,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         };
         DocumentAggregate published = pending with
         {
-            State = InstructionState.Published,
+            State = DocumentState.Published,
             CurrentDraftVersion = null,
             CurrentPublishedVersion = publishedVersion,
             UpdatedAt = now,
@@ -303,58 +303,58 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         await _repository.SaveAsync(
             published,
             [],
-            [Audit(command.ActorUserId, "instruction.published", document.Id, command.RequestId)],
+            [Audit(command.ActorUserId, "document.published", document.Id, command.RequestId)],
             ct);
 
         return published;
     }
 
-    public async Task<DocumentAggregate> ArchiveAsync(ArchiveInstructionCommand command, CancellationToken ct)
+    public async Task<DocumentAggregate> ArchiveAsync(ArchiveDocumentCommand command, CancellationToken ct)
     {
-        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
+        DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
         if (document.CurrentPublishedVersion is not null && !HasRole(command.ActorRoles, "Admin"))
         {
             throw new DocumentLifecycleException(
                 "AUTH_FORBIDDEN",
                 403,
-                "Only administrators can archive instructions with an active published version.");
+                "Only administrators can archive documents with an active published version.");
         }
 
-        if (!HasRole(command.ActorRoles, "Admin") && document.State is not (InstructionState.Draft or InstructionState.InReview))
+        if (!HasRole(command.ActorRoles, "Admin") && document.State is not (DocumentState.Draft or DocumentState.InReview))
         {
-            throw new DocumentLifecycleException("AUTH_FORBIDDEN", 403, "Actor cannot archive this instruction.");
+            throw new DocumentLifecycleException("AUTH_FORBIDDEN", 403, "Actor cannot archive this document.");
         }
 
         DocumentAggregate updated = document with
         {
-            State = InstructionState.Archived,
+            State = DocumentState.Archived,
             CurrentDraftVersion = document.CurrentDraftVersion is null
                 ? null
-                : document.CurrentDraftVersion with { State = InstructionVersionState.Archived },
+                : document.CurrentDraftVersion with { State = DocumentVersionState.Archived },
             CurrentPublishedVersion = document.CurrentPublishedVersion is null
                 ? null
-                : document.CurrentPublishedVersion with { State = InstructionVersionState.Archived },
+                : document.CurrentPublishedVersion with { State = DocumentVersionState.Archived },
             UpdatedAt = DateTimeOffset.UtcNow,
         };
 
         await _repository.SaveAsync(
             updated,
             [],
-            [Audit(command.ActorUserId, "instruction.archived", document.Id, command.RequestId)],
+            [Audit(command.ActorUserId, "document.archived", document.Id, command.RequestId)],
             ct);
 
         return updated;
     }
 
-    public async Task<DocumentAggregate> RestoreAsync(RestoreInstructionCommand command, CancellationToken ct)
+    public async Task<DocumentAggregate> RestoreAsync(RestoreDocumentCommand command, CancellationToken ct)
     {
-        DocumentAggregate document = await RequireDocumentAsync(command.InstructionId, ct);
-        if (document.State != InstructionState.Archived)
+        DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
+        if (document.State != DocumentState.Archived)
         {
             throw new DocumentLifecycleException(
                 "INVALID_LIFECYCLE_TRANSITION",
                 409,
-                "Only archived instructions can be restored.");
+                "Only archived documents can be restored.");
         }
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -366,9 +366,9 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             Guid.NewGuid(),
             document.Id,
             nextVersionNumber,
-            InstructionVersionState.Draft,
+            DocumentVersionState.Draft,
             source?.Title ?? document.Title,
-            source?.InstructionType ?? string.Empty,
+            source?.DocumentType ?? string.Empty,
             source?.Audience ?? string.Empty,
             source?.ContentHtml ?? string.Empty,
             now,
@@ -380,7 +380,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 null);
         DocumentAggregate updated = document with
         {
-            State = InstructionState.Draft,
+            State = DocumentState.Draft,
             CurrentDraftVersion = draft,
             CurrentPublishedVersion = null,
             UpdatedAt = now,
@@ -389,23 +389,23 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         await _repository.SaveAsync(
             updated,
             [],
-            [Audit(command.ActorUserId, "instruction.restored", document.Id, command.RequestId)],
+            [Audit(command.ActorUserId, "document.restored", document.Id, command.RequestId)],
             ct);
 
         return updated;
     }
 
-    private async Task<DocumentAggregate> RequireDocumentAsync(Guid instructionId, CancellationToken ct)
+    private async Task<DocumentAggregate> RequireDocumentAsync(Guid documentId, CancellationToken ct)
     {
-        return await _repository.FindAsync(instructionId, ct)
-            ?? throw new DocumentLifecycleException("NOT_FOUND", 404, "Instruction not found.");
+        return await _repository.FindAsync(documentId, ct)
+            ?? throw new DocumentLifecycleException("NOT_FOUND", 404, "Document not found.");
     }
 
     private static DocumentVersionRecord RequireDraft(DocumentAggregate document)
     {
-        if (document.State != InstructionState.Draft
+        if (document.State != DocumentState.Draft
             || document.CurrentDraftVersion is null
-            || document.CurrentDraftVersion.State != InstructionVersionState.Draft)
+            || document.CurrentDraftVersion.State != DocumentVersionState.Draft)
         {
             throw new DocumentLifecycleException(
                 "INVALID_LIFECYCLE_TRANSITION",
@@ -424,9 +424,9 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             missing.Add("title");
         }
 
-        if (string.IsNullOrWhiteSpace(draft.InstructionType))
+        if (string.IsNullOrWhiteSpace(draft.DocumentType))
         {
-            missing.Add("instructionType");
+            missing.Add("documentType");
         }
 
         if (string.IsNullOrWhiteSpace(draft.Audience))
@@ -449,7 +449,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             throw new DocumentLifecycleException(
                 "VALIDATION_FAILED",
                 400,
-                "Instruction draft is missing required review fields.",
+                "Document draft is missing required review fields.",
                 new Dictionary<string, object?> { ["fields"] = missing });
         }
     }
@@ -503,7 +503,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             eventType,
             documentId,
             requestId,
-            new Dictionary<string, object?> { ["instructionId"] = documentId });
+            new Dictionary<string, object?> { ["documentId"] = documentId });
     }
 }
 

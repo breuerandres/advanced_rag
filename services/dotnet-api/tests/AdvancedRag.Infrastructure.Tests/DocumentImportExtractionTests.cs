@@ -94,7 +94,7 @@ public sealed class DocumentImportExtractionTests
                 ActorId),
             CancellationToken.None);
 
-        result.Metadata.InstructionVersionId.Should().BeNull();
+        result.Metadata.DocumentVersionId.Should().BeNull();
     }
 
     private static byte[] CreateDocx(params string[] paragraphs)

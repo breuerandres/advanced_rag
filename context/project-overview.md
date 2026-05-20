@@ -1,12 +1,12 @@
-# Advanced RAG Instruction Platform
+# Advanced RAG Document Platform
 
 ## Overview
 
-Advanced RAG Instruction Platform is a single-tenant corporate instruction management and RAG product. It lets customer administrators and document managers create, review, publish, archive, and audit internal instructions, while viewers use a secure chat frontend and token-gated document viewer to access only the published content allowed by their role, groups, and document attributes.
+Advanced RAG Document Platform is a single-tenant corporate document management and RAG product. It lets customer administrators and document managers create, review, publish, archive, and audit internal documents, while viewers use a secure chat frontend and token-gated document viewer to access only the published content allowed by their role, groups, and document attributes.
 
 ## Goals
 
-1. Provide a secure instruction lifecycle from draft to published content with explicit roles, audit, and publication control.
+1. Provide a secure document lifecycle from draft to published content with explicit roles, audit, and publication control.
 2. Serve end users with a RAG chat experience that only retrieves content matching their effective access scope.
 3. Keep deployment sellable as a per-customer Docker Compose product with isolated data, secrets, logs, and configuration.
 4. Capture operational and quality signals, including query audit, token/cost metadata, cache behavior, citations, and chat feedback.
@@ -16,18 +16,18 @@ Advanced RAG Instruction Platform is a single-tenant corporate instruction manag
 ## Core User Flow
 
 1. An `Admin` configures users, roles, groups/departments, and access attributes.
-2. A `DocumentManager` creates an instruction manually or imports a PDF/DOCX to prefill the editor with extracted text, then edits normalized HTML and metadata and sends the draft to review.
-3. An `Admin` publishes from `In Review`; publication is blocked until FastAPI indexes the instruction successfully.
+2. A `DocumentManager` creates an document manually or imports a PDF/DOCX to prefill the editor with extracted text, then edits normalized HTML and metadata and sends the draft to review.
+3. An `Admin` publishes from `In Review`; publication is blocked until FastAPI indexes the document successfully.
 4. A `Viewer` asks questions in `chat.client.com`; FastAPI retrieves only published content matching the viewer's effective access scope.
-5. The viewer opens cited instructions through short-lived scoped links to `docs.client.com`.
+5. The viewer opens cited documents through short-lived scoped links to `docs.client.com`.
 6. The viewer can submit thumbs up/down feedback with an optional comment for each chat answer.
 
 ## Features
 
-### Instruction Management
+### Document Management
 
 - Local user, role, and group/department administration through the .NET management API.
-- Instruction creation, import, metadata editing, review transitions, publication, archive, restore, and audit.
+- Document creation, import, metadata editing, review transitions, publication, archive, restore, and audit.
 - Document access is assigned by groups/departments and document attributes in the MVP; per-user document exceptions are handled by creating dedicated groups, not by direct user ACLs.
 - Assisted PDF/DOCX import that extracts text into the editor while leaving final formatting and attributes under user control.
 - Simple formal versioning where every successful publication creates an immutable published version.
@@ -50,7 +50,7 @@ Advanced RAG Instruction Platform is a single-tenant corporate instruction manag
 - Budget exhaustion blocks new paid chat/RAG usage, not document viewing or management access.
 - Over-budget users do not receive semantic cached answers in the MVP because semantic cache lookup requires a paid embedding request.
 
-### Instruction Viewer
+### Document Viewer
 
 - Token-gated document viewer at `docs.client.com`.
 - Viewer links use one-time 60-second exchange codes in URLs; the real viewer access token is set as a host-only `HttpOnly` cookie after `docs.client.com` exchanges the code with .NET.
@@ -74,7 +74,7 @@ Advanced RAG Instruction Platform is a single-tenant corporate instruction manag
 
 ### In Scope
 
-- Three independent React frontends: management, chat, and instruction viewer.
+- Three independent React frontends: management, chat, and document viewer.
 - Tailwind CSS, `shadcn/ui`, and `lucide-react` as the MVP UI foundation for all frontends.
 - .NET 8 API for identity, document lifecycle, assisted PDF/DOCX text extraction, viewer access tokens, management audit, and user/group administration.
 - FastAPI service for public chat, retrieval, embeddings, semantic cache, RAG audit, indexing jobs, and chat feedback.
@@ -95,7 +95,7 @@ Advanced RAG Instruction Platform is a single-tenant corporate instruction manag
 
 ## Success Criteria
 
-1. An `Admin` can publish an instruction only after successful pre-publication indexing.
+1. An `Admin` can publish an document only after successful pre-publication indexing.
 2. A `DocumentManager` can manage draft/review content but cannot publish.
 3. A `Viewer` cannot access the management app and can only chat over and open documents allowed by their effective access scope.
 4. Public chat never retrieves non-`Published` content.

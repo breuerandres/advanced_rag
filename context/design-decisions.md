@@ -40,10 +40,10 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Publication Requires Successful Indexing](#2026-05-11---publication-requires-successful-indexing)
 - [Manual Retry For Pre-Publication Indexing Failure](#2026-05-11---manual-retry-for-pre-publication-indexing-failure)
 - [Simple Formal Document Versioning](#2026-05-11---simple-formal-document-versioning)
-- [Editing Published Instructions Creates Draft Version](#2026-05-11---editing-published-instructions-creates-draft-version)
-- [Archive Entire Instruction](#2026-05-11---archive-entire-instruction)
+- [Editing Published Documents Creates Draft Version](#2026-05-11---editing-published-documents-creates-draft-version)
+- [Archive Entire Document](#2026-05-11---archive-entire-document)
 - [Archive Authority](#2026-05-11---archive-authority)
-- [Restore Archived Instruction To Draft](#2026-05-11---restore-archived-instruction-to-draft)
+- [Restore Archived Document To Draft](#2026-05-11---restore-archived-document-to-draft)
 - [Restore Authority](#2026-05-11---restore-authority)
 - [No Separate Soft Delete In MVP](#2026-05-11---no-separate-soft-delete-in-mvp)
 - [Minimum Validation Before Review](#2026-05-11---minimum-validation-before-review)
@@ -117,6 +117,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Task 17.5 Management Workspace Refinement And TipTap](#2026-05-20---task-175-management-workspace-refinement-and-tiptap)
 - [Task 17.5 Feedback And Functional Audit Separation](#2026-05-20---task-175-feedback-and-functional-audit-separation)
 - [Task 17.5 Functional Audit Read Model](#2026-05-20---task-175-functional-audit-read-model)
+- [Document Domain Vocabulary Rename](#2026-05-20---document-domain-vocabulary-rename)
 
 ### UI Foundation
 
@@ -126,7 +127,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 ## 2026-05-11 - Base Architecture Scope
 
-**Context:** The product includes document management, RAG chat, instruction viewing, audit, security, and deployment concerns. This is too broad for a single implementation step.
+**Context:** The product includes document management, RAG chat, document viewing, audit, security, and deployment concerns. This is too broad for a single implementation step.
 
 **Options Considered:** Design the full platform at once, focus on document management first, focus on RAG first, or define the complete base architecture first.
 
@@ -248,7 +249,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Tradeoffs:** Administrators need to create small groups for exceptional cases instead of directly assigning one user to one document.
 
-**Consequences:** `instruction_permissions` models group/department and attribute rules, not direct per-user ACL rows. `access_scope_hash` is derived from role, groups/departments, and relevant access attributes.
+**Consequences:** `document_permissions` models group/department and attribute rules, not direct per-user ACL rows. `access_scope_hash` is derived from role, groups/departments, and relevant access attributes.
 
 ## 2026-05-11 - Browser Session Storage
 
@@ -410,7 +411,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 ## 2026-05-11 - Simple Formal Document Versioning
 
-**Context:** Corporate instructions need traceability and stable references after publication.
+**Context:** Corporate documents need traceability and stable references after publication.
 
 **Options Considered:** No formal versioning with audit only, simple published versions, or full parallel draft/version workflow.
 
@@ -418,17 +419,17 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Rationale:** This provides corporate-grade traceability without the complexity of parallel drafts and active published versions.
 
-**Tradeoffs:** Editing a published instruction still needs a clear rule for whether edits mutate a working copy or create a new draft version; that is the next lifecycle decision.
+**Tradeoffs:** Editing a published document still needs a clear rule for whether edits mutate a working copy or create a new draft version; that is the next lifecycle decision.
 
 **Consequences:** Version records must store the normalized HTML, metadata snapshot, publication timestamp, publisher, and indexing reference used by RAG.
 
-## 2026-05-11 - Editing Published Instructions Creates Draft Version
+## 2026-05-11 - Editing Published Documents Creates Draft Version
 
-**Context:** The MVP uses immutable published versions, so editing a published instruction must not mutate the active published content.
+**Context:** The MVP uses immutable published versions, so editing a published document must not mutate the active published content.
 
 **Options Considered:** Create a new draft version, block/lock the published version while editing, or edit directly and overwrite on publication.
 
-**Decision:** Editing an already published instruction creates a new draft version. The latest published version remains active until the new draft completes review, pre-publication indexing, and publication.
+**Decision:** Editing an already published document creates a new draft version. The latest published version remains active until the new draft completes review, pre-publication indexing, and publication.
 
 **Rationale:** This preserves stable published content while allowing managers to prepare updates safely.
 
@@ -436,67 +437,67 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Consequences:** Viewer and public RAG continue using the latest published version. Management UI must clearly show draft vs published version state.
 
-## 2026-05-11 - Archive Entire Instruction
+## 2026-05-11 - Archive Entire Document
 
-**Context:** The platform needs a reversible/non-destructive removal path for obsolete instructions while preserving audit and historical versions.
+**Context:** The platform needs a reversible/non-destructive removal path for obsolete documents while preserving audit and historical versions.
 
-**Options Considered:** Archive the entire instruction, archive individual versions, or add separate `Archived` and `Deleted` states.
+**Options Considered:** Archive the entire document, archive individual versions, or add separate `Archived` and `Deleted` states.
 
-**Decision:** Archive applies to the entire instruction in the MVP.
+**Decision:** Archive applies to the entire document in the MVP.
 
-**Rationale:** Instruction-level archiving is simpler for viewer, RAG, permissions, and management search while preserving historical evidence.
+**Rationale:** Document-level archiving is simpler for viewer, RAG, permissions, and management search while preserving historical evidence.
 
 **Tradeoffs:** The MVP cannot archive only a specific published version while keeping another version active.
 
-**Consequences:** Archived instructions are unavailable to public viewer and public chat. Versions and audit history are retained. Archiving deactivates the instruction from the active RAG corpus and invalidates cache entries that cite it.
+**Consequences:** Archived documents are unavailable to public viewer and public chat. Versions and audit history are retained. Archiving deactivates the document from the active RAG corpus and invalidates cache entries that cite it.
 
 ## 2026-05-11 - Archive Authority
 
-**Context:** Archiving removes an instruction from public viewer and public chat, so the authority model must distinguish draft cleanup from removal of published content.
+**Context:** Archiving removes an document from public viewer and public chat, so the authority model must distinguish draft cleanup from removal of published content.
 
-**Options Considered:** `Admin` archives any instruction while `DocumentManager` archives only `Draft` or `In Review`, both roles archive any instruction, or only `Admin` archives.
+**Options Considered:** `Admin` archives any document while `DocumentManager` archives only `Draft` or `In Review`, both roles archive any document, or only `Admin` archives.
 
-**Decision:** `Admin` can archive any instruction, including `Published` instructions. `DocumentManager` can archive only instructions whose current lifecycle state is `Draft` or `In Review` and that do not have an active published version.
+**Decision:** `Admin` can archive any document, including `Published` documents. `DocumentManager` can archive only documents whose current lifecycle state is `Draft` or `In Review` and that do not have an active published version.
 
 **Rationale:** Document managers can clean up unpublished work, while published content removal stays under admin control because it affects normal viewers, chat retrieval, cache invalidation, and audit expectations.
 
-**Tradeoffs:** Document managers cannot remove a published instruction even when they are responsible for its content.
+**Tradeoffs:** Document managers cannot remove a published document even when they are responsible for its content.
 
-**Consequences:** Archiving any instruction with an active published version requires `Admin`. The role table must describe `DocumentManager` archive permission as limited to eligible draft or in-review instructions.
+**Consequences:** Archiving any document with an active published version requires `Admin`. The role table must describe `DocumentManager` archive permission as limited to eligible draft or in-review documents.
 
-## 2026-05-11 - Restore Archived Instruction To Draft
+## 2026-05-11 - Restore Archived Document To Draft
 
-**Context:** Archived instructions may need to return to service, but direct re-publication can expose stale content.
+**Context:** Archived documents may need to return to service, but direct re-publication can expose stale content.
 
 **Options Considered:** Restore to `Draft`, restore directly to `Published`, or disallow restore in the MVP.
 
-**Decision:** Restoring an archived instruction moves it to `Draft`.
+**Decision:** Restoring an archived document moves it to `Draft`.
 
 **Rationale:** Returning through `Draft`, `In Review`, pre-publication indexing, and publication keeps editorial and RAG consistency checks intact.
 
-**Tradeoffs:** Restoration requires extra steps before the instruction is public again.
+**Tradeoffs:** Restoration requires extra steps before the document is public again.
 
-**Consequences:** Restored instructions remain unavailable to public viewer and public chat until they are reviewed, indexed successfully, and published.
+**Consequences:** Restored documents remain unavailable to public viewer and public chat until they are reviewed, indexed successfully, and published.
 
 ## 2026-05-11 - Restore Authority
 
-**Context:** Restoring an archived instruction only moves it back into the internal editing lifecycle. It does not immediately expose the instruction publicly.
+**Context:** Restoring an archived document only moves it back into the internal editing lifecycle. It does not immediately expose the document publicly.
 
-**Options Considered:** Use the same authority model as archiving, allow only `Admin` to restore, or allow both `Admin` and `DocumentManager` to restore any archived instruction to `Draft`.
+**Options Considered:** Use the same authority model as archiving, allow only `Admin` to restore, or allow both `Admin` and `DocumentManager` to restore any archived document to `Draft`.
 
-**Decision:** `Admin` and `DocumentManager` can restore any archived instruction to `Draft`.
+**Decision:** `Admin` and `DocumentManager` can restore any archived document to `Draft`.
 
 **Rationale:** Restoration is lower risk than archiving or publishing because restored content remains internal and must still pass review, pre-publication indexing, and Admin publication before it becomes public again.
 
-**Tradeoffs:** Document managers can bring back archived instructions that were originally published, so the management UI and audit trail must make restoration visible.
+**Tradeoffs:** Document managers can bring back archived documents that were originally published, so the management UI and audit trail must make restoration visible.
 
-**Consequences:** Restoring an archived instruction does not reactivate any previous published version, public viewer access, public chat retrieval, or RAG corpus entry.
+**Consequences:** Restoring an archived document does not reactivate any previous published version, public viewer access, public chat retrieval, or RAG corpus entry.
 
 ## 2026-05-11 - No Separate Soft Delete In MVP
 
-**Context:** The lifecycle already includes `Archived`, which removes instructions from public use while preserving audit and versions.
+**Context:** The lifecycle already includes `Archived`, which removes documents from public use while preserving audit and versions.
 
-**Options Considered:** No soft delete, soft delete only for drafts, or soft delete for all instructions.
+**Options Considered:** No soft delete, soft delete only for drafts, or soft delete for all documents.
 
 **Decision:** Do not include a separate soft delete state in the MVP.
 
@@ -512,7 +513,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Options Considered:** Full minimum validation, title/content only, or client-configurable required fields.
 
-**Decision:** Moving a draft to `In Review` requires title, instruction type, allowed groups/departments, audience/user type, non-empty sanitized HTML, and valid sanitized content. Tags are optional.
+**Decision:** Moving a draft to `In Review` requires title, document type, allowed groups/departments, audience/user type, non-empty sanitized HTML, and valid sanitized content. Tags are optional.
 
 **Rationale:** Review without access metadata or sanitized content would create preventable publishing and retrieval failures.
 
@@ -578,11 +579,11 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 ## 2026-05-11 - Assisted Document Import Workflow
 
-**Context:** Automatically converting PDF/DOCX files into final publishable instructions can produce poor formatting and incorrect metadata, especially when source documents are inconsistent.
+**Context:** Automatically converting PDF/DOCX files into final publishable documents can produce poor formatting and incorrect metadata, especially when source documents are inconsistent.
 
 **Options Considered:** Fully automatic document conversion, backend extraction into normalized content, frontend extraction before upload, or assisted extraction into the editor.
 
-**Decision:** Use assisted PDF/DOCX import. The system extracts text from the uploaded file and inserts it into the document editor; the user then decides final formatting, structure, title, instruction type, access attributes, and readiness for review.
+**Decision:** Use assisted PDF/DOCX import. The system extracts text from the uploaded file and inserts it into the document editor; the user then decides final formatting, structure, title, document type, access attributes, and readiness for review.
 
 **Rationale:** This gives better content quality than trusting automatic conversion while still reducing manual copy/paste work.
 
@@ -626,7 +627,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Decision:** Use a 10 MB upload size limit per PDF/DOCX import file.
 
-**Rationale:** Ten megabytes is conservative and should cover typical corporate instruction files while reducing extraction latency and resource risk.
+**Rationale:** Ten megabytes is conservative and should cover typical corporate document files while reducing extraction latency and resource risk.
 
 **Tradeoffs:** Some large manuals will need to be split or reduced before import.
 
@@ -682,7 +683,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Decision:** Use `0.90` as the initial semantic cache similarity threshold.
 
-**Rationale:** Corporate instruction answers should favor correctness and access safety over early cost savings. A conservative threshold reduces the chance of semantically wrong cached answers.
+**Rationale:** Corporate document answers should favor correctness and access safety over early cost savings. A conservative threshold reduces the chance of semantically wrong cached answers.
 
 **Tradeoffs:** The cache will have fewer hits at first, so LLM usage and cost reduction will be lower until metrics justify tuning.
 
@@ -770,7 +771,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Tradeoffs:** Column-level schema, indexes, constraints, and DTO mappings remain for implementation planning.
 
-**Consequences:** `.NET` owns users, roles, groups, instructions, versions, permissions, tags, review comments, import metadata, viewer exchange codes, viewer token audit, and management audit. FastAPI owns indexing jobs, document chunks, semantic cache, query audit, audit citations, and model pricing.
+**Consequences:** `.NET` owns users, roles, groups, documents, versions, permissions, tags, review comments, import metadata, viewer exchange codes, viewer token audit, and management audit. FastAPI owns indexing jobs, document chunks, semantic cache, query audit, audit citations, and model pricing.
 
 ## 2026-05-11 - RAG Chunk And Audit Table Shape
 
@@ -878,9 +879,9 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Decision:** Use `gpt-4.1-mini` as the MVP default chat model and `text-embedding-3-large` as the MVP default embedding model with `OPENAI_EMBEDDING_DIMENSIONS=1536`.
 
-**Rationale:** `gpt-4.1-mini` is sufficient for the initial corporate instruction assistant use case and favors response speed. Speed is a quality attribute for the chat experience. `text-embedding-3-large` improves retrieval quality for RAG compared with smaller embeddings.
+**Rationale:** `gpt-4.1-mini` is sufficient for the initial corporate document assistant use case and favors response speed. Speed is a quality attribute for the chat experience. `text-embedding-3-large` improves retrieval quality for RAG compared with smaller embeddings.
 
-**Tradeoffs:** The chat model is not the strongest available model family, so answer quality must be evaluated against real instructions. The embedding model costs more and stores larger vectors than `text-embedding-3-small`.
+**Tradeoffs:** The chat model is not the strongest available model family, so answer quality must be evaluated against real documents. The embedding model costs more and stores larger vectors than `text-embedding-3-small`.
 
 **Consequences:** Model IDs must be configurable through `OPENAI_CHAT_MODEL` and `OPENAI_EMBEDDING_MODEL`, and embedding dimensions must be configurable through `OPENAI_EMBEDDING_DIMENSIONS`. The RAG audit must persist actual model IDs, embedding dimensions, token usage, latency, estimated cost, and the model pricing snapshot used. Revisit the defaults after retrieval and answer-quality evaluations.
 
@@ -912,7 +913,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Rationale:** The MVP goal is to control provider cost until the end-to-end product is running. `text-embedding-3-small` aligns with the existing `vector(1536)` schema without a migration and avoids the confusing large-model-with-reduced-dimensions default.
 
-**Tradeoffs:** Retrieval quality may be lower than `text-embedding-3-large`, especially on nuanced or long internal instructions. This is acceptable for the MVP only if retrieval quality, citation relevance, user feedback, and answer quality are reviewed before production rollout.
+**Tradeoffs:** Retrieval quality may be lower than `text-embedding-3-large`, especially on nuanced or long internal documents. This is acceptable for the MVP only if retrieval quality, citation relevance, user feedback, and answer quality are reviewed before production rollout.
 
 **Consequences:** `OPENAI_EMBEDDING_MODEL` defaults should move to `text-embedding-3-small`, while `OPENAI_EMBEDDING_DIMENSIONS` remains `1536`. The existing `rag.document_chunks.embedding vector(1536)` and `rag.semantic_cache_entries.question_embedding vector(1536)` schema remains valid. A future upgrade to `text-embedding-3-large` at 3072 dimensions requires an explicit data/model migration plan and reindexing.
 
@@ -924,13 +925,13 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Options Considered:** Put budget values in the chat token, call an internal `.NET` budget endpoint on every chat request, or let FastAPI read budget configuration through read-only database grants. Allow missing pricing with zero-cost estimates, warn and continue, or fail readiness/runtime safely. Authorize retrieval from token-provided document ids, `access_scope_hash`, or SQL filtering against `.NET`-owned permissions.
 
-**Decision:** FastAPI reads `app.user_ai_budget_limits` through explicit read-only database grants and combines it with `rag.query_audit_events` spend. `rag.model_pricing` active rows are mandatory for the configured chat and embedding models; readiness fails when pricing is missing and runtime chat returns `RAG_PROVIDER_MISCONFIGURED`. Retrieval uses signed chat-token scope claims as inputs, but filters in SQL against `app.instruction_permissions` through read-only grants. `access_scope_hash` is only for cache partitioning and audit, not authorization.
+**Decision:** FastAPI reads `app.user_ai_budget_limits` through explicit read-only database grants and combines it with `rag.query_audit_events` spend. `rag.model_pricing` active rows are mandatory for the configured chat and embedding models; readiness fails when pricing is missing and runtime chat returns `RAG_PROVIDER_MISCONFIGURED`. Retrieval uses signed chat-token scope claims as inputs, but filters in SQL against `app.document_permissions` through read-only grants. `access_scope_hash` is only for cache partitioning and audit, not authorization.
 
 **Rationale:** Budgets can change during a chat-token lifetime, so putting the budget only in JWT claims would make enforcement stale. An internal `.NET` call on every chat request would add latency and a synchronous service dependency to the chat path. Read-only database access preserves `.NET` write ownership while keeping budget checks local to FastAPI. Missing pricing makes budget enforcement unreliable, so failing explicitly is safer than writing false zero-cost audit rows. Retrieval authorization must use current document permissions and cannot rely on a hash alone.
 
 **Tradeoffs:** FastAPI now has approved read-only access to two `.NET`-owned app tables, which is a controlled exception to strict schema ownership. This must stay narrow and tested. Read-only SQL filtering is more complex than token-only filtering, but avoids oversized or stale document-id claims and keeps cache partitioning separate from authorization.
 
-**Consequences:** Task 11 must add migration/init grants for `app.user_ai_budget_limits` and `app.instruction_permissions`, pricing seed/readiness checks, and retrieval tests proving that different permission scopes cannot retrieve unauthorized chunks or reuse each other's cache. FastAPI must not write to any `app` table.
+**Consequences:** Task 11 must add migration/init grants for `app.user_ai_budget_limits` and `app.document_permissions`, pricing seed/readiness checks, and retrieval tests proving that different permission scopes cannot retrieve unauthorized chunks or reuse each other's cache. FastAPI must not write to any `app` table.
 
 ## 2026-05-13 - Human-In-The-Loop Implementation Protocol
 
@@ -1112,7 +1113,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Tradeoffs:** The management UI can show pending indexing status, but a document is not fully published until Task 10 implements the indexing pipeline and success transition. This is acceptable because public chat retrieval is not implemented yet.
 
-**Consequences:** The `.NET` app schema now tracks `instruction_versions.indexing_status`. The document service sanitizes stored instruction HTML through `Ganss.Xss` `HtmlSanitizer` `9.0.892`, extracts DOCX text with `DocumentFormat.OpenXml` `3.5.1`, and extracts PDF text with `PdfPig` `0.1.14`. Management document UI strings are Spanish, while code and project context remain English.
+**Consequences:** The `.NET` app schema now tracks `document_versions.indexing_status`. The document service sanitizes stored document HTML through `Ganss.Xss` `HtmlSanitizer` `9.0.892`, extracts DOCX text with `DocumentFormat.OpenXml` `3.5.1`, and extracts PDF text with `PdfPig` `0.1.14`. Management document UI strings are Spanish, while code and project context remain English.
 
 **Evidence:** Verified on 2026-05-17 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter "Document|Import|Lifecycle"`, `pnpm.cmd --dir apps\manage-web test -- --run`, `dotnet test services\dotnet-api\AdvancedRag.sln`, `dotnet build services\dotnet-api\AdvancedRag.sln`, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. .NET verification emitted NU1900 vulnerability-metadata warnings because NuGet could not fetch `https://api.nuget.org/v3/index.json`; tests and builds still passed.
 
@@ -1138,7 +1139,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Options Considered:** Implement chat as a thin endpoint over provider calls, implement retrieval and budget enforcement as testable services, or defer cache and budget until after the chat frontend.
 
-**Decision:** Implement the FastAPI chat/RAG core now as a service behind `/api/chat`, with injectable embedding, chat completion, and chat-token validator dependencies for testability. Retrieval filters chunks at SQL level through `.NET`-owned `app.instruction_permissions`; viewers are forced to the `published` corpus. Query audit writes store citations, model/pricing/cost evidence, latency, request ID, corpus, prompt version, chunker version, and access scope hash. Semantic cache entries are keyed by corpus and `access_scope_hash`, track source instructions, and are invalidated through an internal service-token-protected endpoint. AI budget checks run before embedding or chat completion provider calls.
+**Decision:** Implement the FastAPI chat/RAG core now as a service behind `/api/chat`, with injectable embedding, chat completion, and chat-token validator dependencies for testability. Retrieval filters chunks at SQL level through `.NET`-owned `app.document_permissions`; viewers are forced to the `published` corpus. Query audit writes store citations, model/pricing/cost evidence, latency, request ID, corpus, prompt version, chunker version, and access scope hash. Semantic cache entries are keyed by corpus and `access_scope_hash`, track source documents, and are invalidated through an internal service-token-protected endpoint. AI budget checks run before embedding or chat completion provider calls.
 
 **Rationale:** This preserves the approved service boundary while creating a verifiable RAG core before feedback, viewer citation exchange, and the chat frontend are layered on. Injected providers keep integration tests deterministic and avoid spending real OpenAI credits during verification.
 
@@ -1362,7 +1363,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Options Considered:** Keep the Task 15 navigation unchanged, add more separate management screens, or consolidate duplicate surfaces into the workflow where operators naturally need them.
 
-**Decision:** Keep management navigation focused on `Documentos`, `Usuarios y grupos`, `Auditoria`, and `Configuracion`. Per-user AI budget controls remain inside `Usuarios y grupos`. Feedback review is embedded inside `Auditoria`. The document list exposes filters for search text, lifecycle state, indexing state, instruction type, audience, and access-group coverage. The document summary API includes `instructionType`, `audience`, and `allowedGroupIds` so the frontend can filter without opening each document. The Task 17.5 editor uses a dependency-free local HTML editor toolbar as an interim implementation until the approved TipTap dependencies are installed.
+**Decision:** Keep management navigation focused on `Documentos`, `Usuarios y grupos`, `Auditoria`, and `Configuracion`. Per-user AI budget controls remain inside `Usuarios y grupos`. Feedback review is embedded inside `Auditoria`. The document list exposes filters for search text, lifecycle state, indexing state, document type, audience, and access-group coverage. The document summary API includes `documentType`, `audience`, and `allowedGroupIds` so the frontend can filter without opening each document. The Task 17.5 editor uses a dependency-free local HTML editor toolbar as an interim implementation until the approved TipTap dependencies are installed.
 
 **Rationale:** The consolidated navigation removes duplicate destinations and aligns screens with operator mental models: budgets are user configuration, while chat feedback belongs to audit/reporting. Document filtering needs list-level metadata to stay fast and predictable. The local editor improves the MVP immediately without adding a dependency installation checkpoint in the middle of the user review pass.
 
@@ -1410,12 +1411,28 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Options Considered:** Keep the audit placeholder until a larger reporting task, show locally mocked events in the frontend, or expose a scoped `.NET` read endpoint over `app.audit_events`.
 
-**Decision:** Add `.NET` `GET /api/audit/events` for `Admin` and `DocumentManager`, backed by `app.audit_events`, and update the management audit workspace to load, filter, and render those functional events. The local demo seed with `-WithSampleInstruction` inserts a matching `instruction.created` row so the screen can show a visible audit event without using chat feedback as a substitute.
+**Decision:** Add `.NET` `GET /api/audit/events` for `Admin` and `DocumentManager`, backed by `app.audit_events`, and update the management audit workspace to load, filter, and render those functional events. The local demo seed with `-WithSampleDocument` inserts a matching `document.created` row so the screen can show a visible audit event without using chat feedback as a substitute.
 
 **Rationale:** Functional audit is already persisted by document lifecycle workflows and is part of the management service boundary. Exposing it through `.NET` keeps the management frontend on the approved same-origin API path and gives operators a real activity view immediately.
 
 **Tradeoffs:** The first read model is intentionally narrow: it shows document lifecycle events already written to `app.audit_events`. User/group/budget mutations still need their own audit writes in a later backend hardening pass before those event types appear naturally.
 
-**Consequences:** `Auditoria` should now remain a real functional event view and must not embed feedback reporting. Document create/update/review/archive/restore actions generate visible rows, and demo environments can seed one with `infra/compose/Seed-LocalDemoData.ps1 -WithSampleInstruction`.
+**Consequences:** `Auditoria` should now remain a real functional event view and must not embed feedback reporting. Document create/update/review/archive/restore actions generate visible rows, and demo environments can seed one with `infra/compose/Seed-LocalDemoData.ps1 -WithSampleDocument`.
 
 **Evidence:** Verified on 2026-05-20 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter ManagementAudit` (`2 passed`), `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`29 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, and `dotnet test services\dotnet-api\AdvancedRag.sln --filter "ManagementAudit|Document"` (`24 passed`). `.NET` commands emitted the existing `NU1900` warnings because NuGet vulnerability metadata could not be fetched; tests passed.
+
+## 2026-05-20 - Document Domain Vocabulary Rename
+
+**Context:** The product had already exposed `/api/documents` routes and Spanish `Documentos` UI, but the durable domain model, database schema, RAG schema columns, audit event types, tests, scripts, and project context still used the older `instruction` vocabulary. The user explicitly approved changing both the database and code so the domain is called `documents`.
+
+**Options Considered:** Keep only external UI/API wording as documents, add compatibility views over old instruction tables, or perform a structural rename across app, RAG, code, scripts, tests, and context.
+
+**Decision:** Perform the structural rename to `documents`. The effective schema now uses `app.documents`, `app.document_versions`, `app.document_permissions`, `app.document_tags`, `document_id`, `document_version_id`, and `document_type`. RAG-owned storage uses `document_id` and `document_version_id`. Audit events use `document.*`. Public API payload fields use `documentId`, `documentVersionId`, and `documentType`.
+
+**Rationale:** A split vocabulary would create avoidable maintenance risk and make operators, implementers, and final documentation reason about two names for the same product object. The MVP is still early enough to correct the domain language directly.
+
+**Tradeoffs:** The rename touches many files and requires compatibility migrations for existing local databases that already applied the earlier schema. The migration files necessarily reference the legacy `instruction_*` names as old database identifiers, but new runtime code and new schema objects use `document*`.
+
+**Consequences:** Future product, database, API, RAG, frontend, and documentation work must use `documents` vocabulary. Any remaining `instruction_*` references should be limited to compatibility migration logic that renames old database objects forward or downgrades them.
+
+**Evidence:** Verified on 2026-05-20 with `dotnet test services\dotnet-api\AdvancedRag.sln` (`70 passed`), `uv run pytest -q` (`32 passed`), `uv run ruff check .`, `uv run mypy src tests`, `pnpm.cmd -r test -- --run` (`50 frontend tests passed; E2E package intentionally skipped in recursive unit run`), `pnpm.cmd -r typecheck`, `pnpm.cmd -r build`, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`, and `git diff --check`. `.NET` commands emitted the existing NU1900 warnings because NuGet vulnerability metadata could not be fetched; Vite emitted the known management bundle-size warning after TipTap.

@@ -80,7 +80,7 @@ test('first-run setup creates an admin and reaches chat and viewer product surfa
 
   const document = await browserPostJson<DocumentDetail>(adminPage, '/api/documents', {
     title: `Primer uso seguridad ${Date.now()}`,
-    instructionType: 'Politica',
+    documentType: 'Politica',
     audience: 'Equipo interno',
     contentHtml:
       '<h1>Seguridad</h1><p>Para aprobar una solicitud interna, el colaborador debe validar identidad y registrar el motivo.</p>',

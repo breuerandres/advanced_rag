@@ -1,11 +1,11 @@
 namespace AdvancedRag.App.Documents;
 
-public interface IInstructionHtmlSanitizer
+public interface IDocumentHtmlSanitizer
 {
     string Sanitize(string html);
 }
 
-public sealed class PassthroughInstructionHtmlSanitizer : IInstructionHtmlSanitizer
+public sealed class PassthroughDocumentHtmlSanitizer : IDocumentHtmlSanitizer
 {
     public string Sanitize(string html)
     {

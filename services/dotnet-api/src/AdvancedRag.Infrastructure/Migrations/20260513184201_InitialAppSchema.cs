@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -84,7 +84,7 @@ namespace AdvancedRag.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "instructions",
+                name: "documents",
                 schema: "app",
                 columns: table => new
                 {
@@ -99,9 +99,9 @@ namespace AdvancedRag.Infrastructure.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_instructions", x => x.Id);
+                    table.PrimaryKey("PK_documents", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_instructions_users_created_by_user_id",
+                        name: "FK_documents_users_created_by_user_id",
                         column: x => x.created_by_user_id,
                         principalSchema: "app",
                         principalTable: "users",
@@ -194,12 +194,12 @@ namespace AdvancedRag.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "instruction_permissions",
+                name: "document_permissions",
                 schema: "app",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    instruction_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    document_id = table.Column<Guid>(type: "uuid", nullable: false),
                     group_id = table.Column<Guid>(type: "uuid", nullable: true),
                     attribute_key = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
                     attribute_value = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
@@ -207,55 +207,55 @@ namespace AdvancedRag.Infrastructure.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_instruction_permissions", x => x.Id);
+                    table.PrimaryKey("PK_document_permissions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_instruction_permissions_groups_group_id",
+                        name: "FK_document_permissions_groups_group_id",
                         column: x => x.group_id,
                         principalSchema: "app",
                         principalTable: "groups",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_instruction_permissions_instructions_instruction_id",
-                        column: x => x.instruction_id,
+                        name: "FK_document_permissions_documents_document_id",
+                        column: x => x.document_id,
                         principalSchema: "app",
-                        principalTable: "instructions",
+                        principalTable: "documents",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
-                name: "instruction_tags",
+                name: "document_tags",
                 schema: "app",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    instruction_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    document_id = table.Column<Guid>(type: "uuid", nullable: false),
                     name = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_instruction_tags", x => x.Id);
+                    table.PrimaryKey("PK_document_tags", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_instruction_tags_instructions_instruction_id",
-                        column: x => x.instruction_id,
+                        name: "FK_document_tags_documents_document_id",
+                        column: x => x.document_id,
                         principalSchema: "app",
-                        principalTable: "instructions",
+                        principalTable: "documents",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
-                name: "instruction_versions",
+                name: "document_versions",
                 schema: "app",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    instruction_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    document_id = table.Column<Guid>(type: "uuid", nullable: false),
                     version_number = table.Column<int>(type: "integer", nullable: false),
                     state = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     title = table.Column<string>(type: "character varying(240)", maxLength: 240, nullable: false),
-                    instruction_type = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
+                    document_type = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
                     audience = table.Column<string>(type: "character varying(160)", maxLength: 160, nullable: false),
                     content_html = table.Column<string>(type: "text", nullable: false),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()"),
@@ -267,23 +267,23 @@ namespace AdvancedRag.Infrastructure.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_instruction_versions", x => x.Id);
+                    table.PrimaryKey("PK_document_versions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_instruction_versions_instructions_instruction_id",
-                        column: x => x.instruction_id,
+                        name: "FK_document_versions_documents_document_id",
+                        column: x => x.document_id,
                         principalSchema: "app",
-                        principalTable: "instructions",
+                        principalTable: "documents",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_instruction_versions_users_published_by_user_id",
+                        name: "FK_document_versions_users_published_by_user_id",
                         column: x => x.published_by_user_id,
                         principalSchema: "app",
                         principalTable: "users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_instruction_versions_users_submitted_for_review_by_user_id",
+                        name: "FK_document_versions_users_submitted_for_review_by_user_id",
                         column: x => x.submitted_for_review_by_user_id,
                         principalSchema: "app",
                         principalTable: "users",
@@ -298,7 +298,7 @@ namespace AdvancedRag.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     code_hash = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    instruction_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    document_id = table.Column<Guid>(type: "uuid", nullable: false),
                     user_id = table.Column<Guid>(type: "uuid", nullable: false),
                     purpose = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     allowed_statuses = table.Column<string>(type: "character varying(160)", maxLength: 160, nullable: false),
@@ -310,10 +310,10 @@ namespace AdvancedRag.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_viewer_exchange_codes", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_viewer_exchange_codes_instructions_instruction_id",
-                        column: x => x.instruction_id,
+                        name: "FK_viewer_exchange_codes_documents_document_id",
+                        column: x => x.document_id,
                         principalSchema: "app",
-                        principalTable: "instructions",
+                        principalTable: "documents",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -332,7 +332,7 @@ namespace AdvancedRag.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     viewer_token_id = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    instruction_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    document_id = table.Column<Guid>(type: "uuid", nullable: false),
                     user_id = table.Column<Guid>(type: "uuid", nullable: false),
                     purpose = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     issued_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()"),
@@ -342,10 +342,10 @@ namespace AdvancedRag.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_viewer_token_audit", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_viewer_token_audit_instructions_instruction_id",
-                        column: x => x.instruction_id,
+                        name: "FK_viewer_token_audit_documents_document_id",
+                        column: x => x.document_id,
                         principalSchema: "app",
-                        principalTable: "instructions",
+                        principalTable: "documents",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -363,7 +363,7 @@ namespace AdvancedRag.Infrastructure.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    instruction_version_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    document_version_id = table.Column<Guid>(type: "uuid", nullable: false),
                     original_filename = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
                     mime_type = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
                     size_bytes = table.Column<long>(type: "bigint", nullable: false),
@@ -376,10 +376,10 @@ namespace AdvancedRag.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_import_metadata", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_import_metadata_instruction_versions_instruction_version_id",
-                        column: x => x.instruction_version_id,
+                        name: "FK_import_metadata_document_versions_document_version_id",
+                        column: x => x.document_version_id,
                         principalSchema: "app",
-                        principalTable: "instruction_versions",
+                        principalTable: "document_versions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -397,7 +397,7 @@ namespace AdvancedRag.Infrastructure.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    instruction_version_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    document_version_id = table.Column<Guid>(type: "uuid", nullable: false),
                     actor_user_id = table.Column<Guid>(type: "uuid", nullable: false),
                     comment = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()")
@@ -406,10 +406,10 @@ namespace AdvancedRag.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_review_comments", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_review_comments_instruction_versions_instruction_version_id",
-                        column: x => x.instruction_version_id,
+                        name: "FK_review_comments_document_versions_document_version_id",
+                        column: x => x.document_version_id,
                         principalSchema: "app",
-                        principalTable: "instruction_versions",
+                        principalTable: "document_versions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -453,71 +453,71 @@ namespace AdvancedRag.Infrastructure.Migrations
                 column: "imported_by_user_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_import_metadata_instruction_version_id",
+                name: "IX_import_metadata_document_version_id",
                 schema: "app",
                 table: "import_metadata",
-                column: "instruction_version_id");
+                column: "document_version_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_instruction_permissions_attribute_key_attribute_value",
+                name: "IX_document_permissions_attribute_key_attribute_value",
                 schema: "app",
-                table: "instruction_permissions",
+                table: "document_permissions",
                 columns: new[] { "attribute_key", "attribute_value" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_instruction_permissions_group_id",
+                name: "IX_document_permissions_group_id",
                 schema: "app",
-                table: "instruction_permissions",
+                table: "document_permissions",
                 column: "group_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_instruction_permissions_instruction_id",
+                name: "IX_document_permissions_document_id",
                 schema: "app",
-                table: "instruction_permissions",
-                column: "instruction_id");
+                table: "document_permissions",
+                column: "document_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_instruction_tags_instruction_id_name",
+                name: "IX_document_tags_document_id_name",
                 schema: "app",
-                table: "instruction_tags",
-                columns: new[] { "instruction_id", "name" },
+                table: "document_tags",
+                columns: new[] { "document_id", "name" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_instruction_versions_instruction_id_state",
+                name: "IX_document_versions_document_id_state",
                 schema: "app",
-                table: "instruction_versions",
-                columns: new[] { "instruction_id", "state" });
+                table: "document_versions",
+                columns: new[] { "document_id", "state" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_instruction_versions_instruction_id_version_number",
+                name: "IX_document_versions_document_id_version_number",
                 schema: "app",
-                table: "instruction_versions",
-                columns: new[] { "instruction_id", "version_number" },
+                table: "document_versions",
+                columns: new[] { "document_id", "version_number" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_instruction_versions_published_by_user_id",
+                name: "IX_document_versions_published_by_user_id",
                 schema: "app",
-                table: "instruction_versions",
+                table: "document_versions",
                 column: "published_by_user_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_instruction_versions_submitted_for_review_by_user_id",
+                name: "IX_document_versions_submitted_for_review_by_user_id",
                 schema: "app",
-                table: "instruction_versions",
+                table: "document_versions",
                 column: "submitted_for_review_by_user_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_instructions_created_by_user_id",
+                name: "IX_documents_created_by_user_id",
                 schema: "app",
-                table: "instructions",
+                table: "documents",
                 column: "created_by_user_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_instructions_current_state",
+                name: "IX_documents_current_state",
                 schema: "app",
-                table: "instructions",
+                table: "documents",
                 column: "current_state");
 
             migrationBuilder.CreateIndex(
@@ -527,10 +527,10 @@ namespace AdvancedRag.Infrastructure.Migrations
                 column: "actor_user_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_review_comments_instruction_version_id",
+                name: "IX_review_comments_document_version_id",
                 schema: "app",
                 table: "review_comments",
-                column: "instruction_version_id");
+                column: "document_version_id");
 
             migrationBuilder.CreateIndex(
                 name: "IX_roles_name",
@@ -578,10 +578,10 @@ namespace AdvancedRag.Infrastructure.Migrations
                 column: "expires_at");
 
             migrationBuilder.CreateIndex(
-                name: "IX_viewer_exchange_codes_instruction_id",
+                name: "IX_viewer_exchange_codes_document_id",
                 schema: "app",
                 table: "viewer_exchange_codes",
-                column: "instruction_id");
+                column: "document_id");
 
             migrationBuilder.CreateIndex(
                 name: "IX_viewer_exchange_codes_user_id",
@@ -590,10 +590,10 @@ namespace AdvancedRag.Infrastructure.Migrations
                 column: "user_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_viewer_token_audit_instruction_id",
+                name: "IX_viewer_token_audit_document_id",
                 schema: "app",
                 table: "viewer_token_audit",
-                column: "instruction_id");
+                column: "document_id");
 
             migrationBuilder.CreateIndex(
                 name: "IX_viewer_token_audit_user_id",
@@ -621,11 +621,11 @@ namespace AdvancedRag.Infrastructure.Migrations
                 schema: "app");
 
             migrationBuilder.DropTable(
-                name: "instruction_permissions",
+                name: "document_permissions",
                 schema: "app");
 
             migrationBuilder.DropTable(
-                name: "instruction_tags",
+                name: "document_tags",
                 schema: "app");
 
             migrationBuilder.DropTable(
@@ -653,7 +653,7 @@ namespace AdvancedRag.Infrastructure.Migrations
                 schema: "app");
 
             migrationBuilder.DropTable(
-                name: "instruction_versions",
+                name: "document_versions",
                 schema: "app");
 
             migrationBuilder.DropTable(
@@ -665,7 +665,7 @@ namespace AdvancedRag.Infrastructure.Migrations
                 schema: "app");
 
             migrationBuilder.DropTable(
-                name: "instructions",
+                name: "documents",
                 schema: "app");
 
             migrationBuilder.DropTable(

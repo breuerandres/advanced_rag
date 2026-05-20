@@ -44,7 +44,7 @@ class OpenAIChatCompletionProvider:
             self._client = AsyncOpenAI(api_key=self._api_key)
 
         context = "\n\n".join(
-            f"[chunk_id={chunk.id} document_id={chunk.instruction_id}]\n{chunk.content}"
+            f"[chunk_id={chunk.id} document_id={chunk.document_id}]\n{chunk.content}"
             for chunk in context_chunks
         )
         response = await self._client.chat.completions.create(

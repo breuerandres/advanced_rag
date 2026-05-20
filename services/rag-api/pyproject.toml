@@ -1,7 +1,7 @@
 [project]
 name = "advanced-rag-rag-api"
 version = "0.1.0"
-description = "FastAPI RAG service for the Advanced RAG Instruction Platform."
+description = "FastAPI RAG service for the Advanced RAG Document Platform."
 readme = "README.md"
 authors = [
     { name = "Andres Breuer", email = "breuer.andres@gmail.com" }

@@ -42,5 +42,5 @@ This is the original Spanish prompt that kicked off the project. It has been sup
 ## Open Items From The Original Prompt That Were Resolved In The Context Files
 
 - "Funcionalidad de red social" (likes, comments, favorites, share) on the viewer: **deferred**. Only thumbs up/down on chat answers is in MVP scope. Social interactions on the viewer are out of scope.
-- "Filtros avanzados para buscar documentos cuando escalen": resolved as a combination of attribute filters + group-based access + lifecycle state filters in the management UI; full-text search on instruction content is not in MVP scope.
+- "Filtros avanzados para buscar documentos cuando escalen": resolved as a combination of attribute filters + group-based access + lifecycle state filters in the management UI; full-text search on document content is not in MVP scope.
 - "Sugerencias de cómo manejar las variables de entorno de manera segura": resolved as Docker Compose secrets for sensitive values + env vars for non-sensitive runtime configuration. See `context/architecture.md` and `context/code-patterns.md`.

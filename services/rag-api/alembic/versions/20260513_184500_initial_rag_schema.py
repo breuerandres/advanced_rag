@@ -45,8 +45,8 @@ def upgrade() -> None:
     op.create_table(
         "indexing_jobs",
         sa.Column("id", sa.Uuid(), primary_key=True),
-        sa.Column("instruction_id", sa.Uuid(), nullable=False),
-        sa.Column("instruction_version_id", sa.Uuid(), nullable=False),
+        sa.Column("document_id", sa.Uuid(), nullable=False),
+        sa.Column("document_version_id", sa.Uuid(), nullable=False),
         sa.Column("corpus", sa.Text(), nullable=False),
         sa.Column("status", sa.Text(), nullable=False),
         sa.Column("attempts", sa.Integer(), nullable=False, server_default="0"),
@@ -76,9 +76,9 @@ def upgrade() -> None:
         schema="rag",
     )
     op.create_index(
-        "ix_indexing_jobs_instruction_version_id",
+        "ix_indexing_jobs_document_version_id",
         "indexing_jobs",
-        ["instruction_version_id"],
+        ["document_version_id"],
         schema="rag",
     )
 
@@ -86,8 +86,8 @@ def upgrade() -> None:
         "document_chunks",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("indexing_job_id", sa.Uuid(), nullable=False),
-        sa.Column("instruction_id", sa.Uuid(), nullable=False),
-        sa.Column("instruction_version_id", sa.Uuid(), nullable=False),
+        sa.Column("document_id", sa.Uuid(), nullable=False),
+        sa.Column("document_version_id", sa.Uuid(), nullable=False),
         sa.Column("corpus", sa.Text(), nullable=False),
         sa.Column("chunk_index", sa.Integer(), nullable=False),
         sa.Column("heading_path", sa.ARRAY(sa.Text()), nullable=False),
@@ -110,7 +110,7 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.UniqueConstraint(
-            "instruction_version_id",
+            "document_version_id",
             "chunk_index",
             name="uq_document_chunks_version_chunk",
         ),
@@ -121,9 +121,9 @@ def upgrade() -> None:
         schema="rag",
     )
     op.create_index(
-        "ix_document_chunks_instruction_version_id",
+        "ix_document_chunks_document_version_id",
         "document_chunks",
-        ["instruction_version_id"],
+        ["document_version_id"],
         schema="rag",
     )
     op.create_index(
@@ -169,8 +169,8 @@ def upgrade() -> None:
     op.create_table(
         "semantic_cache_sources",
         sa.Column("cache_entry_id", sa.Uuid(), nullable=False),
-        sa.Column("instruction_id", sa.Uuid(), nullable=False),
-        sa.Column("instruction_version_id", sa.Uuid(), nullable=False),
+        sa.Column("document_id", sa.Uuid(), nullable=False),
+        sa.Column("document_version_id", sa.Uuid(), nullable=False),
         sa.ForeignKeyConstraint(
             ["cache_entry_id"],
             ["rag.semantic_cache_entries.id"],
@@ -178,16 +178,16 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint(
             "cache_entry_id",
-            "instruction_id",
-            "instruction_version_id",
+            "document_id",
+            "document_version_id",
             name="pk_semantic_cache_sources",
         ),
         schema="rag",
     )
     op.create_index(
-        "ix_semantic_cache_sources_instruction_id",
+        "ix_semantic_cache_sources_document_id",
         "semantic_cache_sources",
-        ["instruction_id"],
+        ["document_id"],
         schema="rag",
     )
 
@@ -255,8 +255,8 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("query_audit_event_id", sa.Uuid(), nullable=False),
         sa.Column("chunk_id", sa.Uuid(), nullable=False),
-        sa.Column("instruction_id", sa.Uuid(), nullable=False),
-        sa.Column("instruction_version_id", sa.Uuid(), nullable=False),
+        sa.Column("document_id", sa.Uuid(), nullable=False),
+        sa.Column("document_version_id", sa.Uuid(), nullable=False),
         sa.Column("heading_path", sa.ARRAY(sa.Text()), nullable=False),
         sa.Column(
             "created_at",
@@ -277,9 +277,9 @@ def upgrade() -> None:
         schema="rag",
     )
     op.create_index(
-        "ix_query_audit_citations_instruction_id",
+        "ix_query_audit_citations_document_id",
         "query_audit_citations",
-        ["instruction_id"],
+        ["document_id"],
         schema="rag",
     )
     op.create_index(

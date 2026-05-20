@@ -6,8 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class InternalIndexingRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    instruction_id: UUID = Field(alias="instructionId")
-    instruction_version_id: UUID = Field(alias="instructionVersionId")
+    document_id: UUID = Field(alias="documentId")
+    document_version_id: UUID = Field(alias="documentVersionId")
     content_html: str = Field(alias="contentHtml")
     corpus_mode: str = Field(alias="corpusMode")
     retry: bool = False

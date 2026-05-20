@@ -5,9 +5,9 @@
 | Layer | Technology | Role |
 | --- | --- | --- |
 | Reverse proxy | Caddy | Public TLS termination, subdomain routing, request IDs, access logs |
-| Management frontend | React | Corporate instruction management UI |
+| Management frontend | React | Corporate document management UI |
 | Chat frontend | React | End-user chatbot UI |
-| Instruction viewer frontend | React | Token-gated instruction viewer |
+| Document viewer frontend | React | Token-gated document viewer |
 | Management/API backend | .NET 8 | Authentication, users, roles, document lifecycle, viewer access tokens, management audit |
 | RAG backend | FastAPI | Public chat API, retrieval, semantic cache, embeddings, RAG audit, indexing worker |
 | Database | PostgreSQL with pgvector | Relational data, document content, audit, vectors, cache, indexing jobs |
@@ -26,7 +26,7 @@ The product starts as a single-tenant deployment. Each customer receives an isol
 | --- | --- |
 | `manage.client.com` | Management React frontend |
 | `chat.client.com` | Chat React frontend |
-| `docs.client.com` | Instruction viewer React frontend |
+| `docs.client.com` | Document viewer React frontend |
 | `api.client.com` | Optional controlled direct .NET API surface for technical/API access |
 | `rag.client.com` | Optional controlled direct FastAPI chat API surface for technical/API access |
 
@@ -55,7 +55,7 @@ Detailed endpoint-by-endpoint DTOs are finalized during implementation planning 
 | --- | --- | --- | --- |
 | Auth/session | .NET API | Browser same-origin `/api/auth/*` and `/api/session/*` | Login, logout, current session, CSRF token support, secure session cookies, and chat-token renewal |
 | Users/groups | .NET API | Management same-origin `/api/*` | User administration, role assignment, group/department management, activation/deactivation |
-| Documents | .NET API | Management same-origin `/api/*` | Instruction CRUD, metadata, filters, assisted import extraction, lifecycle transitions, publish request, indexing retry, archive, restore, and management audit |
+| Documents | .NET API | Management same-origin `/api/*` | Document CRUD, metadata, filters, assisted import extraction, lifecycle transitions, publish request, indexing retry, archive, restore, and management audit |
 | Viewer | .NET API | Docs same-origin `/api/*`; link creation from chat/management | Viewer exchange-link creation, one-time code exchange, viewer token cookie issuance, document access validation, and document loading |
 | Chat/RAG | FastAPI | Chat same-origin `/api/chat/*` through Caddy | Question submission, retrieval, answer generation, citations, semantic cache lookup/write, RAG query audit, and token/cost/latency tracking |
 | Feedback/reporting | FastAPI and .NET API | Chat feedback via FastAPI; management reporting via .NET | Feedback submission tied to RAG query audit, plus read-only management feedback review/reporting over RAG audit data |
@@ -71,7 +71,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 | --- | --- |
 | `apps/manage-web` | Management frontend |
 | `apps/chat-web` | Chat frontend |
-| `apps/docs-web` | Instruction viewer frontend |
+| `apps/docs-web` | Document viewer frontend |
 | `services/dotnet-api` | .NET API and `app` schema owner |
 | `services/rag-api` | FastAPI RAG service and `rag` schema owner |
 | `infra/compose` | Docker Compose, Caddy, volumes, healthchecks, secrets wiring |
@@ -83,7 +83,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - **PostgreSQL database:** one database per customer deployment.
 - **`app` schema:** owned by .NET. Stores users, roles, groups/departments, documents, document metadata, lifecycle state, permissions, viewer token records if persisted, and management audit events.
 - **`rag` schema:** owned by FastAPI. Stores indexing jobs, document chunks with embeddings, semantic cache entries and sources, query audit events with simple feedback, query audit citations, and model pricing.
-- **Instruction source content:** canonical normalized HTML and metadata are stored in Postgres.
+- **Document source content:** canonical normalized HTML and metadata are stored in Postgres.
 - **Imported files:** PDF/DOCX originals are not retained in the MVP. Imports are assisted extraction flows owned by the .NET management API: .NET accepts PDF/DOCX uploads up to 10 MB, extracts text from the uploaded file, and returns it to `manage.client.com`, which inserts it into the document editor so the user can correct formatting, structure, and attributes before saving. The system stores the user-edited normalized HTML plus import metadata such as original filename, MIME type, size, hash, importer, timestamp, extraction result, and file size.
 - **Import extraction libraries:** .NET uses `DocumentFormat.OpenXml` for DOCX extraction and `PdfPig` for PDF extraction. These libraries are used only for assisted text extraction into the editor, not for final formatting or publication decisions.
 
@@ -139,7 +139,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 
 ## Internal Service Token
 
-- `.NET → FastAPI` internal calls (`/internal/indexing-jobs`, `/internal/cache-invalidations`) carry an `X-Internal-Service-Token` header.
+- `.NET â†’ FastAPI` internal calls (`/internal/indexing-jobs`, `/internal/cache-invalidations`) carry an `X-Internal-Service-Token` header.
 - The token is a 256-bit random value mounted on both services as the Compose secret `internal_service_token`. Both services read it from the file on startup.
 - The token is static in the MVP. Rotation is manual: update the secret file, rolling restart both services.
 - FastAPI rejects requests missing or mismatching the token with `AUTH_INTERNAL_TOKEN_INVALID` and never logs the token value.
@@ -149,7 +149,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 | Role | Permissions |
 | --- | --- |
 | `Admin` | Full access, including publishing, user management, roles, groups, audit, and configuration |
-| `DocumentManager` | Can create, read, update, import, archive eligible draft or in-review instructions, restore archived instructions to draft, edit metadata, and send documents to review. Cannot publish. |
+| `DocumentManager` | Can create, read, update, import, archive eligible draft or in-review documents, restore archived documents to draft, edit metadata, and send documents to review. Cannot publish. |
 | `Viewer` | No access to `manage.client.com`. Can use chat and open allowed documents in `docs.client.com`. |
 
 ## Viewer Access Tokens
@@ -166,12 +166,12 @@ The main session JWT must not be placed in document viewer URLs.
 
 ## Document Lifecycle And Indexing
 
-Instruction states are `Draft`, `In Review`, `Published`, and `Archived`.
+Document states are `Draft`, `In Review`, `Published`, and `Archived`.
 
 - The MVP uses simple formal versioning. Each successful publication creates an immutable version number such as `v1`, `v2`, and so on.
-- The instruction viewer and public RAG use the latest successfully published version.
+- The document viewer and public RAG use the latest successfully published version.
 - Version records preserve the normalized HTML, metadata snapshot, publication timestamp, publisher, and indexing reference used for that version.
-- Editing an already published instruction creates a new draft version. The latest published version remains active until the new draft completes review, pre-publication indexing, and publication.
+- Editing an already published document creates a new draft version. The latest published version remains active until the new draft completes review, pre-publication indexing, and publication.
 - Draft versions can move through `Draft` and `In Review`; published versions are immutable.
 - `Admin` publishes documents directly from `In Review` to `Published`.
 - `DocumentManager` can create, edit, import, update metadata, and send documents to `In Review`, but cannot publish.
@@ -185,8 +185,8 @@ Instruction states are `Draft`, `In Review`, `Published`, and `Archived`.
 - The stable validation error code for files with no extractable text is `IMPORT_TEXT_NOT_EXTRACTABLE`.
 - If the user abandons the import flow without saving the draft, the extracted text, import metadata, and extraction result are not persisted as business data.
 - Unsaved extraction requests may still appear in normal sanitized technical logs with request ID, status, duration, and safe error code.
-- The user remains responsible for final formatting, title, instruction type, access attributes, and review readiness after import.
-- Moving a draft to `In Review` requires title, instruction type, allowed groups/departments, audience/user type, non-empty sanitized HTML content, and valid sanitized content. Tags are optional.
+- The user remains responsible for final formatting, title, document type, access attributes, and review readiness after import.
+- Moving a draft to `In Review` requires title, document type, allowed groups/departments, audience/user type, non-empty sanitized HTML content, and valid sanitized content. Tags are optional.
 - Sending a draft to `In Review` may include an optional internal review comment. Returning or rejecting a version from `In Review` back to `Draft` requires an internal comment explaining the reason.
 - Review comments are stored in the `app` schema and included in the management audit trail.
 - `Admin` and `DocumentManager` can return or reject a version from `In Review` back to `Draft` when they provide the required internal comment. This does not grant `DocumentManager` permission to publish.
@@ -196,13 +196,13 @@ Instruction states are `Draft`, `In Review`, `Published`, and `Archived`.
 - The document transitions to `Published` only after FastAPI indexes it successfully.
 - If pre-publication indexing fails, the document is not published and remains unavailable to public chat and normal viewers.
 - Pre-publication indexing failures are surfaced in the management UI with a safe error summary and a manual retry action.
-- Archiving applies to the entire instruction, not a single version. Archived instructions are unavailable to public viewer and public chat, while versions and audit history are retained.
-- `Admin` can archive any instruction, including `Published` instructions.
-- `DocumentManager` can archive only instructions whose current lifecycle state is `Draft` or `In Review` and that do not have an active published version.
-- Archiving any instruction with an active published version requires `Admin`.
-- Archiving triggers removal or deactivation from the active RAG corpus and invalidates semantic cache entries that cite the archived instruction.
-- `Admin` and `DocumentManager` can restore any archived instruction to `Draft`.
-- Restoring an archived instruction does not reactivate any previous published version, public viewer access, public chat retrieval, or RAG corpus entry. It must pass review, pre-publication indexing, and publication again.
+- Archiving applies to the entire document, not a single version. Archived documents are unavailable to public viewer and public chat, while versions and audit history are retained.
+- `Admin` can archive any document, including `Published` documents.
+- `DocumentManager` can archive only documents whose current lifecycle state is `Draft` or `In Review` and that do not have an active published version.
+- Archiving any document with an active published version requires `Admin`.
+- Archiving triggers removal or deactivation from the active RAG corpus and invalidates semantic cache entries that cite the archived document.
+- `Admin` and `DocumentManager` can restore any archived document to `Draft`.
+- Restoring an archived document does not reactivate any previous published version, public viewer access, public chat retrieval, or RAG corpus entry. It must pass review, pre-publication indexing, and publication again.
 - The MVP does not include a separate soft delete state. `Archived` is the only functional removal path.
 - Public chat uses only `Published` content.
 - Internal preview can use `Draft`, `In Review`, and `Published` for authorized management users.
@@ -240,7 +240,7 @@ FastAPI enforces the budget before starting new paid AI work for chat. Enforceme
 
 When a user reaches the configured budget, chat returns the shared error envelope with a stable code such as `AI_BUDGET_EXCEEDED`. The management app can increase the user's budget, disable the budget, or wait for the next monthly period depending on the configured policy. Blocked attempts should be auditable without adding model cost.
 
-Budget exhaustion blocks new chat/RAG work that can generate AI provider cost. It does not block the instruction viewer, management workflows, or access to already authorized documents. In the MVP, over-budget users do not receive semantic cached answers because semantic cache lookup requires question embedding and could generate provider cost. Exact no-cost cache lookup is deferred.
+Budget exhaustion blocks new chat/RAG work that can generate AI provider cost. It does not block the document viewer, management workflows, or access to already authorized documents. In the MVP, over-budget users do not receive semantic cached answers because semantic cache lookup requires question embedding and could generate provider cost. Exact no-cost cache lookup is deferred.
 
 Rate limits and AI usage budgets are separate controls. Rate limits protect service stability and abuse by request frequency. AI usage budgets control monthly monetary spend.
 
@@ -249,7 +249,7 @@ Rate limits and AI usage budgets are separate controls. Rate limits protect serv
 - Management audit lives in `app.audit_events`.
 - RAG query audit lives in `rag.query_audit_events`.
 - RAG query audit stores user, question, answer, cache hit, simple feedback, model, input/cached/output tokens, estimated cost, latency, request ID, and `access_scope_hash`.
-- Cited documents are stored as child audit rows in `rag.query_audit_citations` so reporting can filter by cited instruction/version without treating citations as a separate product module.
+- Cited documents are stored as child audit rows in `rag.query_audit_citations` so reporting can filter by cited document/version without treating citations as a separate product module.
 - Chat answer feedback uses thumbs up/down plus an optional sanitized comment. For the MVP, one feedback value per answer is stored directly on `rag.query_audit_events`.
 - Feedback is tied to the original RAG query audit record for the generated or cached answer and is submitted to FastAPI by the authenticated chat user. For the MVP, the same user may update their feedback on the same answer, overwriting the single feedback value/comment and updating `feedback_updated_at`; historical feedback changes are not retained. If future requirements need multiple reviewers or feedback history, feedback can be split into a child table later.
 - `manage.client.com` includes a feedback review view for `Admin` and `DocumentManager`.
@@ -312,7 +312,7 @@ Rate limit exceedances must use stable safe error codes and must not expose inte
 - .NET uses EF Core migrations for the `app` schema.
 - FastAPI uses Alembic migrations for the `rag` schema.
 - Services must not modify tables outside their owned schema except through explicitly granted read permissions or internal API contracts.
-- FastAPI may read `.NET`-owned `app.instruction_permissions` for retrieval permission filtering and `app.user_ai_budget_limits` for budget enforcement through explicit read-only grants. FastAPI must not write to any `app` table.
+- FastAPI may read `.NET`-owned `app.document_permissions` for retrieval permission filtering and `app.user_ai_budget_limits` for budget enforcement through explicit read-only grants. FastAPI must not write to any `app` table.
 
 ## Initial Database Entities
 
@@ -323,10 +323,10 @@ Rate limit exceedances must use stable safe error codes and must not expose inte
 - `user_roles`
 - `groups`
 - `user_groups`
-- `instructions`
-- `instruction_versions`
-- `instruction_permissions` for group/department and attribute-based access rules, not per-user exceptions
-- `instruction_tags`
+- `documents`
+- `document_versions`
+- `document_permissions` for group/department and attribute-based access rules, not per-user exceptions
+- `document_tags`
 - `review_comments`
 - `import_metadata`
 - `viewer_exchange_codes`
@@ -371,7 +371,7 @@ Readiness must verify critical dependencies such as DB connectivity and required
   4. Sets or updates those role passwords from Compose secret files.
   5. Creates the schemas `app` and `rag` with the right owners.
     6. Grants schema USAGE to the reporting reader role.
-    7. Grants FastAPI's `rag_owner` read-only access to the approved `.NET` tables needed for RAG: `app.instruction_permissions` and `app.user_ai_budget_limits`.
+    7. Grants FastAPI's `rag_owner` read-only access to the approved `.NET` tables needed for RAG: `app.document_permissions` and `app.user_ai_budget_limits`.
 - `postgres-init` exits 0 once the script completes. Compose's `depends_on: service_completed_successfully` gates `dotnet-api` and `rag-api` on this.
 
 ### Migration Order
@@ -406,9 +406,9 @@ Readiness must verify critical dependencies such as DB connectivity and required
 
 - CI runs on **GitHub Actions** with one workflow file per service plus a top-level `lint-and-test.yml` for cross-cutting checks.
 - Per-service jobs:
-  - `services/dotnet-api`: `dotnet restore` → `dotnet build --no-restore` → `dotnet test` against Testcontainers Postgres.
-  - `services/rag-api`: `uv sync` → `uv run ruff check` → `uv run pytest` against Testcontainers Postgres with `pgvector` extension preinstalled.
-  - `apps/*`: `pnpm install --frozen-lockfile` → `pnpm -r lint` → `pnpm -r test` → `pnpm -r build`.
+  - `services/dotnet-api`: `dotnet restore` â†’ `dotnet build --no-restore` â†’ `dotnet test` against Testcontainers Postgres.
+  - `services/rag-api`: `uv sync` â†’ `uv run ruff check` â†’ `uv run pytest` against Testcontainers Postgres with `pgvector` extension preinstalled.
+  - `apps/*`: `pnpm install --frozen-lockfile` â†’ `pnpm -r lint` â†’ `pnpm -r test` â†’ `pnpm -r build`.
 - Docker image builds are gated on tests passing and tagged with the short Git SHA. Images are published to GitHub Container Registry (`ghcr.io/<org>/<service>:<sha>`).
 - Production deployment is manual: an operator pulls the tagged images on the customer host and runs `docker compose up -d`.
 

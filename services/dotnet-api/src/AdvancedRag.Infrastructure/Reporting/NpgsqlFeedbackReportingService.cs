@@ -48,12 +48,12 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
                 builders.Add(auditId, builder);
             }
 
-            if (!reader.IsDBNull(reader.GetOrdinal("instruction_id")))
+            if (!reader.IsDBNull(reader.GetOrdinal("document_id")))
             {
                 builder.Citations.Add(
                     new FeedbackReportCitation(
-                        reader.GetGuid(reader.GetOrdinal("instruction_id")),
-                        reader.GetGuid(reader.GetOrdinal("instruction_version_id")),
+                        reader.GetGuid(reader.GetOrdinal("document_id")),
+                        reader.GetGuid(reader.GetOrdinal("document_version_id")),
                         reader.GetFieldValue<string[]>(reader.GetOrdinal("heading_path"))));
             }
         }
@@ -77,8 +77,8 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
                 event.created_at,
                 event.cache_hit,
                 event.request_id,
-                event.instruction_id,
-                event.instruction_version_id,
+                event.document_id,
+                event.document_version_id,
                 event.heading_path
             from rag.v_query_audit_with_citations event
             where event.feedback_value is not null
@@ -102,7 +102,7 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
                     select 1
                     from rag.v_query_audit_with_citations filter_citation
                     where filter_citation.query_audit_event_id = event.query_audit_event_id
-                      and filter_citation.instruction_id = @cited_document_id
+                      and filter_citation.document_id = @cited_document_id
                 )
                 """);
         }

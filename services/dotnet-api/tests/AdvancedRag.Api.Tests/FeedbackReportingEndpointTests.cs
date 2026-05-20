@@ -181,8 +181,8 @@ public sealed class FakeFeedbackReportingService : IFeedbackReportingService
                 Citations:
                 [
                     new FeedbackReportCitation(
-                        InstructionId: query.CitedDocumentId ?? Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                        InstructionVersionId: Guid.Parse("44444444-4444-4444-4444-444444444444"),
+                        DocumentId: query.CitedDocumentId ?? Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                        DocumentVersionId: Guid.Parse("44444444-4444-4444-4444-444444444444"),
                         HeadingPath: ["Policy"])
                 ])
         ];

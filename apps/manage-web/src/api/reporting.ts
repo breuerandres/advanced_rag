@@ -1,8 +1,8 @@
 import { parseApiError } from '../lib/api-error'
 
 export interface FeedbackReportCitation {
-  instructionId: string
-  instructionVersionId: string
+  documentId: string
+  documentVersionId: string
   headingPath: string[]
 }
 

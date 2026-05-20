@@ -1,11 +1,11 @@
 import { ApiError, parseApiError } from '../lib/api-error'
 
 export interface ViewerDocument {
-  instructionId: string
-  instructionVersionId: string
+  documentId: string
+  documentVersionId: string
   title: string
   state: string
-  instructionType: string
+  documentType: string
   audience: string
   contentHtml: string
   tokenExpiresAt: string

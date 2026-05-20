@@ -29,7 +29,7 @@ public sealed class ViewerController : ApiControllerBase
         {
             ViewerLinkResult result = await _viewer.CreateLinkAsync(
                 new CreateViewerLinkCommand(
-                    request.InstructionId,
+                    request.DocumentId,
                     ActorUserId(),
                     ActorRoles(),
                     request.Purpose),

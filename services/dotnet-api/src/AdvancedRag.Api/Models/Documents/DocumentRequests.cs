@@ -2,7 +2,7 @@ namespace AdvancedRag.Api.Models.Documents;
 
 public sealed record SaveDocumentDraftRequest(
     string Title,
-    string InstructionType,
+    string DocumentType,
     string Audience,
     string ContentHtml,
     IReadOnlyList<Guid>? AllowedGroupIds);

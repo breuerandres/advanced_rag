@@ -81,10 +81,10 @@ class InternalIndexingService:
                         """
                         update rag.document_chunks
                         set is_active = false
-                        where instruction_version_id = :instruction_version_id
+                        where document_version_id = :document_version_id
                         """
                     ),
-                    {"instruction_version_id": request.instruction_version_id},
+                    {"document_version_id": request.document_version_id},
                 )
                 for chunk, embedding in zip(chunks, embeddings, strict=True):
                     await session.execute(
@@ -93,8 +93,8 @@ class InternalIndexingService:
                             insert into rag.document_chunks (
                                 id,
                                 indexing_job_id,
-                                instruction_id,
-                                instruction_version_id,
+                                document_id,
+                                document_version_id,
                                 corpus,
                                 chunk_index,
                                 heading_path,
@@ -109,8 +109,8 @@ class InternalIndexingService:
                             values (
                                 :id,
                                 :indexing_job_id,
-                                :instruction_id,
-                                :instruction_version_id,
+                                :document_id,
+                                :document_version_id,
                                 :corpus,
                                 :chunk_index,
                                 :heading_path,
@@ -127,8 +127,8 @@ class InternalIndexingService:
                         {
                             "id": uuid4(),
                             "indexing_job_id": job_id,
-                            "instruction_id": request.instruction_id,
-                            "instruction_version_id": request.instruction_version_id,
+                            "document_id": request.document_id,
+                            "document_version_id": request.document_version_id,
                             "corpus": request.corpus_mode,
                             "chunk_index": chunk.chunk_index,
                             "heading_path": chunk.heading_path,
@@ -191,8 +191,8 @@ class InternalIndexingService:
                 """
                 insert into rag.indexing_jobs (
                     id,
-                    instruction_id,
-                    instruction_version_id,
+                    document_id,
+                    document_version_id,
                     corpus,
                     status,
                     attempts,
@@ -201,8 +201,8 @@ class InternalIndexingService:
                 )
                 values (
                     :id,
-                    :instruction_id,
-                    :instruction_version_id,
+                    :document_id,
+                    :document_version_id,
                     :corpus,
                     'Pending',
                     0,
@@ -213,8 +213,8 @@ class InternalIndexingService:
             ),
             {
                 "id": job_id,
-                "instruction_id": request.instruction_id,
-                "instruction_version_id": request.instruction_version_id,
+                "document_id": request.document_id,
+                "document_version_id": request.document_version_id,
                 "corpus": request.corpus_mode,
                 "chunker_version": CHUNKER_VERSION,
                 "embedding_dimensions": self._settings.openai_embedding_dimensions,

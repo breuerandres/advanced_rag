@@ -27,8 +27,8 @@ class RetrievedChunk(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: UUID
-    instruction_id: UUID
-    instruction_version_id: UUID
+    document_id: UUID
+    document_version_id: UUID
     heading_path: list[str]
     content: str
 
@@ -37,8 +37,8 @@ class Citation(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     chunk_id: UUID
-    instruction_id: UUID
-    instruction_version_id: UUID
+    document_id: UUID
+    document_version_id: UUID
     heading_path: list[str]
 
 
@@ -143,8 +143,8 @@ class ChatService:
             citations = [
                 Citation(
                     chunk_id=chunk.id,
-                    instruction_id=chunk.instruction_id,
-                    instruction_version_id=chunk.instruction_version_id,
+                    document_id=chunk.document_id,
+                    document_version_id=chunk.document_version_id,
                     heading_path=chunk.heading_path,
                 )
                 for chunk in chunks
@@ -204,8 +204,8 @@ class ChatService:
                 estimated_cost_usd=estimated_cost,
             )
 
-    async def invalidate_sources(self, instruction_ids: list[UUID]) -> int:
-        if not instruction_ids:
+    async def invalidate_sources(self, document_ids: list[UUID]) -> int:
+        if not document_ids:
             return 0
         async with self._session_factory() as session:
             result = await session.execute(
@@ -214,10 +214,10 @@ class ChatService:
                     delete from rag.semantic_cache_entries entry
                     using rag.semantic_cache_sources source
                     where source.cache_entry_id = entry.id
-                      and source.instruction_id = any(:instruction_ids)
+                      and source.document_id = any(:document_ids)
                     """
                 ),
-                {"instruction_ids": instruction_ids},
+                {"document_ids": document_ids},
             )
             await session.commit()
             return int(getattr(result, "rowcount", 0) or 0)
@@ -245,8 +245,8 @@ class ChatService:
                 """
                 select
                     chunk.id,
-                    chunk.instruction_id,
-                    chunk.instruction_version_id,
+                    chunk.document_id,
+                    chunk.document_version_id,
                     chunk.heading_path,
                     chunk.content
                 from rag.document_chunks chunk
@@ -254,8 +254,8 @@ class ChatService:
                   and chunk.is_active = true
                   and exists (
                     select 1
-                    from app.instruction_permissions permission
-                    where permission.instruction_id = chunk.instruction_id
+                    from app.document_permissions permission
+                    where permission.document_id = chunk.document_id
                       and permission.group_id = any(:groups)
                   )
                 order by chunk.embedding <=> (:embedding)::vector
@@ -271,8 +271,8 @@ class ChatService:
         return [
             RetrievedChunk(
                 id=row.id,
-                instruction_id=row.instruction_id,
-                instruction_version_id=row.instruction_version_id,
+                document_id=row.document_id,
+                document_version_id=row.document_version_id,
                 heading_path=list(row.heading_path),
                 content=row.content,
             )
@@ -307,14 +307,14 @@ class ChatService:
                     text(
                         """
                         select
-                            source.instruction_id,
-                            source.instruction_version_id,
+                            source.document_id,
+                            source.document_version_id,
                             chunk.id as chunk_id,
                             chunk.heading_path
                         from rag.semantic_cache_sources source
                         join rag.document_chunks chunk
-                          on chunk.instruction_id = source.instruction_id
-                         and chunk.instruction_version_id = source.instruction_version_id
+                          on chunk.document_id = source.document_id
+                         and chunk.document_version_id = source.document_version_id
                          and chunk.is_active = true
                         where source.cache_entry_id = :cache_entry_id
                         order by chunk.chunk_index
@@ -329,8 +329,8 @@ class ChatService:
                     "citations": [
                         Citation(
                             chunk_id=citation.chunk_id,
-                            instruction_id=citation.instruction_id,
-                            instruction_version_id=citation.instruction_version_id,
+                            document_id=citation.document_id,
+                            document_version_id=citation.document_version_id,
                             heading_path=list(citation.heading_path),
                         )
                         for citation in citations
@@ -433,16 +433,16 @@ class ChatService:
                 text(
                     """
                     insert into rag.semantic_cache_sources (
-                        cache_entry_id, instruction_id, instruction_version_id
+                        cache_entry_id, document_id, document_version_id
                     )
-                    values (:cache_entry_id, :instruction_id, :instruction_version_id)
+                    values (:cache_entry_id, :document_id, :document_version_id)
                     on conflict do nothing
                     """
                 ),
                 {
                     "cache_entry_id": cache_id,
-                    "instruction_id": citation.instruction_id,
-                    "instruction_version_id": citation.instruction_version_id,
+                    "document_id": citation.document_id,
+                    "document_version_id": citation.document_version_id,
                 },
             )
 
@@ -520,12 +520,12 @@ class ChatService:
                 text(
                     """
                     insert into rag.query_audit_citations (
-                        id, query_audit_event_id, chunk_id, instruction_id,
-                        instruction_version_id, heading_path
+                        id, query_audit_event_id, chunk_id, document_id,
+                        document_version_id, heading_path
                     )
                     values (
-                        :id, :query_audit_event_id, :chunk_id, :instruction_id,
-                        :instruction_version_id, :heading_path
+                        :id, :query_audit_event_id, :chunk_id, :document_id,
+                        :document_version_id, :heading_path
                     )
                     """
                 ),
@@ -533,8 +533,8 @@ class ChatService:
                     "id": uuid4(),
                     "query_audit_event_id": audit_id,
                     "chunk_id": citation.chunk_id,
-                    "instruction_id": citation.instruction_id,
-                    "instruction_version_id": citation.instruction_version_id,
+                    "document_id": citation.document_id,
+                    "document_version_id": citation.document_version_id,
                     "heading_path": citation.heading_path,
                 },
             )

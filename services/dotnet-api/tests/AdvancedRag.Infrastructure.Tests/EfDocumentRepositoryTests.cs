@@ -27,7 +27,7 @@ public sealed class EfDocumentRepositoryTests
 
         var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         var groupId = Guid.Parse("22222222-2222-2222-2222-222222222222");
-        var instructionId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var documentId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var versionId = Guid.Parse("44444444-4444-4444-4444-444444444444");
 
         await using (var db = new AppDbContext(options))
@@ -42,9 +42,9 @@ public sealed class EfDocumentRepositoryTests
                 CreatedAt = DateTimeOffset.UtcNow,
             });
             db.Groups.Add(new Group { Id = groupId, Name = "Operations" });
-            db.Instructions.Add(new Instruction
+            db.Documents.Add(new Document
             {
-                Id = instructionId,
+                Id = documentId,
                 Title = "Safety policy",
                 CurrentState = "In Review",
                 CurrentDraftVersionId = versionId,
@@ -52,23 +52,23 @@ public sealed class EfDocumentRepositoryTests
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow,
             });
-            db.InstructionVersions.Add(new InstructionVersion
+            db.DocumentVersions.Add(new DocumentVersion
             {
                 Id = versionId,
-                InstructionId = instructionId,
+                DocumentId = documentId,
                 VersionNumber = 1,
                 State = "In Review",
                 Title = "Safety policy",
-                InstructionType = "Policy",
+                DocumentType = "Policy",
                 Audience = "All staff",
                 ContentHtml = "<p>Use visible badge.</p>",
                 CreatedAt = DateTimeOffset.UtcNow,
                 IndexingStatus = "None",
             });
-            db.InstructionPermissions.Add(new InstructionPermission
+            db.DocumentPermissions.Add(new DocumentPermission
             {
                 Id = Guid.NewGuid(),
-                InstructionId = instructionId,
+                DocumentId = documentId,
                 GroupId = groupId,
                 CreatedAt = DateTimeOffset.UtcNow,
             });
@@ -79,7 +79,7 @@ public sealed class EfDocumentRepositoryTests
         {
             var repository = new EfDocumentRepository(db);
 
-            var document = await repository.FindAsync(instructionId, CancellationToken.None);
+            var document = await repository.FindAsync(documentId, CancellationToken.None);
 
             document.Should().NotBeNull();
             document!.AllowedGroupIds.Should().Equal(groupId);

@@ -54,7 +54,7 @@ test('submits feedback after a chat answer and allows updating it', async () => 
               query_audit_event_id: '33333333-3333-3333-3333-333333333333',
               chunk_id: '44444444-4444-4444-4444-444444444444',
               document_id: '55555555-5555-5555-5555-555555555555',
-              instruction_version_id: '66666666-6666-6666-6666-666666666666',
+              document_version_id: '66666666-6666-6666-6666-666666666666',
               heading_path: ['Seguridad'],
             },
           ],
@@ -107,7 +107,7 @@ test('shows a successful answer with citations and cache hit indicator', async (
           citations: [
             {
               document_id: '55555555-5555-5555-5555-555555555555',
-              instruction_version_id: '66666666-6666-6666-6666-666666666666',
+              document_version_id: '66666666-6666-6666-6666-666666666666',
               heading_path: ['Seguridad'],
             },
           ],
@@ -210,7 +210,7 @@ test('opens citations through viewer exchange links', async () => {
           citations: [
             {
               document_id: '55555555-5555-5555-5555-555555555555',
-              instruction_version_id: '66666666-6666-6666-6666-666666666666',
+              document_version_id: '66666666-6666-6666-6666-666666666666',
               heading_path: ['Seguridad'],
             },
           ],

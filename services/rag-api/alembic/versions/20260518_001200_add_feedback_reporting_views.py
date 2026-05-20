@@ -25,8 +25,8 @@ def upgrade() -> None:
             event.created_at,
             event.cache_hit,
             event.request_id,
-            citation.instruction_id,
-            citation.instruction_version_id,
+            citation.document_id,
+            citation.document_version_id,
             citation.heading_path,
             citation.created_at AS citation_created_at
         FROM rag.query_audit_events event

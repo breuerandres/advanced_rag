@@ -1,5 +1,5 @@
 param(
-    [switch] $WithSampleInstruction
+    [switch] $WithSampleDocument
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,10 +32,10 @@ function New-PasswordHash {
 
 $passwordHash = New-PasswordHash -Password $demoPassword
 
-$sampleInstructionSql = ""
-if ($WithSampleInstruction) {
-    $sampleInstructionSql = @"
-insert into app.instructions ("Id", title, current_state, created_by_user_id, created_at, updated_at)
+$sampleDocumentSql = ""
+if ($WithSampleDocument) {
+    $sampleDocumentSql = @"
+insert into app.documents ("Id", title, current_state, created_by_user_id, created_at, updated_at)
 values (
   '22000000-0000-0000-0000-000000000001',
   'Demo - Politica de seguridad',
@@ -49,8 +49,8 @@ on conflict ("Id") do update set
   current_state = excluded.current_state,
   updated_at = now();
 
-insert into app.instruction_versions (
-  "Id", instruction_id, version_number, state, title, instruction_type, audience, content_html, indexing_status, created_at
+insert into app.document_versions (
+  "Id", document_id, version_number, state, title, document_type, audience, content_html, indexing_status, created_at
 )
 values (
   '23000000-0000-0000-0000-000000000001',
@@ -64,19 +64,19 @@ values (
   'None',
   now()
 )
-on conflict (instruction_id, version_number) do update set
+on conflict (document_id, version_number) do update set
   title = excluded.title,
-  instruction_type = excluded.instruction_type,
+  document_type = excluded.document_type,
   audience = excluded.audience,
   content_html = excluded.content_html,
   indexing_status = excluded.indexing_status;
 
-update app.instructions
+update app.documents
 set current_draft_version_id = '23000000-0000-0000-0000-000000000001',
     updated_at = now()
 where "Id" = '22000000-0000-0000-0000-000000000001';
 
-insert into app.instruction_permissions ("Id", instruction_id, group_id, created_at)
+insert into app.document_permissions ("Id", document_id, group_id, created_at)
 values (
   '24000000-0000-0000-0000-000000000001',
   '22000000-0000-0000-0000-000000000001',
@@ -91,11 +91,11 @@ insert into app.audit_events (
 values (
   '25000000-0000-0000-0000-000000000001',
   '20000000-0000-0000-0000-000000000002',
-  'instruction.created',
-  'instruction',
+  'document.created',
+  'document',
   '22000000-0000-0000-0000-000000000001',
-  '{"instructionId":"22000000-0000-0000-0000-000000000001"}'::jsonb,
-  'demo-seed-instruction',
+  '{"documentId":"22000000-0000-0000-0000-000000000001"}'::jsonb,
+  'demo-seed-document',
   now()
 )
 on conflict ("Id") do nothing;
@@ -103,10 +103,10 @@ on conflict ("Id") do nothing;
 }
 
 $sql = @"
-delete from app.instruction_permissions where instruction_id = '22000000-0000-0000-0000-000000000001';
-delete from app.instruction_tags where instruction_id = '22000000-0000-0000-0000-000000000001';
-delete from app.instruction_versions where instruction_id = '22000000-0000-0000-0000-000000000001';
-delete from app.instructions where "Id" = '22000000-0000-0000-0000-000000000001';
+delete from app.document_permissions where document_id = '22000000-0000-0000-0000-000000000001';
+delete from app.document_tags where document_id = '22000000-0000-0000-0000-000000000001';
+delete from app.document_versions where document_id = '22000000-0000-0000-0000-000000000001';
+delete from app.documents where "Id" = '22000000-0000-0000-0000-000000000001';
 delete from app.user_ai_budget_limits where user_id in (
   '20000000-0000-0000-0000-000000000001',
   '20000000-0000-0000-0000-000000000002',
@@ -167,7 +167,7 @@ insert into rag.model_pricing (
   ('30000000-0000-0000-0000-000000000002', 'text-embedding-3-small', 'embedding', 0.00000000002, null, null, '2026-01-01T00:00:00Z', null)
 on conflict (id) do nothing;
 
-$sampleInstructionSql
+$sampleDocumentSql
 "@
 
 Push-Location $repoRoot
@@ -194,6 +194,6 @@ Write-Host "Credentials:"
 Write-Host "  Admin:           demo.admin@example.com / $demoPassword"
 Write-Host "  DocumentManager: demo.manager@example.com / $demoPassword"
 Write-Host "  Viewer:          demo.viewer@example.com / $demoPassword"
-if ($WithSampleInstruction) {
-    Write-Host "Sample draft instruction: Demo - Politica de seguridad"
+if ($WithSampleDocument) {
+    Write-Host "Sample draft document: Demo - Politica de seguridad"
 }
