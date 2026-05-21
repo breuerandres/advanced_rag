@@ -81,6 +81,21 @@ public sealed class UserAdministrationServiceTests
     }
 
     [Fact]
+    public async Task UpdateGroupAsync_AdminRenamesGroup()
+    {
+        var repository = new InMemoryUserAdministrationRepository(
+            [new RoleRecord("Viewer")],
+            [new GroupRecord(OperationsGroupId, "Operations")]);
+        var service = new UserAdministrationService(repository, new StubPasswordHashService());
+
+        var updated = await service.UpdateGroupAsync(
+            new UpdateGroupCommand(OperationsGroupId, "People Operations", ActorId),
+            CancellationToken.None);
+
+        updated.Name.Should().Be("People Operations");
+    }
+
+    [Fact]
     public async Task SetUserAiBudgetAsync_RejectsNegativeBudgetValues()
     {
         var repository = new InMemoryUserAdministrationRepository([new RoleRecord("Viewer")], []);
@@ -138,6 +153,13 @@ public sealed class UserAdministrationServiceTests
             ct.ThrowIfCancellationRequested();
             var group = new GroupRecord(Guid.NewGuid(), name);
             return Task.FromResult(group);
+        }
+
+        public Task<GroupRecord?> UpdateGroupAsync(Guid groupId, string name, Guid actorUserId, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            var group = _groups.SingleOrDefault(item => item.Id == groupId);
+            return Task.FromResult(group is null ? null : group with { Name = name });
         }
 
         public Task<bool> EmailExistsAsync(string normalizedEmail, CancellationToken ct)

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Download } from 'lucide-react'
 import { listFeedbackReport, type FeedbackReportItem } from '../../api/reporting'
 import { Button } from '../../components/ui/button'
 
@@ -39,6 +40,55 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
     }
   }
 
+  function exportToExcelCsv() {
+    const rows = [
+      [
+        'queryAuditEventId',
+        'userId',
+        'userDisplayName',
+        'question',
+        'answerSummary',
+        'feedbackValue',
+        'feedbackComment',
+        'feedbackUpdatedAt',
+        'createdAt',
+        'cacheHit',
+        'requestId',
+        'citations',
+      ],
+      ...items.map((item) => [
+        item.queryAuditEventId,
+        item.userId,
+        item.userDisplayName,
+        item.question,
+        item.answerSummary,
+        item.feedbackValue,
+        item.feedbackComment ?? '',
+        item.feedbackUpdatedAt,
+        item.createdAt,
+        item.cacheHit ? 'true' : 'false',
+        item.requestId,
+        item.citations
+          .map((citation) =>
+            [
+              citation.documentId,
+              citation.documentVersionId,
+              citation.headingPath.join(' / '),
+            ].join(' | '),
+          )
+          .join('; '),
+      ]),
+    ]
+    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `feedback-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <section className={embedded ? 'audit-feedback-panel' : 'workspace'} id="feedback">
         <header className="workspace-header">
@@ -46,6 +96,14 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
             <p className="eyebrow">Revision de chat</p>
             {embedded ? <h2>Feedback auditado</h2> : <h1>Feedback auditado</h1>}
           </div>
+          {items.length > 0 ? (
+            <div className="workspace-actions">
+              <Button className="text-button" type="button" onClick={exportToExcelCsv}>
+                <Download size={16} />
+                Exportar a Excel
+              </Button>
+            </div>
+          ) : null}
         </header>
 
         <section className="feedback-filter-grid" aria-label="Filtros de feedback">
@@ -115,15 +173,23 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
 
         {items.length > 0 ? (
           <div className="table-frame">
-            <table>
+            <table className="data-table feedback-table">
+              <colgroup>
+                <col className="feedback-question-column" />
+                <col className="feedback-user-column" />
+                <col className="feedback-value-column" />
+                <col className="feedback-comment-column" />
+                <col className="feedback-cache-column" />
+                <col className="feedback-date-column" />
+              </colgroup>
               <thead>
                 <tr>
                   <th scope="col">Pregunta</th>
                   <th scope="col">Usuario</th>
                   <th scope="col">Feedback</th>
                   <th scope="col">Comentario</th>
-                  <th scope="col">Citas</th>
-                  <th scope="col">Request ID</th>
+                  <th scope="col">Cache</th>
+                  <th scope="col">Fecha</th>
                 </tr>
               </thead>
               <tbody>
@@ -134,10 +200,10 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
                       <span className="user-email">{item.answerSummary}</span>
                     </th>
                     <td>{item.userDisplayName}</td>
-                    <td>{item.feedbackValue === 'down' ? 'No sirvio' : 'Sirvio'}</td>
+                    <td className="feedback-value-cell">{item.feedbackValue === 'down' ? 'No sirvio' : 'Sirvio'}</td>
                     <td>{item.feedbackComment ?? '-'}</td>
-                    <td>{item.citations.map((citation) => citation.headingPath.join(' / ')).join(', ') || '-'}</td>
-                    <td>{item.requestId}</td>
+                    <td>{item.cacheHit ? 'Si' : 'No'}</td>
+                    <td>{formatDateTime(item.feedbackUpdatedAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -146,4 +212,18 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
         ) : null}
     </section>
   )
+}
+
+function csvCell(value: string) {
+  return `"${value.replaceAll('"', '""')}"`
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
 }

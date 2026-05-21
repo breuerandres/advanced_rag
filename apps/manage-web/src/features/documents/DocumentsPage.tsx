@@ -410,7 +410,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
 
             {loadState === "ready" && filteredDocuments.length > 0 ? (
               <div className="table-frame">
-                <table>
+                <table className="data-table documents-table">
                   <thead>
                     <tr>
                       <th scope="col">Documento</th>
@@ -428,7 +428,11 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                     {filteredDocuments.map((document) => (
                       <tr key={document.id}>
                         <th scope="row">{document.title}</th>
-                        <td>{displayState(document.state)}</td>
+                        <td>
+                          <span className={`badge document-state ${stateClass(document.state)}`}>
+                            {displayState(document.state)}
+                          </span>
+                        </td>
                         <td>{document.documentType || "-"}</td>
                         <td>{document.audience || "-"}</td>
                         <td>
@@ -538,9 +542,7 @@ function DocumentEditor({
 }) {
   const draft = documentDetail.currentDraftVersion;
   const [title, setTitle] = useState(draft?.title ?? documentDetail.title);
-  const [documentType, setDocumentType] = useState(
-    draft?.documentType ?? "",
-  );
+  const [documentType, setDocumentType] = useState(draft?.documentType ?? "");
   const [audience, setAudience] = useState(draft?.audience ?? "");
   const [contentHtml, setContentHtml] = useState(draft?.contentHtml ?? "");
   const [allowedGroupIds, setAllowedGroupIds] = useState<string[]>(
@@ -732,9 +734,6 @@ function DocumentEditor({
                 {importFileName ?? "Ningun archivo seleccionado"}
               </span>
             </div>
-            <span className="muted-copy" id={importHelpId}>
-              PDF o DOCX, maximo 10 MB.
-            </span>
           </div>
         </div>
 
@@ -844,8 +843,7 @@ function documentActionPermissions(
   userRoles: string[],
 ) {
   const isAdmin = hasRole(userRoles, "Admin");
-  const canManageDocuments =
-    isAdmin || hasRole(userRoles, "DocumentManager");
+  const canManageDocuments = isAdmin || hasRole(userRoles, "DocumentManager");
   const draftState = document.currentDraftVersion?.state;
 
   return {
@@ -932,6 +930,17 @@ function displayState(state: string) {
     Archived: "Archivado",
   };
   return labels[state] ?? state;
+}
+
+function stateClass(state: string) {
+  const classes: Record<string, string> = {
+    Draft: "draft",
+    "In Review": "review",
+    Published: "published",
+    Archived: "archived",
+  };
+
+  return classes[state] ?? "inactive";
 }
 
 function displayIndexing(status: string) {

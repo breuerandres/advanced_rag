@@ -332,10 +332,27 @@
 - Added a follow-up Alembic migration to restore reporting-view SELECT grants after the documents rename.
 - Added a follow-up EF migration to convert existing `app.audit_events` rows from `instruction.*` / `instruction` / `instructionId` to `document.*` / `document` / `documentId`.
 - Verified with `dotnet test services\dotnet-api\AdvancedRag.sln` (`72 passed`; existing NU1900 warnings), `uv run pytest -q` (`32 passed`), `uv run ruff check .`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.
+- Addressed the 2026-05-20 management usability review for users/groups, manage-side chat context, feedback, audit filters, and document status scanning:
+  - Added visible group management inside `Usuarios y grupos`, including a group table and `.NET` `PUT /api/groups/{id}` rename support.
+  - Added user role/group editing from the users table using the existing role/group assignment endpoints, while keeping AI budget editing as a separate action.
+  - Bounded users/audit search controls and constrained audit `Tipo` filter width to avoid horizontal overflow.
+  - Removed request ID and citations from the normal feedback table and added an Excel-compatible CSV export that includes all available feedback/reporting fields.
+  - Added semantic color badges for `Draft`, `In Review`, `Published`, and `Archived` document states.
+  - Deferred embedding chat directly inside `manage-web` because the current architecture assigns management browser APIs to `.NET` and public chat APIs to FastAPI on `chat.localhost`; a safe implementation needs an approved management preview contract or `.NET`-controlled proxy rather than a direct manage-to-FastAPI call or iframe.
+  - Verified the focused checkpoint with `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`31 passed`), `dotnet test services\dotnet-api\AdvancedRag.sln --filter UserAdministration` (`8 passed across matching app/api tests; existing NU1900 warnings`), and `dotnet build services\dotnet-api\AdvancedRag.sln` (build passed; existing NU1900 warnings).
+- Re-verified the 2026-05-20 management usability checkpoint on 2026-05-21 after user review:
+  - Confirmed the current workspace includes user role/group editing, visible group management with rename support, compact users/audit filters, feedback table column reduction with Excel-compatible CSV export, and semantic document lifecycle badges.
+  - Verified with `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`31 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, and `dotnet test services\dotnet-api\AdvancedRag.sln --filter UserAdministration` (`8 matching tests passed`; existing NU1900 warnings because NuGet vulnerability metadata could not be fetched from `https://api.nuget.org/v3/index.json`).
+- Ran the first desktop-only management visual audit against the local Compose stack on 2026-05-21:
+  - Added `tests/e2e/specs/manage-visual-audit.spec.ts` to authenticate against `https://manage.localhost`, capture normal desktop screenshots, wait for management data to load, and report table/text overflow issues without mobile findings.
+  - Polished management table rendering by giving the users, documents, audit, feedback, and groups tables explicit classes, container-relative widths, no clipped status/action text, and horizontal overflow detection based on rendered table width rather than hidden icon-tooltip accessible text.
+  - Tightened the Feedback desktop layout after visual review: the filter controls now use consistent heights and bounded columns, and the feedback table uses explicit column sizing so `Feedback`, `Comentario`, `Cache`, and `Fecha` headers do not wrap awkwardly.
+  - Rebuilt `manage-web`/Caddy through Compose so `manage.localhost` served the updated bundle.
+  - Verified with `pnpm.cmd --dir tests\e2e exec playwright test manage-visual-audit.spec.ts --project chromium` (`1 passed`, `tests/e2e/artifacts/manage-visual-audit/summary.md` reported `Issues found: 0`), `pnpm.cmd --dir tests\e2e typecheck`, and `pnpm.cmd --dir apps\manage-web typecheck`.
 
 ## In Progress
 
-- Task 17.5 is waiting on user-owned Compose startup so Playwright E2E and browser visual verification can run against the local stack. The 2026-05-20 management app review changes, structural documents vocabulary rename, `postgres-init` grant-order fix, legacy indexing-status migration fix, text-input spacing tweak, feedback reporting grant fix, and audit event vocabulary data migration are locally verified but still need browser/Compose verification with the rest of Task 17.5.
+- Task 17.5 still needs the responsive/mobile visual pass and broader end-to-end sweep after the desktop management audit. The 2026-05-20 management app review changes, structural documents vocabulary rename, `postgres-init` grant-order fix, legacy indexing-status migration fix, text-input spacing tweak, feedback reporting grant fix, audit event vocabulary data migration, users/groups editability pass, feedback export change, audit filter compaction, document status color pass, and desktop management visual audit are locally verified against Compose.
 
 ## Next Up
 
@@ -381,7 +398,7 @@ Expected result:
 
 ## Open Questions
 
-- None for the current checkpoint. Task 17.5 scope has been approved by the user.
+- Management chat preview needs product/architecture approval: either add a `.NET`-controlled management preview endpoint that calls FastAPI with authorized preview scope, or explicitly allow a same-origin manage route to FastAPI for preview-only chat. Direct `manage-web` calls to FastAPI are not allowed under the current service-boundary rules.
 
 ## Architecture Decisions
 

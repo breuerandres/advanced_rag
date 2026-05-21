@@ -10,6 +10,8 @@ public interface IUserAdministrationService
 
     Task<GroupRecord> CreateGroupAsync(CreateGroupCommand command, CancellationToken ct);
 
+    Task<GroupRecord> UpdateGroupAsync(UpdateGroupCommand command, CancellationToken ct);
+
     Task<UserManagementUser> CreateUserAsync(CreateUserCommand command, CancellationToken ct);
 
     Task<UserManagementUser?> GetUserAsync(Guid userId, CancellationToken ct);
@@ -52,6 +54,14 @@ public sealed class UserAdministrationService : IUserAdministrationService
     {
         var name = NormalizeRequired(command.Name, "name");
         return await _repository.CreateGroupAsync(name, command.ActorUserId, ct);
+    }
+
+    public async Task<GroupRecord> UpdateGroupAsync(UpdateGroupCommand command, CancellationToken ct)
+    {
+        var name = NormalizeRequired(command.Name, "name");
+        var updated = await _repository.UpdateGroupAsync(command.GroupId, name, command.ActorUserId, ct);
+        return updated
+            ?? throw new UserAdministrationException("NOT_FOUND", 404, "Group not found.");
     }
 
     public async Task<UserManagementUser> CreateUserAsync(CreateUserCommand command, CancellationToken ct)

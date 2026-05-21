@@ -40,6 +40,18 @@ export interface SetUserStatusRequest {
   isActive: boolean
 }
 
+export interface SetUserRolesRequest {
+  roles: string[]
+}
+
+export interface SetUserGroupsRequest {
+  groupIds: string[]
+}
+
+export interface UpdateGroupRequest {
+  name: string
+}
+
 let csrfToken: string | null = null
 
 export async function listUsers(): Promise<UserSummary[]> {
@@ -56,10 +68,37 @@ export async function createGroup(request: CreateGroupRequest): Promise<GroupSum
   return requestJson<GroupSummary>('/api/groups', jsonRequest('POST', request))
 }
 
+export async function updateGroup(
+  groupId: string,
+  request: UpdateGroupRequest,
+): Promise<GroupSummary> {
+  await ensureCsrfToken()
+
+  return requestJson<GroupSummary>(`/api/groups/${groupId}`, jsonRequest('PUT', request))
+}
+
 export async function createUser(request: CreateUserRequest): Promise<UserSummary> {
   await ensureCsrfToken()
 
   return requestJson<UserSummary>('/api/users', jsonRequest('POST', request))
+}
+
+export async function updateUserRoles(
+  userId: string,
+  request: SetUserRolesRequest,
+): Promise<UserSummary> {
+  await ensureCsrfToken()
+
+  return requestJson<UserSummary>(`/api/users/${userId}/roles`, jsonRequest('PUT', request))
+}
+
+export async function updateUserGroups(
+  userId: string,
+  request: SetUserGroupsRequest,
+): Promise<UserSummary> {
+  await ensureCsrfToken()
+
+  return requestJson<UserSummary>(`/api/users/${userId}/groups`, jsonRequest('PUT', request))
 }
 
 export async function updateUserBudget(

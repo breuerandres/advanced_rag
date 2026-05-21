@@ -314,6 +314,12 @@ public sealed class FakeUserAdministrationService : IUserAdministrationService
         return Task.FromResult(_operations with { Name = command.Name });
     }
 
+    public Task<GroupRecord> UpdateGroupAsync(UpdateGroupCommand command, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(_operations with { Name = command.Name });
+    }
+
     public Task<UserManagementUser> CreateUserAsync(CreateUserCommand command, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();

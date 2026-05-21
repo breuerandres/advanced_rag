@@ -40,4 +40,24 @@ public sealed class GroupsController : ApiControllerBase
             return Error(exception.HttpStatus, exception.Code, exception.Message, exception.Details);
         }
     }
+
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> UpdateGroupAsync(
+        Guid id,
+        [FromBody] UpdateGroupRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            GroupRecord group = await _users.UpdateGroupAsync(
+                new UpdateGroupCommand(id, request.Name, ActorUserId()),
+                ct);
+            return Ok(GroupResponse.FromGroup(group));
+        }
+        catch (UserAdministrationException exception)
+        {
+            return Error(exception.HttpStatus, exception.Code, exception.Message, exception.Details);
+        }
+    }
 }

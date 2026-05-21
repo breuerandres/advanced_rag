@@ -47,11 +47,13 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - Use persistent navigation for the main management sections: documents, users/groups, audit, feedback, and configuration. Do not add a separate navigation entry for AI budgets because those controls duplicate the users/groups workspace.
 - AI budget configuration is part of the users/groups workspace because the budget is configured per user and needs role/group context.
 - User deactivation is a logical status change exposed from the users/groups table; inactive users remain visible for audit and recovery.
+- User role/group editing and group rename actions live in the users/groups workspace. Groups must be visible as their own operational table, not only as values inside user rows.
 - Feedback review is a separate management workspace. Chat feedback remains audit evidence tied to RAG query audit rows, but it must not replace functional management audit activity.
 - Active session identity and logout controls live at the bottom of the management sidebar, not in a top workspace bar.
 - The audit workspace is reserved for functional management events and reads `.NET` `/api/audit/events`, backed by `app.audit_events`. Document lifecycle events are visible there, and local demo seeding with `-WithSampleDocument` inserts a sample `document.created` event.
-- Use table/list views for operational review workflows, with filters above or beside the result set.
+- Use table/list views for operational review workflows, with compact filters above or beside the result set. Search controls should be bounded instead of consuming the full workspace width when paired with short filters.
 - Use detail panels or pages for document lifecycle state, version history, audit events, indexing status, and feedback context.
+- Document lifecycle status badges use distinct semantic colors for `Draft`, `In Review`, `Published`, and `Archived` so reviewers can scan publication readiness quickly.
 - The document list must support filtering across the visible document attributes: search text, lifecycle state, indexing state, document type, audience, access-group coverage, and updated metadata when available.
 - Forms must show field-level validation, server errors, dirty state, disabled submission state, and recovery actions.
 - The document editor supports assisted PDF/DOCX import through the .NET API: upload, extraction loading state, extraction error state, extracted text inserted into the editor, and user-controlled formatting before save/review.
@@ -64,7 +66,8 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - `Admin` and `DocumentManager` can access feedback review from the dedicated management feedback workspace.
 - The feedback review view uses a dense table/list layout.
 - Filters include feedback polarity, negative-only mode, cited document, user, and date range.
-- Rows show question, answer summary, feedback value, optional comment, cited documents, user, timestamp, cache hit, and request ID.
+- Rows show question, answer summary, feedback value, optional comment, user, timestamp, and cache hit.
+- The normal feedback table intentionally omits request ID and citations to keep review scanning compact. Export to Excel/CSV includes all available fields, including request ID, query audit id, user id, cited document/version ids, citation headings, cache hit, timestamps, question, answer summary, feedback value, and comment.
 - The empty state must distinguish no feedback exists yet from filters returning no matches.
 - The view reads data through the .NET API; it must not call FastAPI directly.
 

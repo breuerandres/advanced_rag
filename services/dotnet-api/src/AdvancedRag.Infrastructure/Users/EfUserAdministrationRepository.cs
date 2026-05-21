@@ -47,6 +47,19 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
         return new GroupRecord(group.Id, group.Name);
     }
 
+    public async Task<GroupRecord?> UpdateGroupAsync(Guid groupId, string name, Guid actorUserId, CancellationToken ct)
+    {
+        var group = await _db.Groups.SingleOrDefaultAsync(item => item.Id == groupId, ct);
+        if (group is null)
+        {
+            return null;
+        }
+
+        group.Name = name;
+        await _db.SaveChangesAsync(ct);
+        return new GroupRecord(group.Id, group.Name);
+    }
+
     public async Task<bool> EmailExistsAsync(string normalizedEmail, CancellationToken ct)
     {
         return await _db.Users.AnyAsync(user => user.Email.ToLower() == normalizedEmail, ct);

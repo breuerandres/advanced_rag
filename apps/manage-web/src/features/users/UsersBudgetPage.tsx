@@ -1,12 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FolderPlus, Pencil, RefreshCw, Search, UserCheck, UserPlus, UserX } from 'lucide-react'
+import {
+  FolderPlus,
+  Pencil,
+  RefreshCw,
+  Search,
+  UserCheck,
+  UserCog,
+  UserPlus,
+  UserX,
+  WalletCards,
+} from 'lucide-react'
 import { ApiError } from '../../lib/api-error'
 import {
   createGroup,
   createUser,
   listGroups,
   listUsers,
+  updateGroup,
   updateUserBudget,
+  updateUserGroups,
+  updateUserRoles,
   updateUserStatus,
 } from '../../api/users'
 import type { GroupSummary, UserSummary } from '../../api/users'
@@ -20,6 +33,8 @@ export function UsersBudgetPage() {
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [editingUser, setEditingUser] = useState<UserSummary | null>(null)
+  const [managingUser, setManagingUser] = useState<UserSummary | null>(null)
+  const [editingGroup, setEditingGroup] = useState<GroupSummary | null>(null)
   const [isCreatingGroup, setIsCreatingGroup] = useState(false)
   const [isCreatingUser, setIsCreatingUser] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -229,7 +244,7 @@ export function UsersBudgetPage() {
 
         {loadState === 'ready' && filteredUsers.length > 0 ? (
           <div className="table-frame">
-            <table>
+            <table className="data-table users-table">
               <thead>
                 <tr>
                   <th scope="col">Usuario</th>
@@ -264,6 +279,18 @@ export function UsersBudgetPage() {
                         <Button
                           className="icon-button"
                           type="button"
+                          aria-label={`Editar usuario ${user.displayName}`}
+                          onClick={() => {
+                            setManagingUser(user)
+                            setSuccessMessage(null)
+                            setErrorMessage(null)
+                          }}
+                        >
+                          <UserCog size={16} />
+                        </Button>
+                        <Button
+                          className="icon-button"
+                          type="button"
                           aria-label={`Editar presupuesto de ${user.displayName}`}
                           onClick={() => {
                             setEditingUser(user)
@@ -271,7 +298,7 @@ export function UsersBudgetPage() {
                             setErrorMessage(null)
                           }}
                         >
-                          <Pencil size={16} />
+                          <WalletCards size={16} />
                         </Button>
                         <Button
                           className="icon-button"
@@ -295,6 +322,55 @@ export function UsersBudgetPage() {
         ) : null}
       </section>
 
+      {loadState === 'ready' ? (
+        <section className="workspace compact-workspace" id="grupos">
+          <header className="workspace-header">
+            <div>
+              <p className="eyebrow">Acceso documental</p>
+              <h2>Grupos</h2>
+            </div>
+          </header>
+
+          {groups.length === 0 ? (
+            <p className="status-message">No hay grupos para mostrar.</p>
+          ) : (
+            <div className="table-frame groups-table-frame">
+              <table className="data-table groups-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Grupo</th>
+                    <th scope="col">Usuarios</th>
+                    <th scope="col">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.map((group) => (
+                    <tr key={group.id}>
+                      <th scope="row">{group.name}</th>
+                      <td>{users.filter((user) => user.groups.some((item) => item.id === group.id)).length}</td>
+                      <td>
+                        <Button
+                          className="icon-button"
+                          type="button"
+                          aria-label={`Editar grupo ${group.name}`}
+                          onClick={() => {
+                            setEditingGroup(group)
+                            setSuccessMessage(null)
+                            setErrorMessage(null)
+                          }}
+                        >
+                          <Pencil size={16} />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
+
       {editingUser ? (
         <BudgetDialog
           user={editingUser}
@@ -305,6 +381,41 @@ export function UsersBudgetPage() {
             )
             setEditingUser(null)
             setSuccessMessage('Presupuesto actualizado.')
+          }}
+        />
+      ) : null}
+
+      {managingUser ? (
+        <UserManagementDialog
+          user={managingUser}
+          groups={groups}
+          onClose={() => setManagingUser(null)}
+          onSaved={(updatedUser) => {
+            setUsers((current) =>
+              current.map((user) => (user.id === updatedUser.id ? updatedUser : user)),
+            )
+            setManagingUser(null)
+            setSuccessMessage('Usuario actualizado.')
+          }}
+        />
+      ) : null}
+
+      {editingGroup ? (
+        <GroupEditDialog
+          group={editingGroup}
+          onClose={() => setEditingGroup(null)}
+          onSaved={(group) => {
+            setGroups((current) =>
+              current.map((item) => (item.id === group.id ? group : item)),
+            )
+            setUsers((current) =>
+              current.map((user) => ({
+                ...user,
+                groups: user.groups.map((item) => (item.id === group.id ? group : item)),
+              })),
+            )
+            setEditingGroup(null)
+            setSuccessMessage('Grupo actualizado.')
           }}
         />
       ) : null}
@@ -332,6 +443,88 @@ export function UsersBudgetPage() {
         />
       ) : null}
     </>
+  )
+}
+
+function GroupEditDialog({
+  group,
+  onClose,
+  onSaved,
+}: {
+  group: GroupSummary
+  onClose: () => void
+  onSaved: (group: GroupSummary) => void
+}) {
+  const [name, setName] = useState(group.name)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setValidationError(null)
+    setApiError(null)
+
+    const trimmedName = name.trim()
+    if (trimmedName.length === 0) {
+      setValidationError('El nombre del grupo es obligatorio.')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      onSaved(await updateGroup(group.id, { name: trimmedName }))
+    } catch (error) {
+      const reference = error instanceof ApiError ? error.requestId : 'unknown'
+      setApiError(`No se pudo actualizar el grupo. Referencia: ${reference}.`)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop">
+      <section
+        aria-labelledby="group-edit-dialog-title"
+        aria-modal="true"
+        className="dialog"
+        role="dialog"
+      >
+        <header className="dialog-header">
+          <div>
+            <p className="eyebrow">Acceso documental</p>
+            <h2 id="group-edit-dialog-title">Editar grupo</h2>
+          </div>
+          <Button className="text-button" type="button" onClick={onClose}>
+            Cerrar
+          </Button>
+        </header>
+
+        <form className="dialog-form" noValidate onSubmit={handleSubmit}>
+          <label className="field">
+            <span>Nombre del grupo</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              disabled={isSaving}
+            />
+          </label>
+
+          {validationError ? <p className="status-message error" role="alert">{validationError}</p> : null}
+          {apiError ? <p className="status-message error" role="alert">{apiError}</p> : null}
+
+          <div className="dialog-actions">
+            <Button className="text-button" type="button" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button className="primary-button" type="submit" disabled={isSaving}>
+              {isSaving ? 'Guardando...' : 'Guardar grupo'}
+            </Button>
+          </div>
+        </form>
+      </section>
+    </div>
   )
 }
 
@@ -593,6 +786,133 @@ function UserDialog({
   )
 }
 
+function UserManagementDialog({
+  user,
+  groups,
+  onClose,
+  onSaved,
+}: {
+  user: UserSummary
+  groups: GroupSummary[]
+  onClose: () => void
+  onSaved: (user: UserSummary) => void
+}) {
+  const [role, setRole] = useState(primaryRole(user.roles))
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(
+    user.groups.map((group) => group.id),
+  )
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setApiError(null)
+    setIsSaving(true)
+
+    try {
+      let updatedUser = user
+      if (role !== primaryRole(user.roles)) {
+        updatedUser = await updateUserRoles(user.id, { roles: [role] })
+      }
+
+      const originalGroupIds = user.groups.map((group) => group.id).sort().join(',')
+      const nextGroupIds = [...selectedGroupIds].sort().join(',')
+      if (nextGroupIds !== originalGroupIds) {
+        updatedUser = await updateUserGroups(user.id, { groupIds: selectedGroupIds })
+      }
+
+      onSaved(updatedUser)
+    } catch (error) {
+      const reference = error instanceof ApiError ? error.requestId : 'unknown'
+      setApiError(`No se pudo actualizar el usuario. Referencia: ${reference}.`)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  function toggleGroup(groupId: string) {
+    setSelectedGroupIds((current) =>
+      current.includes(groupId)
+        ? current.filter((selectedId) => selectedId !== groupId)
+        : [...current, groupId],
+    )
+  }
+
+  return (
+    <div className="dialog-backdrop">
+      <section
+        aria-labelledby="user-management-dialog-title"
+        aria-modal="true"
+        className="dialog user-dialog"
+        role="dialog"
+      >
+        <header className="dialog-header">
+          <div>
+            <p className="eyebrow">Identidad y permisos</p>
+            <h2 id="user-management-dialog-title">Editar usuario</h2>
+          </div>
+          <Button className="text-button" type="button" onClick={onClose}>
+            Cerrar
+          </Button>
+        </header>
+
+        <form className="dialog-form" noValidate onSubmit={handleSubmit}>
+          <div className="readonly-summary">
+            <strong>{user.displayName}</strong>
+            <span>{user.email}</span>
+          </div>
+
+          <label className="field">
+            <span>Rol</span>
+            <select
+              value={role}
+              onChange={(event) => setRole(event.target.value)}
+              disabled={isSaving}
+            >
+              <option value="Viewer">Viewer</option>
+              <option value="DocumentManager">DocumentManager</option>
+              <option value="Admin">Admin</option>
+            </select>
+          </label>
+
+          <fieldset className="checkbox-list" disabled={isSaving}>
+            <legend>Grupos</legend>
+            {groups.length > 0 ? (
+              groups.map((group) => (
+                <label className="checkbox-field" key={group.id}>
+                  <input
+                    type="checkbox"
+                    checked={selectedGroupIds.includes(group.id)}
+                    onChange={() => toggleGroup(group.id)}
+                  />
+                  <span>{group.name}</span>
+                </label>
+              ))
+            ) : (
+              <p className="muted-copy">No hay grupos disponibles.</p>
+            )}
+          </fieldset>
+
+          {apiError ? (
+            <p className="status-message error" role="alert">
+              {apiError}
+            </p>
+          ) : null}
+
+          <div className="dialog-actions">
+            <Button className="text-button" type="button" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button className="primary-button" type="submit" disabled={isSaving}>
+              {isSaving ? 'Guardando...' : 'Guardar usuario'}
+            </Button>
+          </div>
+        </form>
+      </section>
+    </div>
+  )
+}
+
 function BudgetDialog({
   user,
   onClose,
@@ -717,4 +1037,16 @@ function formatNullableCurrency(value: number | null) {
 
 function formatCurrency(value: number) {
   return `USD ${value.toFixed(2)}`
+}
+
+function primaryRole(roles: string[]) {
+  if (roles.includes('Admin')) {
+    return 'Admin'
+  }
+
+  if (roles.includes('DocumentManager')) {
+    return 'DocumentManager'
+  }
+
+  return roles.includes('Viewer') ? 'Viewer' : (roles[0] ?? 'Viewer')
 }

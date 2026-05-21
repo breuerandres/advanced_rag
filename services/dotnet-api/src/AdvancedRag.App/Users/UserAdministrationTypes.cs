@@ -31,6 +31,8 @@ public sealed record SetUserAiBudgetCommand(
 
 public sealed record CreateGroupCommand(string Name, Guid ActorUserId);
 
+public sealed record UpdateGroupCommand(Guid GroupId, string Name, Guid ActorUserId);
+
 public sealed record UserManagementUser(
     Guid Id,
     string Email,
@@ -75,6 +77,8 @@ public interface IUserAdministrationRepository
     Task<IReadOnlyList<GroupRecord>> ListGroupsAsync(CancellationToken ct);
 
     Task<GroupRecord> CreateGroupAsync(string name, Guid actorUserId, CancellationToken ct);
+
+    Task<GroupRecord?> UpdateGroupAsync(Guid groupId, string name, Guid actorUserId, CancellationToken ct);
 
     Task<bool> EmailExistsAsync(string normalizedEmail, CancellationToken ct);
 

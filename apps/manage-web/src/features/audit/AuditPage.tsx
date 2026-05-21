@@ -146,7 +146,7 @@ export function AuditPage() {
         <>
           <h2 className="section-heading">Eventos funcionales</h2>
           <div className="table-frame">
-            <table>
+            <table className="data-table audit-table">
               <thead>
                 <tr>
                   <th scope="col">Fecha</th>

@@ -178,8 +178,7 @@ try {
         "-f", "infra/compose/compose.yaml",
         "-f", "infra/compose/compose.override.yaml",
         "exec", "-T", "postgres",
-        "sh", "-lc",
-        "PGPASSWORD=`"$(cat /run/secrets/postgres_admin_password)`" psql -v ON_ERROR_STOP=1 -U postgres -d advanced_rag"
+        "psql", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "advanced_rag"
     )
 
     $sql | docker @composeArgs

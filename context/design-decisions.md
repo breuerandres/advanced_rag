@@ -117,6 +117,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Task 17.5 Management Workspace Refinement And TipTap](#2026-05-20---task-175-management-workspace-refinement-and-tiptap)
 - [Task 17.5 Feedback And Functional Audit Separation](#2026-05-20---task-175-feedback-and-functional-audit-separation)
 - [Task 17.5 Functional Audit Read Model](#2026-05-20---task-175-functional-audit-read-model)
+- [Task 17.5 Management Usability Refinement](#2026-05-20---task-175-management-usability-refinement)
 - [Document Domain Vocabulary Rename](#2026-05-20---document-domain-vocabulary-rename)
 
 ### UI Foundation
@@ -1420,6 +1421,22 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** `Auditoria` should now remain a real functional event view and must not embed feedback reporting. Document create/update/review/archive/restore actions generate visible rows, and demo environments can seed one with `infra/compose/Seed-LocalDemoData.ps1 -WithSampleDocument`.
 
 **Evidence:** Verified on 2026-05-20 with `dotnet test services\dotnet-api\AdvancedRag.sln --filter ManagementAudit` (`2 passed`), `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`29 passed`), `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, and `dotnet test services\dotnet-api\AdvancedRag.sln --filter "ManagementAudit|Document"` (`24 passed`). `.NET` commands emitted the existing `NU1900` warnings because NuGet vulnerability metadata could not be fetched; tests passed.
+
+## 2026-05-20 - Task 17.5 Management Usability Refinement
+
+**Context:** User review found that the users/groups workspace did not expose enough editing capability, group data was not directly visible, users/audit search controls were oversized, audit event type filtering could overflow, feedback rows were too wide with request ID and citations, and document lifecycle states needed stronger visual differentiation.
+
+**Options Considered:** Keep the current tables and rely on backend APIs only, add separate screens for each administration concern, or keep the existing management destinations while improving the dense table workflows in place.
+
+**Decision:** Keep the existing management destinations and refine the in-place workflows. `Usuarios y grupos` now exposes user role/group editing, AI budget editing as a separate action, and a visible groups table with group rename support through `.NET` `PUT /api/groups/{id}`. Feedback review hides request ID and citations from the normal table but adds an Excel-compatible CSV export with all available reporting fields. Audit filters and management search controls are compact and bounded. Document lifecycle states use semantic color badges. Embedding chat directly inside `manage-web` is deferred until a management-preview contract is approved because direct manage-to-FastAPI calls would violate current service-boundary rules.
+
+**Rationale:** These changes address the usability blockers without adding more navigation or weakening service boundaries. Group rename belongs to the .NET-owned users/groups contract. Feedback scanning benefits from fewer columns, while export preserves the full audit/reporting payload for offline review.
+
+**Tradeoffs:** Feedback export is CSV-compatible with Excel rather than a native `.xlsx` file, avoiding a new frontend dependency during Task 17.5. User role and group updates still use the existing separate endpoints, so a partial failure can occur if one update succeeds and the next fails; this is acceptable for the MVP UI pass and can be replaced by a combined backend command later if needed. Deferring the management chat preview leaves one user-requested workflow incomplete, but avoids shipping an iframe or direct API call that would conflict with same-origin auth, Caddy routing, and backend ownership.
+
+**Consequences:** Future feedback UI work should keep the normal table compact and put forensic fields in export/detail surfaces. Future users/groups work should preserve direct group visibility and avoid hiding group management inside user creation dialogs only.
+
+**Evidence:** Verified on 2026-05-20 with `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx` (`31 passed`), `dotnet test services\dotnet-api\AdvancedRag.sln --filter UserAdministration` (`8 matching tests passed`; existing NU1900 warnings), and `dotnet build services\dotnet-api\AdvancedRag.sln` (build passed; existing NU1900 warnings).
 
 ## 2026-05-20 - Document Domain Vocabulary Rename
 
