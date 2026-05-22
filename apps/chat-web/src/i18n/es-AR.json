@@ -1,0 +1,52 @@
+{
+  "app": {
+    "name": "Centro de Ayuda",
+    "loading": "Cargando…",
+    "error_generic": "Ocurrió un error inesperado.",
+    "error_with_id": "Ocurrió un error inesperado. (ID {{requestId}})"
+  },
+  "chat": {
+    "page_title": "Chat",
+    "composer_placeholder": "Escribí tu pregunta…",
+    "send": "Enviar",
+    "stop": "Detener",
+    "empty_state_title": "Empezá una conversación",
+    "empty_state_subtitle": "Hacé una pregunta sobre la documentación. La IA te responde con citas.",
+    "thinking": "Pensando…",
+    "citations_label": "Fuentes",
+    "feedback_helpful": "Útil",
+    "feedback_not_helpful": "No útil",
+    "feedback_thanks": "Gracias por tu feedback.",
+    "budget_exhausted": "Alcanzaste el presupuesto mensual de IA. Contactá al administrador para ampliarlo.",
+    "rate_limited": "Estás enviando preguntas muy rápido. Esperá un momento.",
+    "filters_label": "Filtros",
+    "filters_clear": "Quitar filtros",
+    "session_new": "Nueva conversación",
+    "session_history": "Conversaciones",
+    "session_today": "Hoy",
+    "session_yesterday": "Ayer",
+    "session_week": "Esta semana",
+    "session_older": "Más viejas"
+  },
+  "citation": {
+    "open_doc": "Ver documento",
+    "open_in_drawer": "Vista previa",
+    "page": "página {{n}}"
+  },
+  "auth": {
+    "login": "Iniciar sesión",
+    "logout": "Cerrar sesión",
+    "session_expired": "Tu sesión expiró. Iniciá sesión nuevamente.",
+    "unauthorized": "No tenés acceso a este recurso."
+  },
+  "shortcuts": {
+    "open_palette": "Buscar y navegar (Cmd + K)",
+    "submit": "Enviar (Enter)",
+    "newline": "Salto de línea (Shift + Enter)"
+  },
+  "metrics": {
+    "tokens": "{{n}} tokens",
+    "cost": "{{usd}} USD",
+    "latency": "{{ms}} ms"
+  }
+}

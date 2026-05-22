@@ -1,0 +1,52 @@
+{
+  "app": {
+    "name": "Help Center",
+    "loading": "Loading…",
+    "error_generic": "An unexpected error occurred.",
+    "error_with_id": "An unexpected error occurred. (ID {{requestId}})"
+  },
+  "chat": {
+    "page_title": "Chat",
+    "composer_placeholder": "Ask a question…",
+    "send": "Send",
+    "stop": "Stop",
+    "empty_state_title": "Start a conversation",
+    "empty_state_subtitle": "Ask a question about the documentation. The AI responds with citations.",
+    "thinking": "Thinking…",
+    "citations_label": "Sources",
+    "feedback_helpful": "Helpful",
+    "feedback_not_helpful": "Not helpful",
+    "feedback_thanks": "Thanks for your feedback.",
+    "budget_exhausted": "You've hit the monthly AI budget. Contact an administrator to raise it.",
+    "rate_limited": "You're sending questions too fast. Hold on a moment.",
+    "filters_label": "Filters",
+    "filters_clear": "Clear filters",
+    "session_new": "New conversation",
+    "session_history": "Conversations",
+    "session_today": "Today",
+    "session_yesterday": "Yesterday",
+    "session_week": "This week",
+    "session_older": "Older"
+  },
+  "citation": {
+    "open_doc": "Open document",
+    "open_in_drawer": "Preview",
+    "page": "page {{n}}"
+  },
+  "auth": {
+    "login": "Sign in",
+    "logout": "Sign out",
+    "session_expired": "Your session expired. Please sign in again.",
+    "unauthorized": "You don't have access to this resource."
+  },
+  "shortcuts": {
+    "open_palette": "Search and navigate (Cmd + K)",
+    "submit": "Send (Enter)",
+    "newline": "New line (Shift + Enter)"
+  },
+  "metrics": {
+    "tokens": "{{n}} tokens",
+    "cost": "{{usd}} USD",
+    "latency": "{{ms}} ms"
+  }
+}

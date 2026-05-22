@@ -1,0 +1,60 @@
+{
+  "app": {
+    "name": "Centro de Ayuda — Administración",
+    "loading": "Cargando…",
+    "error_generic": "Ocurrió un error inesperado."
+  },
+  "nav": {
+    "dashboard": "Inicio",
+    "documents": "Documentos",
+    "dimensions": "Dimensiones",
+    "users": "Usuarios y grupos",
+    "feedback": "Feedback",
+    "audit": "Auditoría",
+    "analytics": "Analíticas",
+    "api_keys": "API keys",
+    "configuration": "Configuración",
+    "logout": "Cerrar sesión"
+  },
+  "documents": {
+    "title": "Documentos",
+    "new": "Nuevo documento",
+    "list": "Listado",
+    "editor": "Editor",
+    "filter_search": "Buscar texto…",
+    "filter_state": "Estado",
+    "filter_type": "Tipo",
+    "filter_dimension": "Dimensión",
+    "state_draft": "Borrador",
+    "state_in_review": "En revisión",
+    "state_published": "Publicado",
+    "state_archived": "Archivado",
+    "action_send_to_review": "Enviar a revisión",
+    "action_publish": "Publicar",
+    "action_archive": "Archivar",
+    "action_restore": "Restaurar",
+    "action_delete": "Eliminar"
+  },
+  "users": {
+    "title": "Usuarios y grupos",
+    "new_user": "Nuevo usuario",
+    "new_group": "Nuevo grupo",
+    "role_admin": "Admin",
+    "role_editor": "Editor",
+    "role_viewer": "Viewer",
+    "activate": "Activar",
+    "deactivate": "Desactivar",
+    "edit_budget": "Editar presupuesto"
+  },
+  "setup": {
+    "title": "Configuración inicial",
+    "step_locale": "Idioma",
+    "step_brand": "Marca",
+    "step_llm": "Proveedor de IA",
+    "step_embedding": "Embeddings",
+    "step_reranker": "Reranker",
+    "step_dimensions": "Dimensiones (opcional)",
+    "step_admin": "Crear administrador",
+    "submit": "Finalizar configuración"
+  }
+}
