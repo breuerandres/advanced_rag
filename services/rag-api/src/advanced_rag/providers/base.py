@@ -1,0 +1,155 @@
+"""Provider protocol definitions.
+
+These are the only types business logic should reference. Implementations live in
+sibling modules (`openai_provider.py`, `anthropic_provider.py`, ...). The factory
+in `factory.py` chooses the implementation based on `app.tenant_config` values.
+
+See docs/adr/0001-multi-provider-llm.md.
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from typing import Literal, Protocol
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+# ---------------------------------------------------------------------------
+# Chat completion
+# ---------------------------------------------------------------------------
+
+
+class ChatMessage(BaseModel):
+    """A single message in a chat completion request."""
+
+    model_config = ConfigDict(frozen=True)
+
+    role: Literal["system", "user", "assistant"]
+    content: str
+
+
+class ChatCompletionRequest(BaseModel):
+    """Provider-agnostic chat completion request."""
+
+    model_config = ConfigDict(frozen=True)
+
+    messages: list[ChatMessage]
+    model: str
+    temperature: float = 0.1
+    max_tokens: int = 900
+    response_format: dict | None = None
+    """If set, the provider must return content that conforms to the JSON schema.
+
+    Schema shape varies per provider (OpenAI uses `response_format`, Anthropic uses
+    tool-use, etc.). Each provider translates this to its native equivalent."""
+
+
+class ChatCompletionDelta(BaseModel):
+    """One streaming chunk from a chat completion."""
+
+    model_config = ConfigDict(frozen=True)
+
+    content: str | None = None
+    finish_reason: str | None = None
+
+
+class ChatUsage(BaseModel):
+    """Token usage reported by the provider."""
+
+    model_config = ConfigDict(frozen=True)
+
+    input_tokens: int = 0
+    cached_input_tokens: int = 0
+    output_tokens: int = 0
+
+
+class ILlmProvider(Protocol):
+    """Protocol for chat / completion providers."""
+
+    name: str
+    """Stable identifier, e.g. 'openai', 'anthropic', 'azure-openai', 'ollama'."""
+
+    async def chat_stream(
+        self, req: ChatCompletionRequest
+    ) -> AsyncIterator[ChatCompletionDelta]:
+        """Stream completion tokens as they arrive.
+
+        Implementations should yield `ChatCompletionDelta(content="...")` for each
+        token chunk and a final delta with `finish_reason` set to indicate stop.
+        """
+        ...
+
+    async def chat_complete(
+        self, req: ChatCompletionRequest
+    ) -> tuple[str, ChatUsage]:
+        """Non-streaming completion. Returns the full content and usage."""
+        ...
+
+
+# ---------------------------------------------------------------------------
+# Embeddings
+# ---------------------------------------------------------------------------
+
+
+class IEmbeddingProvider(Protocol):
+    """Protocol for embedding providers."""
+
+    name: str
+    """Stable identifier, e.g. 'openai', 'tei', 'voyage'."""
+
+    model: str
+    """Model identifier the provider was configured with."""
+
+    dimensions: int
+    """Embedding vector dimensions. Must match the rag.document_chunks.embedding column.
+
+    For v2 this is fixed at 1024. See docs/adr/0003-multilingual-embeddings.md.
+    """
+
+    async def embed(self, texts: list[str]) -> tuple[list[list[float]], ChatUsage]:
+        """Embed a batch of texts.
+
+        Returns a list of vectors (one per input) and a usage record. Implementations
+        should batch internally according to the provider's per-request limits.
+        """
+        ...
+
+
+# ---------------------------------------------------------------------------
+# Reranker
+# ---------------------------------------------------------------------------
+
+
+class RerankerResult(BaseModel):
+    """One reranked document with its position in the original list and the score."""
+
+    model_config = ConfigDict(frozen=True)
+
+    original_index: int = Field(..., ge=0)
+    score: float
+
+
+class IRerankerProvider(Protocol):
+    """Protocol for cross-encoder reranker providers.
+
+    Note: rerankers are optional. If the tenant_config has `enable_reranker=false` the
+    factory returns `None` and the retrieval pipeline skips this step.
+    """
+
+    name: str
+    """Stable identifier, e.g. 'tei-bge', 'cohere', 'voyage'."""
+
+    model: str
+    """Model identifier."""
+
+    async def rerank(
+        self, query: str, documents: list[str], top_k: int
+    ) -> list[RerankerResult]:
+        """Rerank a list of documents against a query.
+
+        Returns up to `top_k` results sorted by descending score. Implementations
+        must not mutate the input list and must return `original_index` values
+        valid for indexing back into the input.
+        """
+        ...
