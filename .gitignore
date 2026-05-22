@@ -28,3 +28,7 @@ logs/
 .idea/
 .DS_Store
 Thumbs.db
+
+# v2 handoff transfer artifacts (regenerable; see HANDOFF.md §2)
+v2-generic.bundle
+v2-patches/
