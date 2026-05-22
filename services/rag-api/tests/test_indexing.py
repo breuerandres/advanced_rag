@@ -13,6 +13,7 @@ from testcontainers.postgres import PostgresContainer  # type: ignore[import-unt
 
 from advanced_rag.core.config import Settings
 from advanced_rag.main import create_app
+from advanced_rag.providers.base import ChatUsage
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,9 @@ POSTGRES_USER = "postgres"
 POSTGRES_PASSWORD = "postgres"
 POSTGRES_DB = "advanced_rag_indexing_test"
 INTERNAL_TOKEN = "test-internal-token"
+
+EMBEDDING_DIMENSIONS = 1024
+EMBEDDING_MODEL = "text-embedding-3-large"
 
 
 def test_internal_indexing_rejects_missing_or_invalid_service_token() -> None:
@@ -64,8 +68,8 @@ def test_valid_indexing_request_persists_job_chunks_and_embedding_dimensions() -
             Settings(
                 rag_database_url=async_url,
                 internal_service_token=INTERNAL_TOKEN,
-                openai_embedding_model="text-embedding-3-small",
-                openai_embedding_dimensions=1536,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
             ),
             embedding_provider=embedding_provider,
         )
@@ -81,15 +85,17 @@ def test_valid_indexing_request_persists_job_chunks_and_embedding_dimensions() -
         body = response.json()
         assert body["status"] == "Succeeded"
         assert body["chunkCount"] >= 1
-        assert embedding_provider.calls == [
-            EmbeddingCall(model="text-embedding-3-small", dimensions=1536)
-        ]
+        assert len(embedding_provider.calls) == 1
+        # The fake records the texts it embedded; we only care that the chunker
+        # produced something for the seeded HTML.
+        assert all(text for text in embedding_provider.calls[0])
         state = asyncio.run(_read_indexing_state(asyncpg_dsn, UUID(body["jobId"])))
 
     assert state["job_status"] == "Succeeded"
     assert state["chunk_count"] == body["chunkCount"]
-    assert state["embedding_type"] == "vector(1536)"
+    assert state["embedding_type"] == f"vector({EMBEDDING_DIMENSIONS})"
     assert state["active_chunk_count_for_version"] == body["chunkCount"]
+    assert state["job_embedding_model"] == EMBEDDING_MODEL
 
 
 def _indexing_payload() -> dict[str, str]:
@@ -120,7 +126,7 @@ async def _read_indexing_state(dsn: str, job_id: UUID) -> dict[str, Any]:
     try:
         job = await connection.fetchrow(
             """
-            select status, document_version_id
+            select status, document_version_id, embedding_model
             from rag.indexing_jobs
             where id = $1
             """,
@@ -158,41 +164,39 @@ async def _read_indexing_state(dsn: str, job_id: UUID) -> dict[str, Any]:
         "chunk_count": chunk_count,
         "active_chunk_count_for_version": active_count,
         "embedding_type": embedding_type,
+        "job_embedding_model": job["embedding_model"],
     }
 
 
 async def _bootstrap_rag_schema(dsn: str) -> None:
     connection = await asyncpg.connect(dsn)
     try:
+        # v2 BM25 migration creates `rag.f_immutable_unaccent` wrapping `public.unaccent`,
+        # and the hybrid retrieval SQL uses `pg_trgm`. Without these extensions Alembic
+        # `upgrade head` fails when the BM25 migration runs.
         await connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        await connection.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+        await connection.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
         await connection.execute("CREATE SCHEMA rag")
     finally:
         await connection.close()
 
 
-class EmbeddingCall:
-    def __init__(self, *, model: str, dimensions: int) -> None:
-        self.model = model
-        self.dimensions = dimensions
-
-    def __eq__(self, other: object) -> bool:
-        return (
-            isinstance(other, EmbeddingCall)
-            and self.model == other.model
-            and self.dimensions == other.dimensions
-        )
-
-
 class FakeEmbeddingProvider:
-    def __init__(self) -> None:
-        self.calls: list[EmbeddingCall] = []
+    """`IEmbeddingProvider` test double for indexing tests.
 
-    async def embed_texts(
-        self,
-        texts: list[str],
-        *,
-        model: str,
-        dimensions: int,
-    ) -> list[list[float]]:
-        self.calls.append(EmbeddingCall(model=model, dimensions=dimensions))
-        return [[0.01] * dimensions for _ in texts]
+    Carries its own `model` / `dimensions` (the provider abstraction makes these
+    intrinsic, no longer a per-call argument), and returns a constant vector
+    shaped to match the schema column.
+    """
+
+    name = "fake"
+    model = EMBEDDING_MODEL
+    dimensions = EMBEDDING_DIMENSIONS
+
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
+    async def embed(self, texts: list[str]) -> tuple[list[list[float]], ChatUsage]:
+        self.calls.append(list(texts))
+        return [[0.01] * self.dimensions for _ in texts], ChatUsage(input_tokens=4)

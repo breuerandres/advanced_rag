@@ -7,12 +7,17 @@ from fastapi.testclient import TestClient
 from advanced_rag.auth.chat_tokens import ChatTokenClaims
 from advanced_rag.main import create_app
 from advanced_rag.rag.chat_service import ChatAnswer
-from test_chat_rag import FakeChatCompletionProvider, FakeChatTokenValidator
+from test_chat_rag import (
+    FakeChatTokenValidator,
+    FakeEmbeddingProvider,
+    FakeLlmProvider,
+)
 
 
 def test_chat_after_thirty_questions_per_user_is_rate_limited() -> None:
     app = create_app(
-        chat_completion_provider=FakeChatCompletionProvider(),
+        embedding_provider=FakeEmbeddingProvider(),
+        llm_provider=FakeLlmProvider(),
         chat_token_validator=FakeChatTokenValidator(
             ChatTokenClaims(
                 user_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",

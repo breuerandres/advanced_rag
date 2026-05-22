@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from advanced_rag.core.config import Settings
 from advanced_rag.core.errors import ApiException
+from advanced_rag.providers.base import IEmbeddingProvider
 from advanced_rag.rag.chunking import CHUNKER_VERSION, chunk_html
-from advanced_rag.rag.embeddings import EmbeddingProvider
 from advanced_rag.schemas.indexing import InternalIndexingRequest
 
 
@@ -25,10 +25,19 @@ class IndexingJobResult(BaseModel):
 
 
 class InternalIndexingService:
+    """Synchronous (in-request) indexing pipeline.
+
+    v2: consumes `IEmbeddingProvider` rather than the legacy `EmbeddingProvider`.
+    The provider knows its own `model` and `dimensions`, so the service no longer
+    threads them as call-time arguments. The values are still recorded in the
+    audit columns (`embedding_model`, `embedding_dimensions`) via the provider's
+    own metadata.
+    """
+
     def __init__(
         self,
         session_factory: async_sessionmaker[AsyncSession],
-        embedding_provider: EmbeddingProvider,
+        embedding_provider: IEmbeddingProvider,
         settings: Settings,
     ) -> None:
         self._session_factory = session_factory
@@ -41,9 +50,16 @@ class InternalIndexingService:
 
         chunks = chunk_html(request.content_html)
         job_id = uuid4()
+        embedding_model = self._embedding_provider.model
+        embedding_dimensions = self._embedding_provider.dimensions
 
         async with self._session_factory() as session:
-            await self._insert_pending_job(session, job_id, request)
+            await self._insert_pending_job(
+                session,
+                job_id,
+                request,
+                embedding_dimensions=embedding_dimensions,
+            )
             await session.commit()
 
             if not chunks:
@@ -68,10 +84,8 @@ class InternalIndexingService:
                     ),
                     {"job_id": job_id, "started_at": datetime.now(UTC)},
                 )
-                embeddings = await self._embedding_provider.embed_texts(
-                    [chunk.content for chunk in chunks],
-                    model=self._settings.openai_embedding_model,
-                    dimensions=self._settings.openai_embedding_dimensions,
+                embeddings, _usage = await self._embedding_provider.embed(
+                    [chunk.content for chunk in chunks]
                 )
                 if len(embeddings) != len(chunks):
                     raise RuntimeError("Embedding provider returned a mismatched embedding count.")
@@ -137,7 +151,7 @@ class InternalIndexingService:
                             "content": chunk.content,
                             "content_html": chunk.content_html,
                             "embedding": str(embedding),
-                            "embedding_model": self._settings.openai_embedding_model,
+                            "embedding_model": embedding_model,
                         },
                     )
                 await session.execute(
@@ -156,7 +170,7 @@ class InternalIndexingService:
                         "job_id": job_id,
                         "completed_at": datetime.now(UTC),
                         "chunk_count": len(chunks),
-                        "embedding_model": self._settings.openai_embedding_model,
+                        "embedding_model": embedding_model,
                         "embedding_tokens": sum(chunk.token_count for chunk in chunks),
                     },
                 )
@@ -185,6 +199,8 @@ class InternalIndexingService:
         session: AsyncSession,
         job_id: UUID,
         request: InternalIndexingRequest,
+        *,
+        embedding_dimensions: int,
     ) -> None:
         await session.execute(
             text(
@@ -217,7 +233,7 @@ class InternalIndexingService:
                 "document_version_id": request.document_version_id,
                 "corpus": request.corpus_mode,
                 "chunker_version": CHUNKER_VERSION,
-                "embedding_dimensions": self._settings.openai_embedding_dimensions,
+                "embedding_dimensions": embedding_dimensions,
             },
         )
 

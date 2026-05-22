@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -15,7 +17,11 @@ from testcontainers.postgres import PostgresContainer  # type: ignore[import-unt
 from advanced_rag.auth.chat_tokens import ChatTokenClaims
 from advanced_rag.core.config import Settings
 from advanced_rag.main import create_app
-from advanced_rag.rag.chat_completion import ChatCompletionResult
+from advanced_rag.providers.base import (
+    ChatCompletionDelta,
+    ChatCompletionRequest,
+    ChatUsage,
+)
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +32,10 @@ POSTGRES_DB = "advanced_rag_chat_test"
 USER_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 ALLOWED_GROUP_ID = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
 DENIED_GROUP_ID = UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
+
+EMBEDDING_DIMENSIONS = 1024
+EMBEDDING_MODEL = "text-embedding-3-large"
+CHAT_MODEL = "gpt-4.1-nano"
 
 
 def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() -> None:
@@ -44,13 +54,14 @@ def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() 
         app = create_app(
             Settings(
                 rag_database_url=database.async_url,
-                openai_chat_model="gpt-4.1-nano",
-                openai_embedding_model="text-embedding-3-small",
-                openai_embedding_dimensions=1536,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
                 customer_timezone="UTC",
+                enable_reranker=False,
             ),
             embedding_provider=FakeEmbeddingProvider(),
-            chat_completion_provider=FakeChatCompletionProvider(),
+            llm_provider=FakeLlmProvider(),
             chat_token_validator=FakeChatTokenValidator(
                 ChatTokenClaims(
                     user_id=str(USER_ID),
@@ -84,8 +95,9 @@ def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() 
     assert state["audit"]["request_id"] == "req-chat-1"
     assert state["audit"]["cache_hit"] is False
     assert state["audit"]["access_scope_hash"] == "scope-allowed"
-    assert state["audit"]["chat_model"] == "gpt-4.1-nano"
-    assert state["audit"]["embedding_model"] == "text-embedding-3-small"
+    assert state["audit"]["chat_model"] == CHAT_MODEL
+    assert state["audit"]["embedding_model"] == EMBEDDING_MODEL
+    assert state["audit"]["embedding_dimensions"] == EMBEDDING_DIMENSIONS
     assert state["audit"]["estimated_cost_usd"] > Decimal("0")
 
 
@@ -101,17 +113,21 @@ def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated
             )
         )
         embedding_provider = FakeEmbeddingProvider()
-        chat_provider = FakeChatCompletionProvider()
+        llm_provider = FakeLlmProvider()
         app = create_app(
             Settings(
                 rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
                 customer_timezone="UTC",
                 rag_semantic_cache_similarity_threshold=0.90,
                 rag_semantic_cache_ttl_hours=24,
                 internal_service_token="test-internal",
+                enable_reranker=False,
             ),
             embedding_provider=embedding_provider,
-            chat_completion_provider=chat_provider,
+            llm_provider=llm_provider,
             chat_token_validator=FakeChatTokenValidator(
                 ChatTokenClaims(
                     user_id=str(USER_ID),
@@ -160,7 +176,66 @@ def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated
     assert "event: cache-hit" not in third.text
     assert invalidation.status_code == 200
     assert invalidated_source_count == 0
-    assert chat_provider.calls == 2
+    assert llm_provider.calls == 2
+
+
+def test_chat_filters_by_dimension_partitions_cache_separately() -> None:
+    """Same question + same user + different filters → no cache hit between them."""
+    with _postgres() as database:
+        document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        dimension_value_id = asyncio.run(
+            database.seed_dimension_value(document_id=document_id)
+        )
+        llm_provider = FakeLlmProvider()
+        app = create_app(
+            Settings(
+                rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+                customer_timezone="UTC",
+                enable_reranker=False,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+            llm_provider=llm_provider,
+            chat_token_validator=FakeChatTokenValidator(
+                ChatTokenClaims(
+                    user_id=str(USER_ID),
+                    role="Viewer",
+                    groups=[str(ALLOWED_GROUP_ID)],
+                    access_scope_hash="scope-allowed",
+                    corpus="published",
+                )
+            ),
+        )
+        client = TestClient(app)
+        client.cookies.set("__Host-chat-token", "valid")
+
+        unfiltered = client.post(
+            "/api/chat",
+            json={"question": "What credential rule applies?"},
+        )
+        # Second call WITH a filter must not hit the unfiltered cache.
+        filtered = client.post(
+            "/api/chat",
+            json={
+                "question": "What credential rule applies?",
+                "filters": {"dimensionValueIds": [str(dimension_value_id)]},
+            },
+        )
+
+    assert unfiltered.status_code == 200
+    assert filtered.status_code == 200
+    # Both went all the way to the LLM (no cross-filter cache hit).
+    assert llm_provider.calls == 2
 
 
 def test_budget_exhaustion_blocks_before_paid_provider_calls() -> None:
@@ -175,14 +250,18 @@ def test_budget_exhaustion_blocks_before_paid_provider_calls() -> None:
             )
         )
         embedding_provider = FakeEmbeddingProvider()
-        chat_provider = FakeChatCompletionProvider()
+        llm_provider = FakeLlmProvider()
         app = create_app(
             Settings(
                 rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
                 customer_timezone="UTC",
+                enable_reranker=False,
             ),
             embedding_provider=embedding_provider,
-            chat_completion_provider=chat_provider,
+            llm_provider=llm_provider,
             chat_token_validator=FakeChatTokenValidator(
                 ChatTokenClaims(
                     user_id=str(USER_ID),
@@ -204,7 +283,7 @@ def test_budget_exhaustion_blocks_before_paid_provider_calls() -> None:
     assert response.status_code == 429
     assert response.json()["error"]["code"] == "AI_BUDGET_EXCEEDED"
     assert embedding_provider.calls == []
-    assert chat_provider.calls == 0
+    assert llm_provider.calls == 0
 
 
 def _postgres() -> ChatDatabase:
@@ -236,7 +315,10 @@ class ChatDatabase:
     async def _bootstrap(self) -> None:
         connection = await asyncpg.connect(self.dsn)
         try:
+            # v2 hybrid retrieval needs all three.
             await connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            await connection.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+            await connection.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
             await connection.execute("CREATE SCHEMA app")
             await connection.execute("CREATE SCHEMA rag")
             await connection.execute(
@@ -293,6 +375,36 @@ class ChatDatabase:
                     is_disabled boolean not null default false,
                     updated_at timestamptz not null default now(),
                     updated_by_user_id uuid null
+                )
+                """
+            )
+            # Minimal dimensions schema so the hybrid retrieval filter join compiles
+            # even when the v1 SQL migrations for these tables have not been applied
+            # yet. The chat path passes NULL for the filter unless tests opt in.
+            await connection.execute(
+                """
+                CREATE TABLE app.dimensions (
+                    id uuid primary key,
+                    key text not null unique,
+                    label text not null
+                )
+                """
+            )
+            await connection.execute(
+                """
+                CREATE TABLE app.dimension_values (
+                    id uuid primary key,
+                    dimension_id uuid not null references app.dimensions(id) on delete cascade,
+                    label text not null
+                )
+                """
+            )
+            await connection.execute(
+                """
+                CREATE TABLE app.document_dimension_values (
+                    document_id uuid not null references app.documents("Id") on delete cascade,
+                    dimension_value_id uuid not null references app.dimension_values(id) on delete cascade,
+                    primary key (document_id, dimension_value_id)
                 )
                 """
             )
@@ -358,11 +470,13 @@ class ChatDatabase:
                     id, model_id, model_kind, input_token_price_usd,
                     cached_token_price_usd, output_token_price_usd, effective_from
                 )
-                VALUES ($1, 'gpt-4.1-nano', 'chat', 0.0000001, 0.00000001, 0.0000004, now()),
-                       ($2, 'text-embedding-3-small', 'embedding', 0.00000002, null, null, now())
+                VALUES ($1, $2, 'chat', 0.0000001, 0.00000001, 0.0000004, now()),
+                       ($3, $4, 'embedding', 0.00000002, null, null, now())
                 """,
                 chat_price_id,
+                CHAT_MODEL,
                 embedding_price_id,
+                EMBEDDING_MODEL,
             )
             if existing_spend:
                 await connection.execute(
@@ -374,18 +488,56 @@ class ChatDatabase:
                         estimated_cost_usd, latency_ms, access_scope_hash, corpus,
                         prompt_version, chunker_version
                     )
-                    VALUES ($1, $2, 'spent', 'q', 'a', false, 'gpt-4.1-nano',
-                            'text-embedding-3-small', 1536, 1, 0, 1, $3, $4, 1,
-                            'scope-allowed', 'published', 1, 1)
+                    VALUES ($1, $2, 'spent', 'q', 'a', false, $3, $4, $5,
+                            1, 0, 1, $6, $7, 1, 'scope-allowed', 'published', 1, 1)
                     """,
                     uuid4(),
                     USER_ID,
+                    CHAT_MODEL,
+                    EMBEDDING_MODEL,
+                    EMBEDDING_DIMENSIONS,
                     chat_price_id,
                     existing_spend,
                 )
             await self._insert_chunk(connection, allowed_document_id, "published", "Wear visible credentials.")
             await self._insert_chunk(connection, denied_document_id, "published", "Denied group content.")
             await self._insert_chunk(connection, preview_document_id, "preview", "Preview-only content.")
+        finally:
+            await connection.close()
+
+    async def seed_dimension_value(self, *, document_id: UUID) -> UUID:
+        """Insert one dimension/value pair and tag the given document with it.
+
+        Tagging is required because the hybrid retrieval SQL EXISTS-joins on
+        `app.document_dimension_values`; an unassociated value would always
+        filter to zero chunks and we want this test to exercise the cache
+        partition logic, not the empty-result fallback path.
+        """
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            dimension_id = uuid4()
+            value_id = uuid4()
+            await connection.execute(
+                "INSERT INTO app.dimensions (id, key, label) VALUES ($1, $2, $3)",
+                dimension_id,
+                "modulo",
+                "Modulo",
+            )
+            await connection.execute(
+                "INSERT INTO app.dimension_values (id, dimension_id, label) VALUES ($1, $2, $3)",
+                value_id,
+                dimension_id,
+                "ABR522",
+            )
+            await connection.execute(
+                """
+                INSERT INTO app.document_dimension_values (document_id, dimension_value_id)
+                VALUES ($1, $2)
+                """,
+                document_id,
+                value_id,
+            )
+            return value_id
         finally:
             await connection.close()
 
@@ -405,23 +557,24 @@ class ChatDatabase:
                 attempts, chunker_version, embedding_dimensions, chunk_count,
                 embedding_model, embedding_tokens
             )
-            VALUES ($1, $2, $3, $4, 'Succeeded', 1, 1, 1536, 1, 'text-embedding-3-small', 4)
+            VALUES ($1, $2, $3, $4, 'Succeeded', 1, 1, $5, 1, $6, 4)
             """,
             job_id,
             document_id,
             version_id,
-            corpus,
+            EMBEDDING_DIMENSIONS,
+            EMBEDDING_MODEL,
         )
         await connection.execute(
-            """
+            f"""
             INSERT INTO rag.document_chunks (
                 id, indexing_job_id, document_id, document_version_id,
                 corpus, chunk_index, heading_path, token_count, char_count,
                 content, content_html, embedding, embedding_model, is_active
             )
             VALUES ($1, $2, $3, $4, $5, 0, ARRAY['Policy'], 4, $6, $7, $8,
-                    ('[' || repeat('0.01,', 1535) || '0.01]')::vector,
-                    'text-embedding-3-small', true)
+                    ('[' || repeat('0.01,', {EMBEDDING_DIMENSIONS - 1}) || '0.01]')::vector,
+                    $9, true)
             """,
             uuid4(),
             job_id,
@@ -431,6 +584,7 @@ class ChatDatabase:
             len(content),
             content,
             f"<p>{content}</p>",
+            EMBEDDING_MODEL,
         )
 
     async def read_audit_state(self) -> dict[str, Any]:
@@ -479,38 +633,69 @@ def _run_migrations(async_url: str) -> None:
 
 
 class FakeEmbeddingProvider:
+    """In-memory `IEmbeddingProvider` that returns a constant vector per text.
+
+    The vector is shaped to `EMBEDDING_DIMENSIONS` so the SQL `vector(N)` column
+    accepts it. The exact values are arbitrary because the test corpus has only
+    a few chunks; vector ordering does not depend on their similarity.
+    """
+
+    name = "fake"
+    model = EMBEDDING_MODEL
+    dimensions = EMBEDDING_DIMENSIONS
+
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
 
-    async def embed_texts(
-        self,
-        texts: list[str],
-        *,
-        model: str,
-        dimensions: int,
-    ) -> list[list[float]]:
+    async def embed(self, texts: list[str]) -> tuple[list[list[float]], ChatUsage]:
         self.calls.append(texts)
-        return [[0.01] * dimensions for _ in texts]
+        return [[0.01] * self.dimensions for _ in texts], ChatUsage(input_tokens=4)
 
 
-class FakeChatCompletionProvider:
+class FakeLlmProvider:
+    """Minimal `ILlmProvider` used in tests.
+
+    Extracts the first `chunk_id=<uuid>` from the user message, copies the chunk's
+    content into `answer`, and reports that chunk as the only citation. Honours the
+    JSON `response_format` contract.
+    """
+
+    name = "fake"
+
     def __init__(self) -> None:
         self.calls = 0
 
-    async def complete(
-        self,
-        *,
-        question: str,
-        context_chunks: list[Any],
-        model: str,
-    ) -> Any:
+    async def chat_complete(
+        self, req: ChatCompletionRequest
+    ) -> tuple[str, ChatUsage]:
         self.calls += 1
-        chunk = context_chunks[0]
-        return ChatCompletionResult(
-            answer=f"Respuesta basada en: {chunk.content}",
-            cited_chunk_ids=[chunk.id],
-            input_tokens=20,
-            output_tokens=10,
+        user_msg = next((m for m in req.messages if m.role == "user"), None)
+        if user_msg is None:
+            return self._empty_response()
+        match = re.search(r"chunk_id=([0-9a-fA-F-]+)", user_msg.content)
+        if not match:
+            return self._empty_response()
+        chunk_id = match.group(1)
+        content_match = re.search(
+            rf"chunk_id={re.escape(chunk_id)}[^\n]*\n(.*?)(?:\n\n\[chunk_id=|\n\nQuestion:|\Z)",
+            user_msg.content,
+            re.DOTALL,
+        )
+        first_line = ""
+        if content_match:
+            lines = content_match.group(1).strip().splitlines()
+            first_line = lines[0] if lines else ""
+        payload = json.dumps({"answer": first_line, "cited_chunk_ids": [chunk_id]})
+        return payload, ChatUsage(input_tokens=20, output_tokens=10)
+
+    async def chat_stream(self, req: ChatCompletionRequest):
+        content, _ = await self.chat_complete(req)
+        yield ChatCompletionDelta(content=content, finish_reason="stop")
+
+    def _empty_response(self) -> tuple[str, ChatUsage]:
+        return (
+            json.dumps({"answer": "", "cited_chunk_ids": []}),
+            ChatUsage(input_tokens=20, output_tokens=10),
         )
 
 

@@ -4,11 +4,56 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
+    # ----- Provider-agnostic tenant configuration ------------------------
+    # These values seed the in-process `ProviderFactory` until the .NET API exposes
+    # tenant_config via /api/v1/config (Phase 1.1). New deployments should populate
+    # these fields; the historical `openai_*` fields below remain as legacy aliases
+    # so existing .env files continue to work.
+    llm_provider: str = "openai"
+    llm_model: str = ""
+    llm_api_key: str = ""
+    llm_api_key_file: str = ""
+    llm_base_url: str = ""
+
+    embedding_provider: str = "openai"
+    embedding_model: str = ""
+    embedding_dimensions: int = 0
+    embedding_api_key: str = ""
+    embedding_api_key_file: str = ""
+    embedding_base_url: str = ""
+
+    enable_reranker: bool = True
+    reranker_provider: str = "tei-bge"
+    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    reranker_base_url: str = ""
+    reranker_api_key: str = ""
+
+    azure_endpoint: str = ""
+    azure_api_version: str = "2024-08-01-preview"
+    azure_chat_deployment: str = ""
+    azure_embedding_deployment: str = ""
+
+    # Hybrid retrieval knobs (Phase 2.4)
+    rag_vector_top_k: int = 20
+    rag_bm25_top_k: int = 20
+    rag_rrf_k: int = 60
+    rag_hybrid_top_k: int = 30
+    rag_final_top_k: int = 8
+
+    default_locale: str = "es-AR"
+
+    # ----- Legacy MVP fields ---------------------------------------------
+    # These are the source of truth when set; new fields above act as defaults
+    # when the legacy fields are empty. The MVP shipped with these names and
+    # the chat schema was `vector(1536)` — but the v2 migration changes it to
+    # `vector(1024)`, so dimensions must be updated to 1024 in any deployment
+    # that upgrades.
     openai_chat_model: str = "gpt-4.1-nano"
-    openai_embedding_model: str = "text-embedding-3-small"
-    openai_embedding_dimensions: int = 1536
+    openai_embedding_model: str = "text-embedding-3-large"
+    openai_embedding_dimensions: int = 1024
     openai_api_key: str = ""
     openai_api_key_file: str = ""
+
     rag_database_url: str = ""
     rag_database_host: str = "postgres"
     rag_database_port: int = 5432
@@ -50,9 +95,31 @@ class Settings(BaseSettings):
     def resolved_openai_api_key(self) -> str:
         return self.openai_api_key or _read_secret_file(self.openai_api_key_file)
 
+    @property
+    def resolved_llm_api_key(self) -> str:
+        explicit = self.llm_api_key or _read_secret_file(self.llm_api_key_file)
+        return explicit or self.resolved_openai_api_key
+
+    @property
+    def resolved_embedding_api_key(self) -> str:
+        explicit = self.embedding_api_key or _read_secret_file(self.embedding_api_key_file)
+        return explicit or self.resolved_llm_api_key
+
+    @property
+    def resolved_chat_model(self) -> str:
+        return self.openai_chat_model or self.llm_model
+
+    @property
+    def resolved_embedding_model(self) -> str:
+        return self.openai_embedding_model or self.embedding_model
+
+    @property
+    def resolved_embedding_dimensions(self) -> int:
+        return self.openai_embedding_dimensions or self.embedding_dimensions
+
 
 def _read_secret_file(path: str) -> str:
     if not path:
         return ""
     with open(path, encoding="utf-8") as secret_file:
-        return secret_file.read().lstrip("\ufeff").strip()
+        return secret_file.read().lstrip("﻿").strip()

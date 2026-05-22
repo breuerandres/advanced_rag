@@ -25,6 +25,8 @@ EXPECTED_TABLES = {
     "query_audit_events",
     "query_audit_citations",
     "model_pricing",
+    # Added by the v2 migration 20260522_120400.
+    "unresolved_questions",
 }
 
 EXPECTED_INDEXES = {
@@ -36,6 +38,16 @@ EXPECTED_INDEXES = {
     "ix_query_audit_events_created_at",
     "ix_query_audit_events_user_created_at",
     "ix_query_audit_citations_document_id",
+    # v2 indexes
+    "ix_document_chunks_content_tsv",
+    "ix_document_chunks_content_trgm",
+    "ix_document_chunks_language",
+    "ix_query_audit_session",
+    "ix_query_audit_filters_hash",
+    "ix_semantic_cache_corpus_scope_filters",
+    "ix_unresolved_questions_cluster",
+    "ix_unresolved_questions_status_created",
+    "ix_unresolved_questions_embedding_hnsw",
 }
 
 
@@ -63,7 +75,9 @@ def test_initial_alembic_migration_creates_owned_rag_schema() -> None:
     assert state["rag_tables"] == EXPECTED_TABLES
     assert "app" not in state["schemas"]
     assert state["vector_extension_exists"] is True
-    assert state["document_chunks_embedding_type"] == "vector(1536)"
+    # v2 migration `20260522_120000_v2_change_embedding_dimensions` resizes the
+    # embedding column to 1024 dims for multilingual support.
+    assert state["document_chunks_embedding_type"] == "vector(1024)"
     assert EXPECTED_INDEXES.issubset(state["indexes"])
 
 
@@ -123,7 +137,10 @@ def _runtime_asyncpg_dsn(host: str, port: str | int) -> str:
 async def _bootstrap_runtime_rag_schema(dsn: str) -> None:
     connection = await asyncpg.connect(dsn)
     try:
+        # v2 BM25 migration depends on unaccent + pg_trgm; install them as superuser.
         await connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        await connection.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+        await connection.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
         await connection.execute("CREATE ROLE rag_owner LOGIN PASSWORD 'rag-password'")
         await connection.execute("CREATE ROLE app_reporting_reader LOGIN PASSWORD 'reporting-password'")
         await connection.execute("CREATE SCHEMA rag AUTHORIZATION rag_owner")
@@ -135,6 +152,8 @@ async def _bootstrap_superuser_rag_schema(dsn: str) -> None:
     connection = await asyncpg.connect(dsn)
     try:
         await connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        await connection.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+        await connection.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
         await connection.execute("CREATE SCHEMA rag")
     finally:
         await connection.close()

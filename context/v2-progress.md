@@ -36,13 +36,23 @@ Mirror of `docs/v2/03-phases.md` checklists but maintained as a journal. The MVP
   - **Commit `7a64551`**: `feat(rag): hybrid retrieval, reranker wrapper, multi-turn memory, multilingual prompts`.
 - 2026-05-22 — i18n scaffolds in all 3 SPAs (`apps/{chat,manage,docs}-web/src/i18n/`).
   - **Commit `41810a5`**: `feat(infra): i18n scaffolds, MinIO + TEI overlay, OTel observability, RAGAS evals`.
+- 2026-05-22 — `chat_service.py` + `indexing_service.py` rewired to consume the new providers + hybrid retrieval + (optional) reranker:
+  - New module `rag/answer_generator.py` bridges `ILlmProvider.chat_complete` to the domain `{answer, cited_chunk_ids}` JSON contract, loading the system prompt from `prompts/system_<locale>.md`.
+  - `chat_service.ChatService.__init__` now takes `IEmbeddingProvider`, `ILlmProvider`, and an optional `IRerankerProvider`; `answer()` accepts `filters`, `session_id`, and `locale` parameters and threads them through hybrid retrieval, cache partitioning (`filters_hash`), and audit (`session_id`, `filters`, `vector_top_k`, `bm25_top_k`, `rerank_top_k`, `reranker_model`, `reranker_score`).
+  - `indexing_service.InternalIndexingService` no longer threads model/dimensions per call; it reads them from the injected provider's intrinsic attributes.
+  - `main.create_app` builds a `ProviderFactory` from `Settings`; tests can still pass explicit fakes for each protocol. `Settings` extends with `llm_*`, `embedding_*`, `reranker_*`, `azure_*`, and hybrid-retrieval knobs.
+  - `OpenAILlmProvider` / `OpenAIEmbeddingProvider` defer `AsyncOpenAI` client construction so an app can be created without an API key (tests and CI rely on this).
+  - `schemas/chat.ChatRequest` extended with `filters.dimensionValueIds`, `sessionId`, and `locale`; the chat router passes them to `ChatService.answer`.
+  - Legacy `rag/embeddings.py` and `rag/chat_completion.py` removed; tests rewritten with `FakeLlmProvider` / `FakeEmbeddingProvider` against the new `ILlmProvider` / `IEmbeddingProvider` protocols.
+  - Test infrastructure: `_bootstrap` in `test_chat_rag.py`, `test_indexing.py`, and `test_migrations.py` now installs `pg_trgm` and `unaccent` extensions so Alembic `upgrade head` succeeds (BM25 migration requires them). 1024-dim seeds throughout.
+  - `pyproject.toml` adds `tenacity==9.1.2` (required by `providers/_retry.py`).
 - **PENDING (next PC)**:
   - Install `react-i18next`, `i18next`, `i18next-browser-languagedetector` in each SPA.
-  - Install `@anthropic-ai/sdk`, `cohere`, `tenacity` Python deps in `services/rag-api/pyproject.toml`.
+  - Install `@anthropic-ai/sdk`, `cohere` Python deps in `services/rag-api/pyproject.toml` if/when those providers are exercised at runtime (the factory imports them lazily).
   - Apply Alembic migrations on first `uv run alembic upgrade head`.
   - Materialise the SQL scripts as EF Core migrations (`services/dotnet-api/v2-migrations-sql/README.md`).
-  - Refactor `chat_service.py` and `indexing_service.py` to consume `ProviderFactory`.
   - Run `pnpm install` to wire `packages/shared-ui`.
+  - Wire `conversation_memory.condense_question` and `query_rewrite.rewrite_query` into `chat_service` (Phase 5.2 / 5.3) — modules exist but are not yet called from the chat path.
 
 ## Phase 1.5 — Unified auth + design system base
 
@@ -61,7 +71,7 @@ Pending. The shared-ui scaffold is in place; per-SPA refactor (3-pane chat, docs
 ## Phase 2 — Hybrid retrieval + dimensions
 
 - 2026-05-22 — Hybrid retrieval SQL + reranker wrapper authored (`services/rag-api/src/advanced_rag/rag/{hybrid_retrieval,rerank,query_rewrite}.py`).
-  - **PENDING (next PC)**: wire into `chat_service.py`, replace vector-only call with `hybrid_retrieve` + `rerank_candidates`; add `filters` to the chat SSE request.
+- 2026-05-22 — `hybrid_retrieve` + `rerank_candidates` wired into `chat_service.py`; `filters` exposed on `POST /api/chat` (`filters.dimensionValueIds`); cache key includes `filters_hash`.
 - Dimension schema authored; CRUD endpoints + UI pending.
 
 ## Phase 3 — Object storage + bulk import

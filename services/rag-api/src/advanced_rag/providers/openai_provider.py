@@ -4,6 +4,10 @@ See docs/adr/0001-multi-provider-llm.md.
 
 Note: the embedding provider truncates to the configured `dimensions` natively
 (OpenAI's text-embedding-3-large supports `dimensions` parameter as of 2024-01).
+
+Construction of the underlying `AsyncOpenAI` client is deferred to first use so a
+process can hold an instance of this provider without an API key (e.g. during test
+app startup where a fake provider is injected before any network call would occur).
 """
 
 from __future__ import annotations
@@ -26,11 +30,20 @@ class OpenAILlmProvider(ILlmProvider):
     name = "openai"
 
     def __init__(self, *, api_key: str, base_url: str | None = None) -> None:
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self._api_key = api_key
+        self._base_url = base_url
+        self._client: AsyncOpenAI | None = None
+
+    def _ensure_client(self) -> AsyncOpenAI:
+        if self._client is None:
+            self._client = AsyncOpenAI(api_key=self._api_key or None, base_url=self._base_url)
+        return self._client
 
     async def chat_stream(
         self, req: ChatCompletionRequest
     ) -> AsyncIterator[ChatCompletionDelta]:
+        client = self._ensure_client()
+
         async def _call():  # type: ignore[no-untyped-def]
             kwargs: dict = {
                 "model": req.model,
@@ -41,7 +54,7 @@ class OpenAILlmProvider(ILlmProvider):
             }
             if req.response_format is not None:
                 kwargs["response_format"] = req.response_format
-            return await self._client.chat.completions.create(**kwargs)
+            return await client.chat.completions.create(**kwargs)
 
         stream = await retry_async(_call, retry_on=is_transient_openai_error)
 
@@ -58,6 +71,8 @@ class OpenAILlmProvider(ILlmProvider):
     async def chat_complete(
         self, req: ChatCompletionRequest
     ) -> tuple[str, ChatUsage]:
+        client = self._ensure_client()
+
         async def _call():  # type: ignore[no-untyped-def]
             kwargs: dict = {
                 "model": req.model,
@@ -67,7 +82,7 @@ class OpenAILlmProvider(ILlmProvider):
             }
             if req.response_format is not None:
                 kwargs["response_format"] = req.response_format
-            return await self._client.chat.completions.create(**kwargs)
+            return await client.chat.completions.create(**kwargs)
 
         response = await retry_async(_call, retry_on=is_transient_openai_error)
 
@@ -91,9 +106,16 @@ class OpenAIEmbeddingProvider(IEmbeddingProvider):
         dimensions: int = 1024,
         base_url: str | None = None,
     ) -> None:
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self._api_key = api_key
+        self._base_url = base_url
+        self._client: AsyncOpenAI | None = None
         self.model = model
         self.dimensions = dimensions
+
+    def _ensure_client(self) -> AsyncOpenAI:
+        if self._client is None:
+            self._client = AsyncOpenAI(api_key=self._api_key or None, base_url=self._base_url)
+        return self._client
 
     async def embed(
         self, texts: list[str]
@@ -101,8 +123,10 @@ class OpenAIEmbeddingProvider(IEmbeddingProvider):
         if not texts:
             return [], ChatUsage()
 
+        client = self._ensure_client()
+
         async def _call():  # type: ignore[no-untyped-def]
-            return await self._client.embeddings.create(
+            return await client.embeddings.create(
                 input=texts,
                 model=self.model,
                 dimensions=self.dimensions,
