@@ -1485,3 +1485,185 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Future schema/view recreation migrations must reapply dependent grants in the same migration or a follow-up migration. Future domain-vocabulary changes must include persisted audit data as part of the migration checklist.
 
 **Evidence:** Verified on 2026-05-20 with `dotnet test services\dotnet-api\AdvancedRag.sln` (`72 passed`; existing NU1900 warnings), `uv run pytest -q` (`32 passed`), `uv run ruff check .`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.
+
+---
+
+# v2 Generic Refactor — Decisions
+
+The decisions below are appended in chronological order during the v2 refactor (2026-05-22
+onwards). They **supersede** specific MVP rules where noted. Full reasoning for each lives
+in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
+
+## 2026-05-22 - V2 Product Scope: Generic Multi-Company Self-Hosted
+
+**Context:** The MVP was designed for a single corporate customer (Mymtec / DUX3). The user decided to evolve it into a generic product installable by any company.
+
+**Options Considered:** Replace the legacy CentroDeAyuda for Mymtec, build a generic greenfield with no relation to legacy systems, or fork into product + Mymtec adapter.
+
+**Decision:** Build a generic, self-hosted, multilingual help-center product independent of any legacy system. Each customer installs their own Docker Compose stack.
+
+**Rationale:** Generic positioning maximises addressable market and aligns with the "single-tenant Docker Compose" decision already taken in the MVP.
+
+**Tradeoffs:** Forfeits the integration shortcut of reusing CentroDeAyuda's data.
+
+**Consequences:** All MVP rules tied to Mymtec/DUX3 vocabulary, Spanish-only, or single-customer assumptions are now generic. Setup wizard provisions everything fresh.
+
+## 2026-05-22 - Multi-Provider LLM Abstraction
+
+**Context:** MVP hard-codes OpenAI Python SDK throughout. The v2 product must let each customer pick its own provider.
+
+**Options Considered:** LiteLLM as gateway, custom abstraction layer, hard-code per deployment, or OpenAI-compatible-only.
+
+**Decision:** Introduce `ILlmProvider`, `IEmbeddingProvider`, and `IRerankerProvider` protocols with a factory keyed off `app.tenant_config`. Initial implementations: OpenAI, Anthropic, Azure OpenAI, Ollama; TEI (BGE) for embedding/reranker; Cohere reranker.
+
+**Rationale:** Genericity requires provider swap by config. Custom abstraction gives full control over per-provider quirks while staying minimal.
+
+**Tradeoffs:** More code to maintain than direct SDK use.
+
+**Consequences:** All paid LLM calls go through providers. Direct `AsyncOpenAI` imports outside `services/rag-api/src/advanced_rag/providers/` are now forbidden.
+
+**Evidence:** See ADR-0001 (`docs/adr/0001-multi-provider-llm.md`).
+
+## 2026-05-22 - Multilingual Embedding At 1024 Dimensions
+
+**Context:** MVP uses `text-embedding-3-small` at 1536 dims, biased toward Spanish. v2 is multilingual.
+
+**Options Considered:** Keep 1536 dims with multilingual model, switch to 1024 dims with multilingual model, per-locale corpus, Voyage 3.
+
+**Decision:** Schema column fixed at `VECTOR(1024)`. Default model is `text-embedding-3-large` with `dimensions=1024` (OpenAI native truncation) or `BGE-M3` via TEI for self-hosted deployments.
+
+**Rationale:** 1024 dims is the cross-model lingua franca (OpenAI truncated and BGE-M3 both natively expose this). Multilingual quality on MTEB stays competitive.
+
+**Tradeoffs:** Switching to a higher-dim model later requires schema migration plus reindex.
+
+**Consequences:** All v2 indexing uses 1024-d embeddings. MVP deployments migrating must reindex.
+
+**Evidence:** See ADR-0003 (`docs/adr/0003-multilingual-embeddings.md`).
+
+## 2026-05-22 - Hybrid Retrieval With BM25 And Reranker
+
+**Context:** Vector-only retrieval misses exact-match codes (e.g. `IMA001`), rare proper nouns, and customer-specific vocabulary.
+
+**Options Considered:** Vector-only with reranker, vector + BM25 without reranker, full hybrid with RRF and reranker, or external Elasticsearch.
+
+**Decision:** Vector (k=20) + BM25 (k=20) → RRF (k_constant=60) → top-30 → cross-encoder reranker → top-8. BM25 implemented inside Postgres via `tsvector` plus `pg_trgm`. No Elasticsearch.
+
+**Rationale:** Highest-quality retrieval pipeline that fits inside the single-Postgres constraint of the deployment model.
+
+**Tradeoffs:** Around 80–200ms latency budget added by reranker.
+
+**Consequences:** All retrieval queries use the unified SQL with RRF. Reranker on by default, per-query opt-out via `rerank=false`.
+
+**Evidence:** See ADR-0002 and ADR-0004 (`docs/adr/0002-*.md`, `docs/adr/0004-*.md`).
+
+## 2026-05-22 - MinIO As Default Object Storage
+
+**Context:** MVP base64-inlines images. v2 needs an S3-compatible store for assets.
+
+**Options Considered:** MinIO, Garage, SeaweedFS, plain Docker volume, AWS S3 only.
+
+**Decision:** MinIO ships in `compose.yaml` by default. Garage and SeaweedFS documented as drop-in alternatives. Code uses an S3 SDK abstraction (`IObjectStorage`) so cloud S3 and R2 also work via configuration.
+
+**Rationale:** MinIO is the most mature S3-compatible self-hosted option. AGPL applies to MinIO itself, not to consuming customers who download their own copy.
+
+**Tradeoffs:** One more container; signed-URL pattern adds slight latency at image-load.
+
+**Consequences:** HTML sanitizer rejects base64 image data. Editor uploads to MinIO and inserts URL references.
+
+**Evidence:** See ADR-0005 (`docs/adr/0005-minio-object-storage.md`).
+
+## 2026-05-22 - Unified Session Auth
+
+**Context:** MVP uses three browser auth artefacts (session cookie + chat-token cookie + viewer-exchange code/cookie). User asked for one login serving all three SPAs.
+
+**Options Considered:** Keep MVP pattern and add API keys only, bearer-only headers, single domain-wide cookie, or unified session cookie with `__Host-` prefix and role-based authorisation.
+
+**Decision:** Only `__Host-session` cookie. Add `app.users.role` column with values `admin`, `editor`, `viewer`. Endpoints use `[Authorize(Roles="…")]` in .NET and `require_role()` dependency in FastAPI. Endpoints `POST /api/auth/chat-token` and `POST /api/viewer/exchange-*` are removed.
+
+**Rationale:** Single credential improves UX, reduces code, simplifies tests, and aligns with modern multi-app SaaS handling of same-tenant sub-apps.
+
+**Tradeoffs:** Loses the 15-minute scoped chat-token defense in depth; mitigated by strict `__Host-` cookie attributes, CSP, and CSRF double-submit.
+
+**Consequences:** Chat now requires a database user. The "anonymous viewer link" use case moves to an opt-in HMAC-signed share-link endpoint in Phase 5+.
+
+**Evidence:** See ADR-0006 (`docs/adr/0006-unified-session-auth.md`). Open Question OQ-001 covers the chosen FastAPI cookie validation strategy.
+
+## 2026-05-22 - `packages/shared-ui` Design System
+
+**Context:** MVP keeps three SPAs with independent UI code. User asked for a real visual refactor toward Linear/Vercel style while keeping the three SPAs separate.
+
+**Options Considered:** Per-SPA shadcn copies + visual guidelines, third-party design system (Mantine, Chakra), Storybook-published separate repo, or internal `packages/shared-ui`.
+
+**Decision:** Create `packages/shared-ui` as a pnpm workspace package consumed by the three SPAs. Provides design tokens (light + dark), hooks, layout, inputs, overlays, data, feedback, chat-specific, and Cmd+K command palette components.
+
+**Rationale:** Single visual source of truth. Components built on Radix UI primitives keep behavior accessible. Tokens via CSS variables make tenant branding a one-variable change.
+
+**Tradeoffs:** Adds workspace build complexity.
+
+**Consequences:** New SPA components live in `shared-ui` unless they are SPA-specific. shadcn copies migrate component-by-component.
+
+**Evidence:** See ADR-0007 (`docs/adr/0007-shared-ui-design-system.md`).
+
+## 2026-05-22 - Configurable Dimensions For Document Categorisation
+
+**Context:** Each customer has its own taxonomy (modules, departments, processes, etc.). Hard-coding the Mymtec model (`module`/`product`/`area`) would betray the product's genericity.
+
+**Options Considered:** Free tags only, hierarchical spaces (Notion-style), hard-coded columns, or configurable multi-dimensional model.
+
+**Decision:** `app.dimensions` and `app.dimension_values` tables let admins define any number of dimensions, each optionally hierarchical, with i18n labels. Documents associate M:N with values via `app.document_dimension_values`.
+
+**Rationale:** Customers categorise in radically different ways. Multi-dimensional with hierarchy support covers the union of needs.
+
+**Tradeoffs:** Setup wizard must walk operators through dimension definition with examples.
+
+**Consequences:** Chat-web accepts `?dim_<key>=<value>` deep links. Permissions can extend to dimension values in Phase 5+ if needed.
+
+**Evidence:** See ADR-0008 (`docs/adr/0008-configurable-dimensions.md`).
+
+## 2026-05-22 - Conversational Memory With Session-Scoped Condensation
+
+**Context:** MVP is single-turn only. The chat-conversational UX direction requires multi-turn coherence.
+
+**Options Considered:** Raw history concatenation, summary windowing, true contextual embeddings, no multi-turn.
+
+**Decision:** Each chat session carries a UUID. On follow-up turns, a cheap LLM (gpt-4o-mini or claude-haiku) rewrites the question as a standalone query using prior turns. The rewritten question drives retrieval and semantic cache lookup; the original question drives the final answer prompt.
+
+**Rationale:** Predictable token usage, cache effectiveness preserved, multi-turn coherence achieved.
+
+**Tradeoffs:** One extra LLM call per multi-turn message. Cheap model keeps cost low.
+
+**Consequences:** `rag.query_audit_events.session_id`, `previous_event_id`, and `rewritten_question` columns added. Condense prompts live in `services/rag-api/.../prompts/condenser_<locale>.md`.
+
+**Evidence:** See ADR-0009 (`docs/adr/0009-conversational-memory.md`).
+
+## 2026-05-22 - Continuous Evals With RAGAS
+
+**Context:** MVP has no automated regression detection for RAG quality.
+
+**Options Considered:** RAGAS, promptfoo, Phoenix/Arize, LangSmith, or custom scripts.
+
+**Decision:** Adopt RAGAS. Golden set at `evals/golden.jsonl`. CI workflow at `.github/workflows/eval.yml`. CI fails if any metric (faithfulness, answer_relevancy, context_precision, context_recall) drops more than 5% versus the baseline.
+
+**Rationale:** RAG-specific metrics out of the box, research-backed, no SaaS lock-in.
+
+**Tradeoffs:** Eval runs cost LLM calls; mitigated by small golden set and cheap evaluator model pinned per run.
+
+**Consequences:** Every PR touching `rag/**` or `prompts/**` runs evals. Baseline is explicitly bumped when intentional improvements raise the bar.
+
+**Evidence:** See ADR-0010 (`docs/adr/0010-ragas-evals.md`).
+
+## 2026-05-22 - V2 Handoff Workflow
+
+**Context:** The v2 refactor is being implemented across two PCs and two LLM accounts. The current PC has no dependencies installed and the user requested that no tests run here.
+
+**Options Considered:** Pause until next PC, write everything as design docs only, write scaffolds plus commit per phase, or single mega-commit at handoff.
+
+**Decision:** Implement scaffolds and commit per phase on a local `feature/v2-generic` branch. Bundle the branch for transfer to the next PC. Write tests but do not run them. Document everything that the next PC must do in `HANDOFF.md` and per-phase docs.
+
+**Rationale:** Granular commits plus comprehensive docs let the next PC pick up cleanly without prior session context.
+
+**Tradeoffs:** Some files will not compile until dependencies are installed on the next PC. The next operator must restore that.
+
+**Consequences:** The original `Human-In-The-Loop Implementation Protocol` from MVP is relaxed for this session per user instruction. It resumes in normal form on the next PC.
+
+**Evidence:** This file, `HANDOFF.md`, and `context/v2-progress.md`.
