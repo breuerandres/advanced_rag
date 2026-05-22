@@ -143,19 +143,21 @@ What you will find committed on `feature/v2-generic`:
 | Handoff docs | Complete | `HANDOFF.md`, `docs/v2/*.md`, `docs/adr/*.md` |
 | Context updates | Complete | `context/v2-overview.md`, `context/v2-progress.md`, `context/design-decisions.md` (appended) |
 | SQL migrations | Files written, **not applied** | `services/dotnet-api/...Migrations/...` (EF Core) and `services/rag-api/alembic/versions/...` |
-| Provider abstraction | Files written, **not type-checked** | `services/rag-api/src/advanced_rag/providers/` |
-| Hybrid retrieval | Files written, **not tested** | `services/rag-api/src/advanced_rag/rag/hybrid_retrieval.py`, `rerank.py` |
-| Unified auth (server) | Files written, **not tested** | .NET controllers / FastAPI middleware |
-| `packages/shared-ui` design system | Scaffold + tokens + first components | `packages/shared-ui/` |
-| Chat-web / docs-web / manage-web refactor | Partial scaffolds at most | `apps/*/src/` |
-| i18n | Files for ES + EN scaffolded | `apps/*/src/i18n/` |
-| MinIO compose service | Stub | `infra/compose/compose.yaml` |
-| Dimensions CRUD | Schema + endpoints | `services/dotnet-api/...` |
-| CdA features (favourites/views/reactions) | Schema + endpoints | `services/dotnet-api/...` |
-| API keys + rate limit | Schema + endpoints | `services/dotnet-api/...` |
-| Setup wizard | Endpoint scaffolded | `services/dotnet-api/...` |
-| RAGAS evals | Folder + golden seed | `evals/` |
-| OTel | Compose overlay file | `infra/compose/compose.observability.yaml` |
+| Provider abstraction | Files written, **not wired into chat_service** | `services/rag-api/src/advanced_rag/providers/` |
+| Hybrid retrieval | Files written, **not wired into chat_service** | `services/rag-api/src/advanced_rag/rag/hybrid_retrieval.py`, `rerank.py`, `query_rewrite.py`, `conversation_memory.py` |
+| Multi-language prompts | 9 files (system/condenser/rewriter × 3 locales) | `services/rag-api/src/advanced_rag/rag/prompts/` |
+| Schema migrations | Alembic rag (5 files) + SQL scripts app (13 files) **not applied** | `services/rag-api/alembic/versions/20260522_*` and `services/dotnet-api/v2-migrations-sql/` |
+| Unified auth (server) | Schema for `users.role` ready; **endpoint deletions and middleware pending on next PC** | (next PC) |
+| `packages/shared-ui` design system | Scaffold + tokens + first components (Button, AppShell, Header, Sidebar, DarkModeToggle, CommandPalette) | `packages/shared-ui/` |
+| Chat-web / docs-web / manage-web refactor | i18n scaffolded; component refactor pending | `apps/*/src/` |
+| i18n | es-AR + en-US + pt-BR catalogues per SPA | `apps/*/src/i18n/` |
+| MinIO + TEI overlay | `compose.v2-extras.yaml` ready + bucket init script | `infra/compose/compose.v2-extras.yaml` |
+| Dimensions CRUD | Schema ready, controller/UI pending | `v2-migrations-sql/003_*` |
+| CdA features (favourites/views/reactions) | Schema ready, endpoints/UI pending | `v2-migrations-sql/004-006_*` |
+| API keys + rate limit | Schema ready, controller/middleware pending | `v2-migrations-sql/007_*` |
+| Setup wizard | `tenant_config` schema + provider factory ready; endpoint extension pending | (next PC) |
+| RAGAS evals | Folder + golden seed + runner + CI workflow | `evals/` + `.github/workflows/eval.yml` |
+| OTel | Compose overlay + collector/tempo/prom/loki/grafana config | `infra/compose/compose.observability.yaml` + `infra/compose/observability/` |
 
 Each commit on `feature/v2-generic` is scoped to one of the rows above. Read commits in
 order — they were authored to be readable as a tutorial.
@@ -170,22 +172,26 @@ order — they were authored to be readable as a tutorial.
 
 ## 5. Phase map (where we are, where we go)
 
-The full phase breakdown is in `docs/v2/03-phases.md`. Short version:
+The full phase breakdown is in `docs/v2/03-phases.md`. Short version after this session:
 
 ```
-Phase 0   Preparation                       (this session — DONE for design; init on next PC)
-Phase 1   Foundations generic               (NOT STARTED end-to-end; partial scaffolds)
-Phase 1.5 Unified auth + shared-ui          (NOT STARTED; scaffolds only)
-Phase 1.7 UI refactor per SPA               (NOT STARTED; design done)
-Phase 2   Hybrid retrieval + dimensions     (NOT STARTED; schema written)
-Phase 3   Object storage + bulk import      (NOT STARTED; MinIO compose only)
-Phase 4   CdA features                      (NOT STARTED; schema written)
-Phase 5   Quality (evals + OTel + memory)   (NOT STARTED; folders scaffolded)
+Phase 0   Preparation                       DONE (commits c3bb5a5, 072943d)
+Phase 1   Foundations generic               SCAFFOLDED (migrations, providers, prompts, i18n)
+Phase 1.5 Unified auth + shared-ui          SCAFFOLDED (shared-ui only; auth pending)
+Phase 1.7 UI refactor per SPA               NOT STARTED (design done, scaffolds pending)
+Phase 2   Hybrid retrieval + dimensions     SCAFFOLDED (SQL ready, wiring pending)
+Phase 3   Object storage + bulk import      SCAFFOLDED (compose overlay + init script)
+Phase 4   CdA features                      SCHEMA ONLY (controllers/UI pending)
+Phase 5   Quality (evals + OTel + memory)   SCAFFOLDED (evals, OTel, condensation)
 ```
 
 Each phase's checklist is in `docs/v2/03-phases.md`. **The next contributor should resume
-from Phase 0.4** (install dependencies on the new machine) and then walk through Phase 1
-linearly. See §6.
+from Phase 0 step 3** (install dependencies on the new machine) and then walk through
+each phase finishing the "PENDING" items recorded in `context/v2-progress.md`.
+
+The seven commits on `feature/v2-generic` are independent of each other in scope, so the
+next operator can cherry-pick any subset rather than applying all of them. See §2 for the
+transfer options.
 
 ---
 
