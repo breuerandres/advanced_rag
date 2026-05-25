@@ -38,6 +38,14 @@ public sealed class SetupService : ISetupService
         CreateFirstAdminCommand command,
         CancellationToken ct)
     {
+        if (await _repository.AdminExistsAsync(ct))
+        {
+            throw new SetupException(
+                "SETUP_ALREADY_COMPLETED",
+                409,
+                "First-run setup is already completed.");
+        }
+
         string email = NormalizeEmail(command.Email);
         string displayName = NormalizeRequired(command.DisplayName, "displayName");
         string password = NormalizeRequired(command.Password, "password");

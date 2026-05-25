@@ -27,6 +27,25 @@ The MVP uses per-process in-memory fixed-window counters. This matches the initi
 
 Readiness failures return HTTP `503` with a safe list of failed check names.
 
+## First Startup Defaults
+
+Clean Compose deployments apply database migrations automatically during backend startup.
+
+The `.NET` EF migrations create the default administrator account:
+
+- Email: `admin@admin.com`
+- Password: `admin`
+- Role: `Admin`
+
+The default account is intentionally included to minimize first-run build and login steps in controlled deployments. Change the password immediately after first login outside throwaway local testing.
+
+FastAPI Alembic migrations seed approximate active pricing rows for:
+
+- `gpt-4.1-nano`
+- `text-embedding-3-small`
+
+These pricing rows unblock budget and cost accounting on a clean database. They are operational defaults and must be reviewed when model configuration or provider pricing changes.
+
 ## Technical Logs
 
 Both backend services write daily JSON log files:
@@ -39,3 +58,13 @@ Each request log entry includes timestamp, service, request id, origin IP, route
 ## Compose Health Checks
 
 Compose health checks now gate Caddy startup on healthy backend and frontend services. Backend checks call readiness endpoints; frontend checks verify the served bundle root responds.
+
+## Local Startup Helper
+
+Use `infra/compose/Start-Local.ps1` for local first startup. It verifies required local secret files, runs Docker Compose with the local override file, and can explicitly trust the Docker Compose Caddy internal CA for the current Windows user:
+
+```powershell
+.\infra\compose\Start-Local.ps1 -TrustCaddyCertificate
+```
+
+The certificate trust step is intentionally opt-in because it modifies the host user's trusted root certificate store.

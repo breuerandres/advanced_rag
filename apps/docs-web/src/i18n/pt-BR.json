@@ -1,0 +1,34 @@
+{
+  "app": {
+    "name": "Central de Ajuda",
+    "loading": "Carregando…",
+    "error_generic": "Ocorreu um erro inesperado."
+  },
+  "viewer": {
+    "title": "Documento",
+    "table_of_contents": "Conteúdo",
+    "breadcrumb_home": "Início",
+    "previous": "Anterior",
+    "next": "Próximo",
+    "favorite": "Favorito",
+    "unfavorite": "Remover dos favoritos",
+    "share": "Compartilhar",
+    "last_updated": "Atualizado há {{when}}",
+    "feedback_prompt": "Esta página foi útil?",
+    "feedback_helpful": "Sim",
+    "feedback_not_helpful": "Não",
+    "feedback_thanks": "Obrigado pelo seu feedback.",
+    "metrics_views": "{{n}} visualizações",
+    "metrics_likes": "{{n}} curtidas",
+    "metrics_favorites": "{{n}} favoritos",
+    "not_found": "Documento não encontrado",
+    "access_denied": "Você não tem acesso a este documento.",
+    "session_expired": "Sua sessão expirou. Entre novamente."
+  },
+  "browse": {
+    "title": "Explorar",
+    "search_placeholder": "Buscar artigos…",
+    "filter_dimension": "Filtrar por",
+    "empty": "Nenhum artigo corresponde aos filtros."
+  }
+}

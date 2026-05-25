@@ -1,0 +1,53 @@
+{
+  "app": {
+    "name": "Central de Ajuda",
+    "loading": "Carregando…",
+    "error_generic": "Ocorreu um erro inesperado.",
+    "error_with_id": "Ocorreu um erro inesperado. (ID {{requestId}})"
+  },
+  "chat": {
+    "page_title": "Chat",
+    "composer_placeholder": "Faça uma pergunta…",
+    "send": "Enviar",
+    "send_question": "Enviar pergunta",
+    "stop": "Parar",
+    "empty_state_title": "Comece uma conversa",
+    "empty_state_subtitle": "Faça uma pergunta sobre a documentação. A IA responde com citações.",
+    "thinking": "Pensando…",
+    "citations_label": "Fontes",
+    "feedback_helpful": "Útil",
+    "feedback_not_helpful": "Não útil",
+    "feedback_thanks": "Obrigado pelo seu feedback.",
+    "budget_exhausted": "Você atingiu o orçamento mensal de IA. Contate um administrador para ampliá-lo.",
+    "rate_limited": "Você está enviando perguntas rápido demais. Aguarde um momento.",
+    "filters_label": "Filtros",
+    "filters_clear": "Limpar filtros",
+    "session_new": "Nova conversa",
+    "session_history": "Conversas",
+    "session_today": "Hoje",
+    "session_yesterday": "Ontem",
+    "session_week": "Esta semana",
+    "session_older": "Mais antigas"
+  },
+  "citation": {
+    "open_doc": "Abrir documento",
+    "open_in_drawer": "Pré-visualização",
+    "page": "página {{n}}"
+  },
+  "auth": {
+    "login": "Entrar",
+    "logout": "Sair",
+    "session_expired": "Sua sessão expirou. Entre novamente.",
+    "unauthorized": "Você não tem acesso a este recurso."
+  },
+  "shortcuts": {
+    "open_palette": "Buscar e navegar (Cmd + K)",
+    "submit": "Enviar (Enter)",
+    "newline": "Nova linha (Shift + Enter)"
+  },
+  "metrics": {
+    "tokens": "{{n}} tokens",
+    "cost": "{{usd}} USD",
+    "latency": "{{ms}} ms"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "app": {
+    "name": "Help Center — Admin",
+    "loading": "Loading…",
+    "error_generic": "An unexpected error occurred."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "documents": "Documents",
+    "dimensions": "Dimensions",
+    "users": "Users & groups",
+    "feedback": "Feedback",
+    "audit": "Audit",
+    "analytics": "Analytics",
+    "api_keys": "API keys",
+    "configuration": "Configuration",
+    "logout": "Sign out"
+  },
+  "documents": {
+    "title": "Documents",
+    "new": "New document",
+    "list": "List",
+    "editor": "Editor",
+    "filter_search": "Search…",
+    "filter_state": "State",
+    "filter_type": "Type",
+    "filter_dimension": "Dimension",
+    "state_draft": "Draft",
+    "state_in_review": "In review",
+    "state_published": "Published",
+    "state_archived": "Archived",
+    "action_send_to_review": "Send to review",
+    "action_publish": "Publish",
+    "action_archive": "Archive",
+    "action_restore": "Restore",
+    "action_delete": "Delete"
+  },
+  "users": {
+    "title": "Users & groups",
+    "new_user": "New user",
+    "new_group": "New group",
+    "role_admin": "Admin",
+    "role_editor": "Editor",
+    "role_viewer": "Viewer",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "edit_budget": "Edit budget"
+  },
+  "setup": {
+    "title": "Initial setup",
+    "step_locale": "Language",
+    "step_brand": "Brand",
+    "step_llm": "AI provider",
+    "step_embedding": "Embeddings",
+    "step_reranker": "Reranker",
+    "step_dimensions": "Dimensions (optional)",
+    "step_admin": "Create admin",
+    "submit": "Finish setup"
+  }
+}

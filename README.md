@@ -22,7 +22,17 @@ The project is in implementation planning. The approved base architecture spec l
 Local setup commands are added as services are scaffolded.
 Real secrets must not be committed.
 
+Recommended first local startup:
+
+```powershell
+.\infra\compose\Start-Local.ps1 -TrustCaddyCertificate
+```
+
+The script starts the Compose stack and, when explicitly requested, imports the Docker Compose Caddy internal CA into the current user's Windows trusted root store.
+
 Operational hardening notes live in `docs/operations/operational-hardening.md`.
+
+Clean Compose databases are migrated automatically. The initial controlled-deployment administrator is `admin@admin.com` with password `admin`; change it immediately after first login outside throwaway local testing.
 
 ## Troubleshooting
 

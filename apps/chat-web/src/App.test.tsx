@@ -8,10 +8,11 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-test('shows the empty initial chat state', () => {
-  render(<App />)
+test('shows the empty initial chat state without the shared global sidebar', async () => {
+  renderAuthenticatedChat([])
 
-  expect(screen.getByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
+  expect(screen.queryByRole('navigation', { name: /Navegacion del chat/i })).not.toBeInTheDocument()
   expect(screen.getByText('Token de chat temporal')).toBeInTheDocument()
   expect(screen.getByText('Hacé una pregunta sobre las instrucciones publicadas.')).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeEnabled()
@@ -21,12 +22,10 @@ test('shows the empty initial chat state', () => {
 
 test('disables the question input while submitting', async () => {
   const pendingChat = deferred<Response>()
-  stubFetch([pendingChat.promise])
+  renderAuthenticatedChat([pendingChat.promise])
   const user = userEvent.setup()
 
-  render(<App />)
-
-  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Como ingreso?')
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Como ingreso?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
   expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeDisabled()
@@ -43,7 +42,7 @@ test('disables the question input while submitting', async () => {
 })
 
 test('submits feedback after a chat answer and allows updating it', async () => {
-  const fetchMock = stubFetch([
+  const fetchMock = renderAuthenticatedChat([
     sseResponse([
       ['answer-token', { delta: 'Usa credencial visible.' }],
       [
@@ -75,9 +74,7 @@ test('submits feedback after a chat answer and allows updating it', async () => 
   ])
   const user = userEvent.setup()
 
-  render(<App />)
-
-  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
   expect(await screen.findByText('Usa credencial visible.')).toBeInTheDocument()
@@ -96,7 +93,7 @@ test('submits feedback after a chat answer and allows updating it', async () => 
 })
 
 test('shows a successful answer with citations and cache hit indicator', async () => {
-  stubFetch([
+  renderAuthenticatedChat([
     sseResponse([
       ['cache-hit', { cached_at: '2026-05-18T10:00:00Z' }],
       ['answer-token', { delta: 'Consultá el procedimiento de seguridad.' }],
@@ -119,9 +116,7 @@ test('shows a successful answer with citations and cache hit indicator', async (
   ])
   const user = userEvent.setup()
 
-  render(<App />)
-
-  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
   expect(await screen.findByText('Consultá el procedimiento de seguridad.')).toBeInTheDocument()
@@ -132,7 +127,7 @@ test('shows a successful answer with citations and cache hit indicator', async (
 })
 
 test('shows the monthly budget exhausted state', async () => {
-  stubFetch([
+  renderAuthenticatedChat([
     jsonResponse(
       429,
       apiError('AI_BUDGET_EXCEEDED', 'Monthly budget exceeded.', 'request-budget-1'),
@@ -140,9 +135,7 @@ test('shows the monthly budget exhausted state', async () => {
   ])
   const user = userEvent.setup()
 
-  render(<App />)
-
-  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Puedo consultar?')
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Puedo consultar?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -152,11 +145,12 @@ test('shows the monthly budget exhausted state', async () => {
 })
 
 test('renews the chat token when the session token expires and retries the question', async () => {
-  const fetchMock = stubFetch([
+  const fetchMock = renderAuthenticatedChat([
     jsonResponse(
       401,
       apiError('AUTH_TOKEN_EXPIRED', 'Chat token expired.', 'request-auth-1'),
     ),
+    csrfResponse(),
     jsonResponse(200, { status: 'ok' }),
     sseResponse([
       ['answer-token', { delta: 'La sesión de chat fue renovada.' }],
@@ -166,28 +160,24 @@ test('renews the chat token when the session token expires and retries the quest
   ])
   const user = userEvent.setup()
 
-  render(<App />)
-
-  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Sigo autenticado?')
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Sigo autenticado?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
   expect(await screen.findByText('La sesión de chat fue renovada.')).toBeInTheDocument()
   expect(fetchMock).toHaveBeenNthCalledWith(
-    2,
+    6,
     '/api/auth/chat-token',
     expect.objectContaining({ method: 'POST' }),
   )
 })
 
 test('shows a safe generic error with request id', async () => {
-  stubFetch([
+  renderAuthenticatedChat([
     jsonResponse(503, apiError('RAG_PROVIDER_UNAVAILABLE', 'Provider unavailable.', 'request-503')),
   ])
   const user = userEvent.setup()
 
-  render(<App />)
-
-  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Que hago?')
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que hago?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
   expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo responder la pregunta.')
@@ -200,7 +190,7 @@ test('opens citations through viewer exchange links', async () => {
     configurable: true,
     value: { assign },
   })
-  const fetchMock = stubFetch([
+  const fetchMock = renderAuthenticatedChat([
     sseResponse([
       ['answer-token', { delta: 'Usa credencial visible.' }],
       [
@@ -223,9 +213,7 @@ test('opens citations through viewer exchange links', async () => {
   ])
   const user = userEvent.setup()
 
-  render(<App />)
-
-  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
   await user.click(await screen.findByRole('button', { name: 'Abrir cita Seguridad' }))
 
@@ -235,6 +223,66 @@ test('opens citations through viewer exchange links', async () => {
   )
   expect(assign).toHaveBeenCalledWith('https://docs.client.com/open?code=abc')
 })
+
+test('shows login when the chat host has no session and opens the chat after signing in', async () => {
+  const fetchMock = stubFetch([
+    jsonResponse(401, apiError('AUTH_REQUIRED', 'Authentication required.', 'session-request')),
+    csrfResponse(),
+    jsonResponse(200, {
+      user: {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        email: 'viewer@example.com',
+        displayName: 'Viewer User',
+        roles: ['Viewer'],
+        groups: [],
+      },
+    }),
+    csrfResponse(),
+    jsonResponse(200, { expiresAt: '2026-05-22T12:15:00Z' }),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Iniciar sesion' })).toBeInTheDocument()
+  await user.type(screen.getByRole('textbox', { name: 'Email' }), 'viewer@example.com')
+  await user.type(screen.getByLabelText('Contrasena'), 'password')
+  await user.click(screen.getByRole('button', { name: 'Entrar al chat' }))
+
+  expect(await screen.findByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledWith(
+    '/api/auth/login',
+    expect.objectContaining({ method: 'POST' }),
+  )
+})
+
+test('changes language from the visible language selector', async () => {
+  renderAuthenticatedChat([])
+  const user = userEvent.setup()
+
+  await user.selectOptions(await screen.findByLabelText('Idioma'), 'en-US')
+
+  expect(screen.getByRole('button', { name: 'Send question' })).toBeDisabled()
+})
+
+function renderAuthenticatedChat(responses: Array<Response | Promise<Response>>) {
+  const fetchMock = stubFetch([
+    jsonResponse(200, {
+      user: {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        email: 'viewer@example.com',
+        displayName: 'Viewer User',
+        roles: ['Viewer'],
+        groups: [],
+      },
+    }),
+    csrfResponse(),
+    jsonResponse(200, { expiresAt: '2026-05-22T12:15:00Z' }),
+    ...responses,
+  ])
+  render(<App />)
+  return fetchMock
+}
 
 function stubFetch(responses: Array<Response | Promise<Response>>) {
   const fetchMock = vi.fn(async () => {

@@ -22,22 +22,22 @@ const composeArgs = [
   'infra/compose/compose.override.yaml',
 ]
 
-test('first-run setup creates an admin and reaches chat and viewer product surfaces', async ({ browser }) => {
+test('setup fallback creates an admin and reaches chat and viewer product surfaces', async ({ browser }) => {
   resetDatabaseForFirstRun()
   restartDotnetApi()
 
   const unauthenticatedChat = await browser.newContext({ ignoreHTTPSErrors: true })
   const unauthenticatedChatPage = await unauthenticatedChat.newPage()
   await unauthenticatedChatPage.goto(chatBaseUrl)
-  await unauthenticatedChatPage.getByRole('textbox', { name: 'Pregunta' }).fill('Puedo consultar?')
-  await unauthenticatedChatPage.getByRole('button', { name: 'Enviar pregunta' }).click()
-  await expect(unauthenticatedChatPage.getByText('Tu sesión de chat expiró.')).toBeVisible()
+  await expect(unauthenticatedChatPage.getByRole('heading', { name: /iniciar sesion/i })).toBeVisible()
+  await expect(unauthenticatedChatPage.getByRole('button', { name: 'Entrar al chat' })).toBeVisible()
   await unauthenticatedChat.close()
 
   const unauthenticatedDocs = await browser.newContext({ ignoreHTTPSErrors: true })
   const unauthenticatedDocsPage = await unauthenticatedDocs.newPage()
   await unauthenticatedDocsPage.goto(docsBaseUrl)
-  await expect(unauthenticatedDocsPage.getByText(/sesion del visor expiro/i)).toBeVisible()
+  await expect(unauthenticatedDocsPage.getByRole('heading', { name: /iniciar sesion/i })).toBeVisible()
+  await expect(unauthenticatedDocsPage.getByRole('button', { name: 'Entrar' })).toBeVisible()
   await unauthenticatedDocs.close()
 
   const adminContext = await browser.newContext({ ignoreHTTPSErrors: true })
@@ -54,7 +54,7 @@ test('first-run setup creates an admin and reaches chat and viewer product surfa
   await adminPage.getByRole('textbox', { name: 'Email' }).fill(firstAdminEmail)
   await adminPage.getByLabel(/Contrase/).fill(e2ePassword)
   await adminPage.getByRole('button', { name: 'Ingresar' }).click()
-  await expect(adminPage.getByRole('heading', { name: 'Usuarios y presupuestos' })).toBeVisible()
+  await expect(adminPage.getByRole('heading', { name: 'Usuarios y grupos' })).toBeVisible()
 
   const groupName = `Primer uso ${Date.now()}`
   await adminPage.getByRole('button', { name: 'Crear grupo' }).click()

@@ -12,6 +12,9 @@ public sealed class AppDbContextMigrationTests
     private static readonly string[] ExpectedAppTables =
     [
         "audit_events",
+        "dimension_values",
+        "dimensions",
+        "document_dimension_values",
         "groups",
         "import_metadata",
         "document_permissions",
@@ -86,6 +89,18 @@ public sealed class AppDbContextMigrationTests
                 from (
                     values
                         (
+                            'dimension_values',
+                            has_table_privilege('rag_owner', 'app.dimension_values', 'SELECT')
+                        ),
+                        (
+                            'dimensions',
+                            has_table_privilege('rag_owner', 'app.dimensions', 'SELECT')
+                        ),
+                        (
+                            'document_dimension_values',
+                            has_table_privilege('rag_owner', 'app.document_dimension_values', 'SELECT')
+                        ),
+                        (
                             'document_permissions',
                             has_table_privilege('rag_owner', 'app.document_permissions', 'SELECT')
                         ),
@@ -102,7 +117,63 @@ public sealed class AppDbContextMigrationTests
         schemas.Should().BeEquivalentTo(["app"]);
         appTables.Should().BeEquivalentTo(ExpectedAppTables);
         documentVersionColumns.Should().Contain("indexing_status");
-        ragOwnerPrivileges.Should().BeEquivalentTo(["document_permissions", "user_ai_budget_limits"]);
+        ragOwnerPrivileges.Should().BeEquivalentTo(
+            [
+                "dimension_values",
+                "dimensions",
+                "document_dimension_values",
+                "document_permissions",
+                "user_ai_budget_limits",
+            ]);
+    }
+
+    [Fact]
+    public async Task EfMigration_SeedsDefaultAdminUser()
+    {
+        await using var postgres = new PostgreSqlBuilder("pgvector/pgvector:pg16")
+            .WithDatabase("advanced_rag_default_admin_test")
+            .WithUsername("postgres")
+            .WithPassword("postgres")
+            .Build();
+
+        await postgres.StartAsync();
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(
+                postgres.GetConnectionString(),
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", AppDbContext.Schema))
+            .Options;
+
+        await using var db = new AppDbContext(options);
+        await db.Database.ExecuteSqlRawAsync("create role rag_owner");
+        await db.Database.MigrateAsync();
+
+        DefaultAdminRow admin = await db.Database
+            .SqlQueryRaw<DefaultAdminRow>(
+                """
+                select
+                    users.email as "Email",
+                    users.display_name as "DisplayName",
+                    users.password_hash as "PasswordHash",
+                    users.is_active as "IsActive",
+                    roles.name as "RoleName",
+                    budget.monthly_budget_usd as "MonthlyBudgetUsd",
+                    budget.is_disabled as "BudgetIsDisabled"
+                from app.users users
+                join app.user_roles user_roles on user_roles.user_id = users."Id"
+                join app.roles roles on roles."Id" = user_roles.role_id
+                join app.user_ai_budget_limits budget on budget.user_id = users."Id"
+                where users.email = 'admin@admin.com'
+                """)
+            .SingleAsync();
+
+        admin.Email.Should().Be("admin@admin.com");
+        admin.DisplayName.Should().Be("Default Admin");
+        admin.IsActive.Should().BeTrue();
+        admin.RoleName.Should().Be("Admin");
+        admin.MonthlyBudgetUsd.Should().Be(5.00m);
+        admin.BudgetIsDisabled.Should().BeFalse();
+        admin.PasswordHash.Should().StartWith("pbkdf2-sha256$210000$");
     }
 
     [Fact]
@@ -232,4 +303,13 @@ public sealed class AppDbContextMigrationTests
         string EventType,
         string EntityType,
         string DetailsJson);
+
+    private sealed record DefaultAdminRow(
+        string Email,
+        string DisplayName,
+        string PasswordHash,
+        bool IsActive,
+        string RoleName,
+        decimal MonthlyBudgetUsd,
+        bool BudgetIsDisabled);
 }

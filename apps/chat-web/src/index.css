@@ -1,3 +1,6 @@
+@import "tailwindcss";
+@source "../../../packages/shared-ui/src";
+
 html,
 body,
 #root {

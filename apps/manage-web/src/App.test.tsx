@@ -274,6 +274,53 @@ describe("management users and budgets", () => {
     expect(
       screen.queryByRole("link", { name: "Presupuestos IA" }),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Mi cuenta" })).toBeInTheDocument();
+    expect(screen.queryByText("Consola de gestiÃ³n")).not.toBeInTheDocument();
+  });
+
+  test("updates the current user's email and password from the account screen", async () => {
+    const updatedSession = {
+      ...sessionUser,
+      email: "nueva@example.com",
+    };
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      csrfResponse(),
+      jsonResponse(200, { user: updatedSession }),
+      csrfResponse(),
+      jsonResponse(200, { status: "ok" }),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Usuarios y grupos" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Mi cuenta" }));
+    expect(
+      await screen.findByRole("heading", { name: "Mi cuenta" }),
+    ).toBeInTheDocument();
+
+    await user.clear(screen.getByRole("textbox", { name: "Email" }));
+    await user.type(screen.getByRole("textbox", { name: "Email" }), "nueva@example.com");
+    await user.click(screen.getByRole("button", { name: "Guardar email" }));
+
+    await user.type(screen.getByLabelText("Contraseña actual"), "password");
+    await user.type(screen.getByLabelText("Nueva contraseña"), "new-password");
+    await user.click(screen.getByRole("button", { name: "Cambiar contraseña" }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/account/email",
+      expect.objectContaining({ method: "PUT" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/account/password",
+      expect.objectContaining({ method: "PUT" }),
+    );
+    expect(await screen.findByText("Contraseña actualizada.")).toBeInTheDocument();
   });
 
   test("keeps active session controls at the bottom of the sidebar", async () => {
@@ -402,6 +449,8 @@ describe("management users and budgets", () => {
         name: "Editar presupuesto de Ana Gomez",
       }),
     );
+    const dialog = await screen.findByRole("dialog", { name: "Editar presupuesto" });
+    expect(within(dialog).queryByRole("button", { name: "Cerrar" })).not.toBeInTheDocument();
     const input = screen.getByRole("spinbutton", {
       name: "Presupuesto mensual (USD)",
     });

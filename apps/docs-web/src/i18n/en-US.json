@@ -1,0 +1,34 @@
+{
+  "app": {
+    "name": "Help Center",
+    "loading": "Loading…",
+    "error_generic": "An unexpected error occurred."
+  },
+  "viewer": {
+    "title": "Document",
+    "table_of_contents": "Contents",
+    "breadcrumb_home": "Home",
+    "previous": "Previous",
+    "next": "Next",
+    "favorite": "Favorite",
+    "unfavorite": "Remove from favorites",
+    "share": "Share",
+    "last_updated": "Updated {{when}}",
+    "feedback_prompt": "Was this page helpful?",
+    "feedback_helpful": "Yes",
+    "feedback_not_helpful": "No",
+    "feedback_thanks": "Thanks for your feedback.",
+    "metrics_views": "{{n}} views",
+    "metrics_likes": "{{n}} likes",
+    "metrics_favorites": "{{n}} favorites",
+    "not_found": "Document not found",
+    "access_denied": "You don't have access to this document.",
+    "session_expired": "Your session expired. Please sign in again."
+  },
+  "browse": {
+    "title": "Browse",
+    "search_placeholder": "Search articles…",
+    "filter_dimension": "Filter by",
+    "empty": "No articles match the current filters."
+  }
+}

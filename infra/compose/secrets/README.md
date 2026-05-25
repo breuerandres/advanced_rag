@@ -21,6 +21,14 @@ From the repository root, run:
 .\infra\compose\New-LocalDevSecrets.ps1
 ```
 
+Then create `openai_api_key.txt` manually and start the local stack with:
+
+```powershell
+.\infra\compose\Start-Local.ps1 -TrustCaddyCertificate
+```
+
+`Start-Local.ps1` starts the Compose stack and, only when `-TrustCaddyCertificate` is passed, imports the Docker Compose Caddy internal CA into `Cert:\CurrentUser\Root`. This avoids the browser certificate warning for `https://manage.localhost`, `https://chat.localhost`, and `https://docs.localhost`.
+
 If you want to rotate local stack-owned secrets, run:
 
 ```powershell

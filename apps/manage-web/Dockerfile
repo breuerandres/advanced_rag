@@ -5,7 +5,9 @@ RUN npm install -g pnpm@10.33.4
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/manage-web/package.json apps/manage-web/
+COPY packages/shared-ui/package.json packages/shared-ui/
 COPY apps/manage-web apps/manage-web
+COPY packages/shared-ui packages/shared-ui
 
 RUN pnpm --dir apps/manage-web install --frozen-lockfile && pnpm --dir apps/manage-web build
 

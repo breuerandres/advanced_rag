@@ -349,15 +349,56 @@
   - Tightened the Feedback desktop layout after visual review: the filter controls now use consistent heights and bounded columns, and the feedback table uses explicit column sizing so `Feedback`, `Comentario`, `Cache`, and `Fecha` headers do not wrap awkwardly.
   - Rebuilt `manage-web`/Caddy through Compose so `manage.localhost` served the updated bundle.
   - Verified with `pnpm.cmd --dir tests\e2e exec playwright test manage-visual-audit.spec.ts --project chromium` (`1 passed`, `tests/e2e/artifacts/manage-visual-audit/summary.md` reported `Issues found: 0`), `pnpm.cmd --dir tests\e2e typecheck`, and `pnpm.cmd --dir apps\manage-web typecheck`.
+- Fixed the 2026-05-22 v2 `rag-api` Docker build failure caused by `services/rag-api/pyproject.toml` declaring `tenacity==9.1.2` while `services/rag-api/uv.lock` had not been refreshed.
+  - Updated `services/rag-api/uv.lock` with the missing locked `tenacity` package.
+  - Verified with `uv lock --check`, `uv sync --locked --no-dev --no-install-project`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml build rag-api`.
+- Fixed the 2026-05-22 v2 `docs-web` Docker build failure caused by the i18n scaffold importing `i18next`, `react-i18next`, and `i18next-browser-languagedetector` before those runtime dependencies were declared.
+  - Added the i18n dependencies to `apps/manage-web`, `apps/chat-web`, and `apps/docs-web`, then refreshed `pnpm-lock.yaml`.
+  - Verified with `pnpm --dir apps/docs-web typecheck`, `pnpm --dir apps/docs-web build`, `pnpm --dir apps/chat-web typecheck`, `pnpm --dir apps/chat-web build`, `pnpm --dir apps/manage-web typecheck`, `pnpm --dir apps/manage-web build`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml build docs-web`.
+- Fixed the 2026-05-22 v2 Alembic upgrade failure in `20260522_120000_v2_change_embedding_dimensions.py`.
+  - The migration now preserves historical `rag.document_chunks` rows and their citation references by marking chunks inactive, dropping invalid 1536-dimensional embeddings to `NULL`, and resizing the column to `vector(1024)`.
+  - Added regression coverage for upgrading with an existing chunk, semantic cache entry, and query-audit citation.
+  - Verified with `uv run pytest tests/test_migrations.py -q`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml build rag-api`.
+- Fixed the 2026-05-22 full Compose startup failure where `rag-api` exited during `20260522_120100_v2_add_bm25_columns.py` because `public.unaccent` was missing from the persistent Postgres database.
+  - Updated `postgres-init` to install `pg_trgm` and `unaccent` alongside `vector`.
+  - Tightened the BM25 migration's `unaccent` wrapper with an explicit `regdictionary` cast.
+  - Verified with `uv run pytest tests/test_migrations.py -q`, `uv run ruff check .`, `uv run mypy src tests`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml up -d --build --force-recreate`; all Compose services reached healthy/running state.
+
+- Executed the 2026-05-22 v2 shared-ui wiring phase for the three React SPAs.
+  - Added `@helpcenter/shared-ui` as a workspace dependency for `manage-web`, `chat-web`, and `docs-web`.
+  - Imported shared Inter/tokens/globals CSS in each app entrypoint, enabled the Tailwind CSS v4 Vite plugin, and added `@source "../../../packages/shared-ui/src"` so shared component classes are generated in each app bundle.
+  - Replaced each authenticated/product shell with shared `AppShell`, `Header`, `Sidebar`, and visible `DarkModeToggle` while keeping existing screen workflows intact.
+  - Updated frontend Dockerfiles to copy `packages/shared-ui` into the build context before frozen installs/builds.
+  - Aligned frontend React type packages to React 18 and hardened `useTheme` for test/browser environments where storage or media APIs are unavailable.
+  - Verified with shared-ui/app typechecks, all three app Vitest suites, all three app builds, all three app lint commands, Docker image builds for `manage-web`, `chat-web`, and `docs-web`, Compose recreation of those services, `docker compose ps`, and HTTPS 200 checks for `manage.localhost`, `chat.localhost`, and `docs.localhost`.
+- Added clean Compose startup defaults on 2026-05-22:
+  - Added a `.NET` EF migration that creates `admin@admin.com` with initial password `admin`, assigns the `Admin` role, and creates the default monthly AI budget.
+  - Added a FastAPI Alembic migration that seeds active pricing rows for `gpt-4.1-nano` and `text-embedding-3-small`.
+  - Documented the default admin password rotation requirement in `README.md`, `docs/operations/operational-hardening.md`, `context/architecture.md`, and `context/design-decisions.md`.
+  - Verified the focused migration behavior with `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter "EfMigration_SeedsDefaultAdminUser"`, `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter "EfMigration"`, `uv run pytest tests/test_migrations.py -q`, `uv run ruff check .`, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml config`, and `git diff --check`.
+- Added `infra/compose/Start-Local.ps1` on 2026-05-22:
+  - The script verifies required local secret files, starts the local Compose stack, and optionally imports the Docker Compose Caddy internal CA into `Cert:\CurrentUser\Root` with `-TrustCaddyCertificate`.
+  - Removed the generated root `caddy-local-root.crt` from Git tracking and added it to `.gitignore` so manual root-certificate exports are not committed accidentally.
+  - Documented the recommended first-start command in `README.md`, `infra/compose/secrets/README.md`, `docs/troubleshooting.md`, `docs/operations/operational-hardening.md`, `context/architecture.md`, and `context/design-decisions.md`.
+  - Verified with PowerShell script parsing, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml config`, and `git diff --check`.
+- Addressed the 2026-05-22 post-shared-ui product review for manage, chat, and docs:
+  - Removed the shared global top header from the three product SPAs and kept navigation/workflow controls inside each app's own layout.
+  - Fixed chat bootstrap so `chat.localhost` first validates the .NET session and then renews a chat token through same-origin auth routes before allowing questions.
+  - Turned the `docs.localhost` root into an independent authenticated document portal with search, group/category filters, and role-aware document visibility; exchange-code URLs still preserve the focused viewer flow.
+  - Added visible language selectors to manage, chat, and docs, while keeping Spanish as the default unless the user explicitly chooses a persisted language.
+  - Added a management `Mi cuenta` screen for changing the current user's email and password through new account endpoints.
+  - Removed the modal header close buttons from users/groups budget dialogs; save actions close the dialog and cancel remains in the footer.
+  - Reworked dark-mode surfaces across manage, chat, and docs to use the shared token palette instead of leaving white cards/forms inside black pages.
+  - Verified with `pnpm.cmd --dir apps\chat-web test -- --run App.test.tsx`, `pnpm.cmd --dir apps\docs-web test -- --run App.test.tsx`, `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx`, app builds for all three SPAs, `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --filter "UserAccount|ViewerDocumentCatalog"`, `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --no-build`, `dotnet test services\dotnet-api\tests\AdvancedRag.Api.Tests\AdvancedRag.Api.Tests.csproj --no-build --filter "FullyQualifiedName~ViewerEndpointTests"`, and `dotnet build services\dotnet-api\AdvancedRag.sln --no-restore`.
+  - A broader API filter run, `dotnet test services\dotnet-api\tests\AdvancedRag.Api.Tests\AdvancedRag.Api.Tests.csproj --filter "Viewer|Auth|User"`, exposed existing duplicate role seed failures in auth/rate-limit fixtures; the focused viewer API tests and full application-layer tests pass.
 
 ## In Progress
 
-- Task 17.5 still needs the responsive/mobile visual pass and broader end-to-end sweep after the desktop management audit. The 2026-05-20 management app review changes, structural documents vocabulary rename, `postgres-init` grant-order fix, legacy indexing-status migration fix, text-input spacing tweak, feedback reporting grant fix, audit event vocabulary data migration, users/groups editability pass, feedback export change, audit filter compaction, document status color pass, and desktop management visual audit are locally verified against Compose.
+- Task 17.5 still needs the user-owned Compose startup/browser verification pass for the latest manage/chat/docs UX changes. Code-level focused tests and builds are locally verified, but the newest chat/docs session flow, docs portal, account screen, dark mode, and language selector changes still need a real browser pass against the local stack.
 
 ## Next Up
 
-- Implement Task 17.5 UI stabilization, first-run setup, and product polish.
-- Use the local `advanced-rag-product-ui-polish` skill during Task 17.5 UI implementation and review.
+- Run the Task 17.5 user-owned local stack checkpoint and then complete Playwright/browser visual verification.
 
 ## Next Implementation Checkpoint
 

@@ -62,6 +62,21 @@ public sealed class SetupServiceTests
     }
 
     [Fact]
+    public async Task CreateFirstAdminAsync_WhenAdminAlreadyExists_BlocksBeforeValidation()
+    {
+        var repository = new InMemorySetupRepository(adminExists: true);
+        var service = new SetupService(repository, new StubPasswordHashService());
+
+        Func<Task> act = () => service.CreateFirstAdminAsync(
+            new CreateFirstAdminCommand(" ", " ", " "),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<SetupException>()
+            .Where(error => error.Code == "SETUP_ALREADY_COMPLETED" && error.HttpStatus == 409);
+    }
+
+    [Fact]
     public async Task CreateFirstAdminAsync_WithMissingEmail_ReturnsValidationError()
     {
         var repository = new InMemorySetupRepository(adminExists: false);

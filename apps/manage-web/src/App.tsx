@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { AlertCircle, CheckCircle2, LogOut, ShieldCheck } from 'lucide-react'
+import { AppShell, DarkModeToggle, LanguageSelect, Sidebar } from '@helpcenter/shared-ui'
 import {
   createFirstAdmin,
   getSession,
@@ -11,17 +13,20 @@ import {
   type SetupStatus,
 } from './api/auth'
 import { ManagementNav, type ManagementSection } from './components/ManagementNav'
+import { AccountPage } from './features/account/AccountPage'
 import { AuditPage } from './features/audit/AuditPage'
 import { ConfigurationPage } from './features/configuration/ConfigurationPage'
 import { DocumentsPage } from './features/documents/DocumentsPage'
 import { FeedbackReviewPage } from './features/reporting/FeedbackReviewPage'
 import { UsersBudgetPage } from './features/users/UsersBudgetPage'
 import { ApiError } from './lib/api-error'
+import './i18n'
 import './App.css'
 
 type AppMode = 'loading' | 'setup' | 'login' | 'authenticated' | 'unavailable'
 
 export default function App() {
+  const { i18n } = useTranslation()
   const [view, setView] = useState<ManagementSection>('users')
   const [mode, setMode] = useState<AppMode>('loading')
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null)
@@ -120,26 +125,65 @@ export default function App() {
     )
   }
 
+  async function handleLogout() {
+    await logout()
+    setSessionUser(null)
+    setMode('login')
+  }
+
   return (
-    <main className="app-shell">
-      <ManagementNav
-        active={view}
-        sessionUser={sessionUser}
-        onLogout={async () => {
-          await logout()
-          setSessionUser(null)
-          setMode('login')
-        }}
-        onNavigate={setView}
-      />
+    <AppShell
+      sidebar={
+        <section className="management-sidebar" aria-label="Navegacion principal">
+          <Sidebar
+            top={
+              <div className="sidebar-brand">
+                <span className="brand-mark">AR</span>
+                <span>Advanced RAG</span>
+              </div>
+            }
+            bottom={
+              <section className="sidebar-session" aria-label="Sesion activa">
+                <div className="sidebar-controls">
+                  <LanguageSelect
+                    label="Idioma"
+                    value={i18n.resolvedLanguage ?? i18n.language}
+                    onChange={(value) => void i18n.changeLanguage(value)}
+                    options={[
+                      { value: 'es-AR', label: 'ES' },
+                      { value: 'en-US', label: 'EN' },
+                      { value: 'pt-BR', label: 'PT' },
+                    ]}
+                  />
+                  <DarkModeToggle label="Cambiar tema" />
+                </div>
+                <span className="session-label">Sesión activa</span>
+                <strong>{sessionUser.email}</strong>
+                <span>{sessionUser.roles.join(', ')}</span>
+                <button className="sidebar-logout" type="button" onClick={() => void handleLogout()}>
+                  <LogOut size={16} aria-hidden="true" />
+                  Cerrar sesión
+                </button>
+              </section>
+            }
+          >
+            <ManagementNav active={view} onNavigate={setView} />
+          </Sidebar>
+        </section>
+      }
+      className="app-workspace"
+    >
       <section className="app-workspace">
         {view === 'documents' ? <DocumentsPage userRoles={sessionUser.roles} /> : null}
         {view === 'users' ? <UsersBudgetPage /> : null}
         {view === 'audit' ? <AuditPage /> : null}
         {view === 'feedback' ? <FeedbackReviewPage /> : null}
         {view === 'configuration' ? <ConfigurationPage /> : null}
+        {view === 'account' ? (
+          <AccountPage user={sessionUser} onUserUpdated={setSessionUser} />
+        ) : null}
       </section>
-    </main>
+    </AppShell>
   )
 }
 

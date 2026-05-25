@@ -12,11 +12,14 @@ from advanced_rag.main import create_app
 
 from test_chat_rag import (
     ALLOWED_GROUP_ID,
+    CHAT_MODEL,
+    EMBEDDING_DIMENSIONS,
+    EMBEDDING_MODEL,
     USER_ID,
     ChatDatabase,
-    FakeChatCompletionProvider,
     FakeChatTokenValidator,
     FakeEmbeddingProvider,
+    FakeLlmProvider,
 )
 
 
@@ -91,7 +94,7 @@ def _client(database: ChatDatabase) -> TestClient:
             customer_timezone="UTC",
         ),
         embedding_provider=FakeEmbeddingProvider(),
-        chat_completion_provider=FakeChatCompletionProvider(),
+        llm_provider=FakeLlmProvider(),
         chat_token_validator=FakeChatTokenValidator(
             ChatTokenClaims(
                 user_id=str(USER_ID),
@@ -120,9 +123,10 @@ async def _seed_feedback_audit_event(database: ChatDatabase, user_id: UUID) -> U
                     id, model_id, model_kind, input_token_price_usd,
                     cached_token_price_usd, output_token_price_usd, effective_from
                 )
-                VALUES ($1, 'gpt-4.1-nano', 'chat', 0.0000001, 0.00000001, 0.0000004, now())
+                VALUES ($1, $2, 'chat', 0.0000001, 0.00000001, 0.0000004, now())
                 """,
                 price_id,
+                CHAT_MODEL,
             )
         await connection.execute(
             """
@@ -134,11 +138,14 @@ async def _seed_feedback_audit_event(database: ChatDatabase, user_id: UUID) -> U
                 prompt_version, chunker_version
             )
             VALUES ($1, $2, 'req-feedback', 'Pregunta', 'Respuesta', false,
-                    'gpt-4.1-nano', 'text-embedding-3-small', 1536, 10, 0, 5,
-                    $3, 0.0001, 25, 'scope-allowed', 'published', 1, 1)
+                    $3, $4, $5, 10, 0, 5,
+                    $6, 0.0001, 25, 'scope-allowed', 'published', 1, 1)
             """,
             audit_id,
             user_id,
+            CHAT_MODEL,
+            EMBEDDING_MODEL,
+            EMBEDDING_DIMENSIONS,
             price_id,
         )
     finally:

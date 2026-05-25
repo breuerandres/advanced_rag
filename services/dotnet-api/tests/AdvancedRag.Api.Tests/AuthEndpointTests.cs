@@ -303,6 +303,13 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>, 
             return;
         }
 
+        Role? existingViewerRole = await db.Roles.SingleOrDefaultAsync(role => role.Name == "Viewer");
+        Role viewerRole = existingViewerRole ?? new Role { Id = TestRoleId, Name = "Viewer" };
+        if (existingViewerRole is null)
+        {
+            db.Roles.Add(viewerRole);
+        }
+
         db.Users.Add(new User
         {
             Id = TestUserId,
@@ -312,9 +319,8 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>, 
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow,
         });
-        db.Roles.Add(new Role { Id = TestRoleId, Name = "Viewer" });
         db.Groups.Add(new Group { Id = TestGroupId, Name = "Operations" });
-        db.UserRoles.Add(new UserRole { UserId = TestUserId, RoleId = TestRoleId });
+        db.UserRoles.Add(new UserRole { UserId = TestUserId, RoleId = viewerRole.Id });
         db.UserGroups.Add(new UserGroup { UserId = TestUserId, GroupId = TestGroupId });
         await db.SaveChangesAsync();
     }

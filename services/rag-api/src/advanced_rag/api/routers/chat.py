@@ -41,7 +41,19 @@ async def post_chat(body: ChatRequest, request: Request) -> StreamingResponse:
         )
     service: ChatService = request.app.state.chat_service
     request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
-    answer = await service.answer(question=body.question, claims=claims, request_id=request_id)
+    filters = (
+        body.filters.dimension_value_ids
+        if body.filters is not None and body.filters.dimension_value_ids
+        else None
+    )
+    answer = await service.answer(
+        question=body.question,
+        claims=claims,
+        request_id=request_id,
+        filters=filters,
+        session_id=body.session_id,
+        locale=body.locale,
+    )
     return StreamingResponse(
         _stream_answer(answer, request_id),
         media_type="text/event-stream",

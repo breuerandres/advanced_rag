@@ -98,12 +98,14 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Initial Database Migration Foundation](#2026-05-13---initial-database-migration-foundation)
 - [Secrets And Configuration](#2026-05-11---secrets-and-configuration)
 - [Compose PostgreSQL Role Password Secrets](#2026-05-13---compose-postgresql-role-password-secrets)
+- [Local Startup Script Trusts Docker Caddy CA](#2026-05-22---local-startup-script-trusts-docker-caddy-ca)
 - [.NET SDK Selection With global.json](#2026-05-13---net-sdk-selection-with-globaljson)
 - [FastAPI Python And Packaging Foundation](#2026-05-13---fastapi-python-and-packaging-foundation)
 - [FastAPI Docker Base Image](#2026-05-14---fastapi-docker-base-image)
 - [MVP Operational Defaults](#2026-05-11---mvp-operational-defaults)
 - [Default OpenAI Models](#2026-05-11---default-openai-models)
 - [Task 17 Local Compose Deep Links And Viewer Host](#2026-05-18---task-17-local-compose-deep-links-and-viewer-host)
+- [Clean Compose Startup Seeds Default Admin And Pricing](#2026-05-22---clean-compose-startup-seeds-default-admin-and-pricing)
 
 ### Workflow
 
@@ -118,6 +120,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Task 17.5 Feedback And Functional Audit Separation](#2026-05-20---task-175-feedback-and-functional-audit-separation)
 - [Task 17.5 Functional Audit Read Model](#2026-05-20---task-175-functional-audit-read-model)
 - [Task 17.5 Management Usability Refinement](#2026-05-20---task-175-management-usability-refinement)
+- [Task 17.5 Product Surface Session And UI Consolidation](#2026-05-22---task-175-product-surface-session-and-ui-consolidation)
 - [Document Domain Vocabulary Rename](#2026-05-20---document-domain-vocabulary-rename)
 
 ### UI Foundation
@@ -1485,3 +1488,279 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Future schema/view recreation migrations must reapply dependent grants in the same migration or a follow-up migration. Future domain-vocabulary changes must include persisted audit data as part of the migration checklist.
 
 **Evidence:** Verified on 2026-05-20 with `dotnet test services\dotnet-api\AdvancedRag.sln` (`72 passed`; existing NU1900 warnings), `uv run pytest -q` (`32 passed`), `uv run ruff check .`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.
+
+---
+
+# v2 Generic Refactor — Decisions
+
+The decisions below are appended in chronological order during the v2 refactor (2026-05-22
+onwards). They **supersede** specific MVP rules where noted. Full reasoning for each lives
+in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
+
+## 2026-05-22 - V2 Product Scope: Generic Multi-Company Self-Hosted
+
+**Context:** The MVP was designed for a single corporate customer (Mymtec / DUX3). The user decided to evolve it into a generic product installable by any company.
+
+**Options Considered:** Replace the legacy CentroDeAyuda for Mymtec, build a generic greenfield with no relation to legacy systems, or fork into product + Mymtec adapter.
+
+**Decision:** Build a generic, self-hosted, multilingual help-center product independent of any legacy system. Each customer installs their own Docker Compose stack.
+
+**Rationale:** Generic positioning maximises addressable market and aligns with the "single-tenant Docker Compose" decision already taken in the MVP.
+
+**Tradeoffs:** Forfeits the integration shortcut of reusing CentroDeAyuda's data.
+
+**Consequences:** All MVP rules tied to Mymtec/DUX3 vocabulary, Spanish-only, or single-customer assumptions are now generic. Setup wizard provisions everything fresh.
+
+## 2026-05-22 - Multi-Provider LLM Abstraction
+
+**Context:** MVP hard-codes OpenAI Python SDK throughout. The v2 product must let each customer pick its own provider.
+
+**Options Considered:** LiteLLM as gateway, custom abstraction layer, hard-code per deployment, or OpenAI-compatible-only.
+
+**Decision:** Introduce `ILlmProvider`, `IEmbeddingProvider`, and `IRerankerProvider` protocols with a factory keyed off `app.tenant_config`. Initial implementations: OpenAI, Anthropic, Azure OpenAI, Ollama; TEI (BGE) for embedding/reranker; Cohere reranker.
+
+**Rationale:** Genericity requires provider swap by config. Custom abstraction gives full control over per-provider quirks while staying minimal.
+
+**Tradeoffs:** More code to maintain than direct SDK use.
+
+**Consequences:** All paid LLM calls go through providers. Direct `AsyncOpenAI` imports outside `services/rag-api/src/advanced_rag/providers/` are now forbidden.
+
+**Evidence:** See ADR-0001 (`docs/adr/0001-multi-provider-llm.md`).
+
+## 2026-05-22 - Multilingual Embedding At 1024 Dimensions
+
+**Context:** MVP uses `text-embedding-3-small` at 1536 dims, biased toward Spanish. v2 is multilingual.
+
+**Options Considered:** Keep 1536 dims with multilingual model, switch to 1024 dims with multilingual model, per-locale corpus, Voyage 3.
+
+**Decision:** Schema column fixed at `VECTOR(1024)`. Default model is `text-embedding-3-large` with `dimensions=1024` (OpenAI native truncation) or `BGE-M3` via TEI for self-hosted deployments.
+
+**Rationale:** 1024 dims is the cross-model lingua franca (OpenAI truncated and BGE-M3 both natively expose this). Multilingual quality on MTEB stays competitive.
+
+**Tradeoffs:** Switching to a higher-dim model later requires schema migration plus reindex.
+
+**Consequences:** All v2 indexing uses 1024-d embeddings. MVP deployments migrating must reindex.
+
+**Evidence:** See ADR-0003 (`docs/adr/0003-multilingual-embeddings.md`).
+
+## 2026-05-22 - Hybrid Retrieval With BM25 And Reranker
+
+**Context:** Vector-only retrieval misses exact-match codes (e.g. `IMA001`), rare proper nouns, and customer-specific vocabulary.
+
+**Options Considered:** Vector-only with reranker, vector + BM25 without reranker, full hybrid with RRF and reranker, or external Elasticsearch.
+
+**Decision:** Vector (k=20) + BM25 (k=20) → RRF (k_constant=60) → top-30 → cross-encoder reranker → top-8. BM25 implemented inside Postgres via `tsvector` plus `pg_trgm`. No Elasticsearch.
+
+**Rationale:** Highest-quality retrieval pipeline that fits inside the single-Postgres constraint of the deployment model.
+
+**Tradeoffs:** Around 80–200ms latency budget added by reranker.
+
+**Consequences:** All retrieval queries use the unified SQL with RRF. Reranker on by default, per-query opt-out via `rerank=false`.
+
+**Evidence:** See ADR-0002 and ADR-0004 (`docs/adr/0002-*.md`, `docs/adr/0004-*.md`).
+
+## 2026-05-22 - MinIO As Default Object Storage
+
+**Context:** MVP base64-inlines images. v2 needs an S3-compatible store for assets.
+
+**Options Considered:** MinIO, Garage, SeaweedFS, plain Docker volume, AWS S3 only.
+
+**Decision:** MinIO ships in `compose.yaml` by default. Garage and SeaweedFS documented as drop-in alternatives. Code uses an S3 SDK abstraction (`IObjectStorage`) so cloud S3 and R2 also work via configuration.
+
+**Rationale:** MinIO is the most mature S3-compatible self-hosted option. AGPL applies to MinIO itself, not to consuming customers who download their own copy.
+
+**Tradeoffs:** One more container; signed-URL pattern adds slight latency at image-load.
+
+**Consequences:** HTML sanitizer rejects base64 image data. Editor uploads to MinIO and inserts URL references.
+
+**Evidence:** See ADR-0005 (`docs/adr/0005-minio-object-storage.md`).
+
+## 2026-05-22 - Unified Session Auth
+
+**Context:** MVP uses three browser auth artefacts (session cookie + chat-token cookie + viewer-exchange code/cookie). User asked for one login serving all three SPAs.
+
+**Options Considered:** Keep MVP pattern and add API keys only, bearer-only headers, single domain-wide cookie, or unified session cookie with `__Host-` prefix and role-based authorisation.
+
+**Decision:** Only `__Host-session` cookie. Add `app.users.role` column with values `admin`, `editor`, `viewer`. Endpoints use `[Authorize(Roles="…")]` in .NET and `require_role()` dependency in FastAPI. Endpoints `POST /api/auth/chat-token` and `POST /api/viewer/exchange-*` are removed.
+
+**Rationale:** Single credential improves UX, reduces code, simplifies tests, and aligns with modern multi-app SaaS handling of same-tenant sub-apps.
+
+**Tradeoffs:** Loses the 15-minute scoped chat-token defense in depth; mitigated by strict `__Host-` cookie attributes, CSP, and CSRF double-submit.
+
+**Consequences:** Chat now requires a database user. The "anonymous viewer link" use case moves to an opt-in HMAC-signed share-link endpoint in Phase 5+.
+
+**Evidence:** See ADR-0006 (`docs/adr/0006-unified-session-auth.md`). Open Question OQ-001 covers the chosen FastAPI cookie validation strategy.
+
+## 2026-05-22 - `packages/shared-ui` Design System
+
+**Context:** MVP keeps three SPAs with independent UI code. User asked for a real visual refactor toward Linear/Vercel style while keeping the three SPAs separate.
+
+**Options Considered:** Per-SPA shadcn copies + visual guidelines, third-party design system (Mantine, Chakra), Storybook-published separate repo, or internal `packages/shared-ui`.
+
+**Decision:** Create `packages/shared-ui` as a pnpm workspace package consumed by the three SPAs. Provides design tokens (light + dark), hooks, layout, inputs, overlays, data, feedback, chat-specific, and Cmd+K command palette components.
+
+**Rationale:** Single visual source of truth. Components built on Radix UI primitives keep behavior accessible. Tokens via CSS variables make tenant branding a one-variable change.
+
+**Tradeoffs:** Adds workspace build complexity.
+
+**Consequences:** New SPA components live in `shared-ui` unless they are SPA-specific. shadcn copies migrate component-by-component.
+
+**Evidence:** See ADR-0007 (`docs/adr/0007-shared-ui-design-system.md`).
+
+## 2026-05-22 - Configurable Dimensions For Document Categorisation
+
+**Context:** Each customer has its own taxonomy (modules, departments, processes, etc.). Hard-coding the Mymtec model (`module`/`product`/`area`) would betray the product's genericity.
+
+**Options Considered:** Free tags only, hierarchical spaces (Notion-style), hard-coded columns, or configurable multi-dimensional model.
+
+**Decision:** `app.dimensions` and `app.dimension_values` tables let admins define any number of dimensions, each optionally hierarchical, with i18n labels. Documents associate M:N with values via `app.document_dimension_values`.
+
+**Rationale:** Customers categorise in radically different ways. Multi-dimensional with hierarchy support covers the union of needs.
+
+**Tradeoffs:** Setup wizard must walk operators through dimension definition with examples.
+
+**Consequences:** Chat-web accepts `?dim_<key>=<value>` deep links. Permissions can extend to dimension values in Phase 5+ if needed.
+
+**Evidence:** See ADR-0008 (`docs/adr/0008-configurable-dimensions.md`).
+
+## 2026-05-22 - Conversational Memory With Session-Scoped Condensation
+
+**Context:** MVP is single-turn only. The chat-conversational UX direction requires multi-turn coherence.
+
+**Options Considered:** Raw history concatenation, summary windowing, true contextual embeddings, no multi-turn.
+
+**Decision:** Each chat session carries a UUID. On follow-up turns, a cheap LLM (gpt-4o-mini or claude-haiku) rewrites the question as a standalone query using prior turns. The rewritten question drives retrieval and semantic cache lookup; the original question drives the final answer prompt.
+
+**Rationale:** Predictable token usage, cache effectiveness preserved, multi-turn coherence achieved.
+
+**Tradeoffs:** One extra LLM call per multi-turn message. Cheap model keeps cost low.
+
+**Consequences:** `rag.query_audit_events.session_id`, `previous_event_id`, and `rewritten_question` columns added. Condense prompts live in `services/rag-api/.../prompts/condenser_<locale>.md`.
+
+**Evidence:** See ADR-0009 (`docs/adr/0009-conversational-memory.md`).
+
+## 2026-05-22 - Continuous Evals With RAGAS
+
+**Context:** MVP has no automated regression detection for RAG quality.
+
+**Options Considered:** RAGAS, promptfoo, Phoenix/Arize, LangSmith, or custom scripts.
+
+**Decision:** Adopt RAGAS. Golden set at `evals/golden.jsonl`. CI workflow at `.github/workflows/eval.yml`. CI fails if any metric (faithfulness, answer_relevancy, context_precision, context_recall) drops more than 5% versus the baseline.
+
+**Rationale:** RAG-specific metrics out of the box, research-backed, no SaaS lock-in.
+
+**Tradeoffs:** Eval runs cost LLM calls; mitigated by small golden set and cheap evaluator model pinned per run.
+
+**Consequences:** Every PR touching `rag/**` or `prompts/**` runs evals. Baseline is explicitly bumped when intentional improvements raise the bar.
+
+**Evidence:** See ADR-0010 (`docs/adr/0010-ragas-evals.md`).
+
+## 2026-05-22 - V2 Handoff Workflow
+
+**Context:** The v2 refactor is being implemented across two PCs and two LLM accounts. The current PC has no dependencies installed and the user requested that no tests run here.
+
+**Options Considered:** Pause until next PC, write everything as design docs only, write scaffolds plus commit per phase, or single mega-commit at handoff.
+
+**Decision:** Implement scaffolds and commit per phase on a local `feature/v2-generic` branch. Bundle the branch for transfer to the next PC. Write tests but do not run them. Document everything that the next PC must do in `HANDOFF.md` and per-phase docs.
+
+**Rationale:** Granular commits plus comprehensive docs let the next PC pick up cleanly without prior session context.
+
+**Tradeoffs:** Some files will not compile until dependencies are installed on the next PC. The next operator must restore that.
+
+**Consequences:** The original `Human-In-The-Loop Implementation Protocol` from MVP is relaxed for this session per user instruction. It resumes in normal form on the next PC.
+
+**Evidence:** This file, `HANDOFF.md`, and `context/v2-progress.md`.
+
+## 2026-05-22 - V2 Embedding Dimension Upgrade Preserves Historical Citations
+
+**Context:** The v2 migration from `vector(1536)` to `vector(1024)` intentionally invalidates existing embeddings and requires reindexing. Local Compose startup failed when the migration attempted to cast existing `rag.document_chunks.embedding` values to `NULL` while the column still had the original `NOT NULL` constraint. Deleting old chunks was not acceptable because `rag.query_audit_citations.chunk_id` uses a restrictive foreign key to preserve historical citation audit evidence.
+
+**Options Considered:** Delete old chunks before resizing, keep old 1536-dimensional values, backfill fake 1024-dimensional values, or keep historical chunks inactive with `embedding = NULL`.
+
+**Decision:** Preserve historical chunk rows, mark them inactive, allow `rag.document_chunks.embedding` to be nullable for inactive historical rows, and require reindexing to create new active chunks with valid 1024-dimensional embeddings.
+
+**Rationale:** This preserves audit/citation integrity while preventing retrieval from stale embeddings with incompatible dimensions and semantics.
+
+**Tradeoffs:** The database no longer enforces non-null embeddings on all chunk rows. Runtime indexing still writes embeddings for active chunks, and retrieval already filters active chunks, so the weaker column constraint is limited to historical inactive data.
+
+**Consequences:** Operators upgrading from MVP to v2 must reindex before serving chat traffic. Future retrieval queries and indexes must tolerate inactive historical chunks with `embedding = NULL`.
+
+**Evidence:** Verified on 2026-05-22 with `uv run pytest tests/test_migrations.py -q`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml build rag-api`.
+
+## 2026-05-22 - V2 BM25 Extensions Installed By Postgres Init
+
+**Context:** The v2 BM25 migration adds `content_tsv` and trigram search over `rag.document_chunks`. Local full Compose startup failed because `rag-api` ran Alembic against an existing database where `public.unaccent` was not installed. The migration tests installed `unaccent` and `pg_trgm` in their bootstrap path, but the real Compose `postgres-init` script still installed only `vector`.
+
+**Options Considered:** Require manual extension installation before v2 upgrades, let the runtime `rag_owner` migration create extensions, or extend `postgres-init` to install all database extensions needed by the product.
+
+**Decision:** Keep database extension installation in `postgres-init`. It now installs `vector`, `pg_trgm`, and `unaccent` idempotently before service migrations run. The BM25 migration uses an explicit `regdictionary` cast when wrapping `public.unaccent`.
+
+**Rationale:** `postgres-init` already runs with administrative database credentials and is the correct Compose boundary for extension setup. Runtime service migrations should not depend on superuser privileges.
+
+**Tradeoffs:** Non-Compose deployments must ensure the same extensions exist before running RAG migrations.
+
+**Consequences:** Future RAG migrations that need database extensions must add them to `postgres-init` or document the external deployment prerequisite before using them in service-owned migrations.
+
+**Evidence:** Verified on 2026-05-22 with `uv run pytest tests/test_migrations.py -q`, `uv run ruff check .`, `uv run mypy src tests`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml up -d --build --force-recreate`.
+
+## 2026-05-22 - V2 Shared UI Wiring Uses Workspace Package Source
+
+**Context:** `packages/shared-ui` was scaffolded as a pnpm workspace package, but the three SPAs still rendered their local shells. Simply importing the package would compile but not style correctly because the shared components use Tailwind utility classes and the apps were not yet running Tailwind through Vite or scanning the shared package source. Docker frontend builds also copied only each app directory, so workspace imports would fail inside image builds.
+
+**Options Considered:** Keep the shared-ui package unused until the full SPA refactor, duplicate shell code in each app, prebuild shared-ui as a separate published artifact, or wire each SPA directly to the workspace package source.
+
+**Decision:** Wire the existing SPA shells directly to `@helpcenter/shared-ui` source through the pnpm workspace. Each app imports shared fonts/tokens/globals, enables `@tailwindcss/vite`, and uses `@source "../../../packages/shared-ui/src"` in its local CSS. Each frontend Dockerfile copies `packages/shared-ui` before running `pnpm --dir <app> install --frozen-lockfile` and `pnpm --dir <app> build`.
+
+**Rationale:** Direct workspace-source consumption is the smallest step that makes the design system real while preserving current app workflows. It avoids publishing/building an internal package before the component API has stabilized.
+
+**Tradeoffs:** The apps now compile shared-ui source as part of their own builds, so React type versions and Tailwind source scanning must stay aligned across the workspace. The full per-SPA UX refactor remains separate Phase 1.7 work.
+
+**Consequences:** New shell-level UI should use `AppShell`, `Header`, `Sidebar`, and `DarkModeToggle` from `@helpcenter/shared-ui`. Frontend Dockerfiles must include workspace packages consumed by each app. The React type packages in the SPAs are aligned to React 18 to match the React 18 runtime and shared-ui peer dependency.
+
+**Evidence:** Verified on 2026-05-22 with `pnpm --dir packages/shared-ui typecheck`, `pnpm --dir apps/manage-web typecheck`, `pnpm --dir apps/chat-web typecheck`, `pnpm --dir apps/docs-web typecheck`, all three app Vitest suites, all three app builds, all three app lint commands, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml build manage-web chat-web docs-web`, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml up -d --build --force-recreate manage-web chat-web docs-web`, `docker compose ... ps`, and HTTPS 200 checks for `manage.localhost`, `chat.localhost`, and `docs.localhost`.
+
+## 2026-05-22 - Clean Compose Startup Seeds Default Admin And Pricing
+
+**Context:** A clean database could create schemas automatically, but it still required either first-run setup or manual demo seeding before the user could log in, and RAG chat could fail because `rag.model_pricing` had no active rows for the configured default models.
+
+**Options Considered:** Keep first-run setup only, use a local-only seed script, or seed minimal operational data through migrations.
+
+**Decision:** Seed minimal operational defaults through migrations. `.NET` EF migrations create `admin@admin.com` with initial password `admin`, the `Admin` role assignment, and a default monthly AI budget. FastAPI Alembic migrations create active pricing rows for `gpt-4.1-nano` and `text-embedding-3-small`.
+
+**Rationale:** The user's deployment model is controlled and prioritizes the fewest first-build steps. Migration-owned defaults make a fresh `docker compose up -d --build` usable without hidden SQL or a separate seed command.
+
+**Tradeoffs:** A default administrator password is a security liability if a deployment is exposed before the password is changed. The operational documentation now explicitly requires changing it immediately after first login outside throwaway local testing.
+
+**Consequences:** Clean databases have an administrator and baseline RAG pricing immediately after service migrations run. Operators still own secret creation, OpenAI key configuration, and post-login password rotation.
+
+**Evidence:** Verified on 2026-05-22 with `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter "EfMigration_SeedsDefaultAdminUser"`, `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter "EfMigration"`, `uv run pytest tests/test_migrations.py -q`, `uv run ruff check .`, `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml config`, and `git diff --check`. Pricing values were taken from official OpenAI model/pricing pages visible on 2026-05-22: `gpt-4.1-nano` at USD 0.10 input, USD 0.025 cached input, USD 0.40 output per 1M tokens, and `text-embedding-3-small` at USD 0.02 per 1M tokens.
+
+## 2026-05-22 - Local Startup Script Trusts Docker Caddy CA
+
+**Context:** After deleting Compose volumes, Caddy regenerates its internal CA in the `caddy-data` volume. Browsers and Windows clients then reject `https://manage.localhost` until the new Docker-generated root certificate is trusted. Running `caddy trust` on the host is insufficient because it trusts a separate host Caddy instance, not the Compose container CA.
+
+**Options Considered:** Keep manual copy/import steps in troubleshooting only, silently import the CA during Compose startup, or add an explicit local startup script with opt-in certificate trust.
+
+**Decision:** Add `infra/compose/Start-Local.ps1`. The script verifies local secret files, runs Docker Compose with the local override, waits for Caddy, copies `/data/caddy/pki/authorities/local/root.crt` from the Caddy container, and imports it into `Cert:\CurrentUser\Root` only when `-TrustCaddyCertificate` is passed.
+
+**Rationale:** This reduces first-run local setup to one command while keeping host trust-store mutation explicit and auditable.
+
+**Tradeoffs:** It is Windows/PowerShell-oriented. Developers using other operating systems still need equivalent manual trust-store commands.
+
+**Consequences:** The recommended local first-start command is `.\infra\compose\Start-Local.ps1 -TrustCaddyCertificate`. The command must be rerun after deleting `caddy-data`.
+
+## 2026-05-22 - Task 17.5 Product Surface Session And UI Consolidation
+
+**Context:** The first shared-ui wiring pass applied a global product header to all three SPAs and left several surfaces visually inconsistent. User review found that the shared top bar was inappropriate for independent web apps, chat could not ask questions because session bootstrap expired, `docs.localhost` still behaved like a narrow viewer instead of a document portal, dark mode left white cards/forms inside black pages, account self-service was missing, dialogs had redundant header close buttons, and the i18n setup lacked visible language controls.
+
+**Options Considered:** Keep the shared header and polish it, split all three apps into completely custom shells, or keep shared tokens/components while giving each app its own workflow-local navigation and session bootstrap.
+
+**Decision:** Keep `@helpcenter/shared-ui` as the shared token/component source, but remove the global `Header` from manage, chat, and docs product surfaces. Management uses a sidebar-only shell with session, theme, language, logout, and account controls in the sidebar. Chat and docs use local workflow headers. Chat validates the .NET session and renews a chat token before accepting questions. `docs.localhost` root is an authenticated document portal backed by a .NET viewer catalog endpoint, while exchange-code URLs continue to render the focused viewer. Language selectors are visible in all three apps. Dark mode must style workspace backgrounds, panels, cards, inputs, tables, dialogs, badges, and local headers through shared tokens.
+
+**Rationale:** The three SPAs are separate product surfaces, not pages inside one website. A shared global top bar duplicated navigation and made chat/docs feel like unfinished management pages. Session bootstrap belongs near the workflow that needs it: chat must repair or request auth before asking, and docs needs a portal that reflects document access by role/group.
+
+**Tradeoffs:** Some shell code remains app-specific instead of fully centralized. This is acceptable because the shell responsibilities differ across management, chat, and document portal/viewer workflows.
+
+**Consequences:** Future shared-ui work should provide primitives and tokens, not force one global navigation frame onto every SPA. `docs.localhost` should expose a browsable catalog for authenticated users; admin and document managers can see management-scope documents, while viewers see only documents allowed by their groups and published state. Account self-service is owned by `.NET` account endpoints. UI language defaults to Spanish but can be changed from each app's visible selector. Chat-token renewal remains a compatibility step while the current runtime still exposes that contract; when ADR-0006 unified session auth is fully implemented, chat bootstrap should collapse to session validation only.
+
+**Evidence:** Verified on 2026-05-22 with `pnpm.cmd --dir apps\chat-web test -- --run App.test.tsx`, `pnpm.cmd --dir apps\docs-web test -- --run App.test.tsx`, `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx`, builds for `apps/chat-web`, `apps/docs-web`, and `apps/manage-web`, `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --filter "UserAccount|ViewerDocumentCatalog"`, `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --no-build`, `dotnet test services\dotnet-api\tests\AdvancedRag.Api.Tests\AdvancedRag.Api.Tests.csproj --no-build --filter "FullyQualifiedName~ViewerEndpointTests"`, and `dotnet build services\dotnet-api\AdvancedRag.sln --no-restore`. A broader API filter run for `Viewer|Auth|User` exposed existing duplicate-role seed failures in auth/rate-limit test fixtures; focused viewer/API and application tests pass.
