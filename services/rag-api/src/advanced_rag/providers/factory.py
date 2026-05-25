@@ -1,7 +1,8 @@
 """Provider factory.
 
-Reads the tenant configuration (loaded from `app.tenant_config` at startup or per
-request as appropriate) and returns the right provider implementations.
+Builds provider implementations from a `TenantProviderConfig`. Current app composition
+creates that config from process settings; loading it from `app.tenant_config` is still a
+v2 Phase 1.1 task.
 
 See docs/adr/0001-multi-provider-llm.md.
 """
@@ -20,11 +21,10 @@ from advanced_rag.providers.base import (
 
 
 class TenantProviderConfig(BaseModel):
-    """Subset of tenant_config relevant for provider construction.
+    """Subset of future tenant_config relevant for provider construction.
 
-    The .NET API exposes the full tenant_config via `GET /api/v1/config`. FastAPI caches
-    these values at process start and refreshes on a periodic interval or when an admin
-    triggers an explicit reload.
+    Until `app.tenant_config` is exposed and loaded, these values are populated from
+    `Settings` in `advanced_rag.main`.
     """
 
     model_config = ConfigDict(frozen=True)

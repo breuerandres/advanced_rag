@@ -1,9 +1,9 @@
 # v2 Overview — What Changes vs the MVP
 
-This file is the **fast diff** between the MVP (Tasks 0–17.5) and the v2 generic refactor.
-Use it as a quick reference when reading `architecture.md`, `rag-spec.md`,
-`code-standards.md`, or `ui-context.md`: anything not listed here is unchanged from those
-files.
+This file is the **target diff** between the MVP (Tasks 0-17.5) and the v2 generic
+refactor. It describes intended v2 behavior, not necessarily current implementation
+status. For current implementation status, read `docs/v2/03-phases.md` and
+`context/v2-progress.md`.
 
 > **Precedence rule**: If this overview contradicts the older context files, **this
 > overview wins** until those files are rewritten in Phase 1.5+.
@@ -107,14 +107,12 @@ locked.
 
 ## Workflow rules during v2 implementation
 
-- The previous "Human-In-The-Loop" rule in `context/ai-workflow-rules.md` is **relaxed**
-  for the v2 refactor session: the user explicitly authorised "do all implementations"
-  with the exception that no tests are run and no dependencies are installed on the
-  current PC. Continue scoped commits but do not block on operator-owned checkpoints
-  until the next PC.
+- Current active branch is `mvp-implementation`; `feature/v2-generic` has been merged.
+- Keep `context/v2-progress.md` and `docs/v2/03-phases.md` synchronized when v2 status
+  changes.
 - All new docs and code comments are **English**. UI strings remain in i18n JSON files
   with `es-AR`, `en-US`, `pt-BR` keys.
-- All new tests live in their service's existing test directory; they target the next
-  PC's `pnpm test` / `pytest` / `dotnet test`.
-- Per-phase commits on `feature/v2-generic` are the unit of progress. Each commit is
-  authored to be readable as a tutorial step.
+- All new tests live in their service's existing test directory and should use the
+  existing verification entry points: `pnpm`, `uv run pytest`, and `dotnet test`.
+- Do not document planned behavior as implemented behavior. Mark work partial when files
+  exist but the runtime path is not fully wired.

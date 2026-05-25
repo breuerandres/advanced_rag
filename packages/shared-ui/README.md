@@ -17,6 +17,7 @@ See `docs/adr/0007-shared-ui-design-system.md` for the rationale.
 - `src/components/Header.tsx` — top header with logo, theme toggle, avatar slot
 - `src/components/Sidebar.tsx` — collapsible left sidebar
 - `src/components/DarkModeToggle.tsx` — visible toggle component
+- `src/components/LanguageSelect.tsx` — visible locale selector
 - `src/components/CommandPalette.tsx` — cmdk-backed command palette
 - `src/index.ts` — barrel exports
 
@@ -57,31 +58,12 @@ And then:
 import { AppShell, Header, Sidebar, Button, useTheme } from '@helpcenter/shared-ui';
 ```
 
-## Tailwind config
+## Tailwind source scanning
 
-Each app's `tailwind.config.ts` must include the `shared-ui` source paths so its classes
-get scanned:
+Each app must include the shared package source in Tailwind's scan list. The current apps
+use Tailwind CSS v4 with an app-local CSS `@source` directive:
 
-```ts
-export default {
-  content: [
-    './src/**/*.{ts,tsx}',
-    '../../packages/shared-ui/src/**/*.{ts,tsx}',
-  ],
-  theme: {
-    extend: {
-      colors: {
-        bg: 'var(--bg)',
-        'bg-elevated': 'var(--bg-elevated)',
-        fg: 'var(--fg)',
-        'fg-muted': 'var(--fg-muted)',
-        border: 'var(--border)',
-        accent: 'var(--accent)',
-      },
-      fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-      },
-    },
-  },
-};
+```css
+@import "tailwindcss";
+@source "../../../packages/shared-ui/src";
 ```

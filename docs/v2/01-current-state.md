@@ -1,12 +1,13 @@
 # 01 — Current State of the MVP (Baseline at v2 Start)
 
-Snapshot of what the MVP delivered before the v2 refactor started. Keep this as a reference
-when you need to know "what was already there".
+Snapshot of what the MVP delivered before the v2 refactor started. This file is
+historical baseline context, not the current v2 implementation inventory. For current
+v2 status, read `HANDOFF.md`, `docs/v2/03-phases.md`, and `context/v2-progress.md`.
 
 For the full original spec, read `context/architecture.md`, `context/rag-spec.md`,
 `context/code-standards.md`, and `context/ui-context.md`. This page is the abridged version.
 
-## Stack (unchanged in v2)
+## MVP Baseline Stack
 
 | Layer | Tech | Source path |
 |---|---|---|

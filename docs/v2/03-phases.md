@@ -1,347 +1,344 @@
-# 03 — Phases & Tasks
+# 03 - Phases & Tasks
 
-The v2 refactor is broken into six phases. Each phase has a goal, a checklist, and a
-"demoable outcome". Resume from the first un-ticked task.
+The v2 refactor is broken into six phases. This checklist was reconciled on 2026-05-25
+against the current repository state.
 
-> Legend: `[x]` done in this handoff session, `[~]` partial scaffold, `[ ]` not started.
+Legend: `[x]` implemented in current code, `[~]` partial, `[ ]` pending.
 
----
+## Phase 0 - Preparation
 
-## Phase 0 — Preparation
+**Goal:** repository ready, v2 docs/ADRs in place, baseline branch merged.
 
-**Goal**: repository ready, dependencies installed (next PC), baseline runnable.
+- [x] v2 docs and ADRs exist under `docs/v2/` and `docs/adr/`
+- [x] `context/v2-overview.md` and `context/v2-progress.md` exist
+- [x] `feature/v2-generic` has been merged into `mvp-implementation`
+- [x] Current reconciliation started from a clean working tree
 
-- [x] Re-init git on new working copy, baseline commit on `main`, working branch `feature/v2-generic`
-- [x] Write `HANDOFF.md`
-- [x] Scaffold `docs/v2/` and `docs/adr/`
-- [x] Append v2 entries to `context/design-decisions.md`, create `context/v2-overview.md` and `context/v2-progress.md`
-- [x] **On next PC** — `pnpm install`, `uv sync`, `dotnet restore`
-- [x] **On next PC** — Bring up MVP baseline with `docker compose up -d --build`
-- [x] **On next PC** — Run existing tests, record green/red baseline before applying v2 changes
+## Phase 1 - Foundations Generic
 
----
+**Goal:** same MVP features, but provider, locale, and embedding assumptions are
+pluggable.
 
-## Phase 1 — Foundations generic (multilingual + multi-provider + i18n)
+### 1.1 Tenant config
 
-**Goal**: same MVP features but with all provider/locale assumptions pluggable.
-
-### 1.1 Tenant config (singleton)
-- [~] Migration `app.tenant_config` (file scaffolded, needs `dotnet ef migrations add` on next PC)
-- [ ] Setup wizard endpoint extended to write tenant_config in one transaction
-- [ ] `GET /api/v1/config` returns public-safe subset (no secrets); `PUT` admin-only
-- [ ] Tests: setup happy path, validates LLM API key with a probe call
+- [~] Raw SQL script for `app.tenant_config` exists in `services/dotnet-api/v2-migrations-sql/001_add_tenant_config.*.sql`
+- [ ] EF Core migration for `app.tenant_config`
+- [ ] Setup wizard endpoint writes `tenant_config` in the same transaction as setup
+- [ ] `GET /api/v1/config` returns public-safe config; `PUT` is admin-only
+- [ ] Tests for setup/config behavior and safe secret handling
 
 ### 1.2 Embedding migration
-- [x] Schema: change `rag.document_chunks.embedding` to `VECTOR(1024)`
-- [~] Pass `dimensions=1024`; `OPENAI_EMBEDDING_MODEL` default remains pending OQ-002
-- [ ] Reindex script + admin-triggered job
-- [ ] Doc: `docs/operations/reindex.md`
+
+- [x] RAG Alembic migration changes `rag.document_chunks.embedding` to `vector(1024)`
+- [x] Runtime settings and `infra/compose/.env.example` use embedding dimensions `1024`
+- [~] Default Compose embedding model is still `text-embedding-3-small`; final default is blocked by `OQ-002`
+- [ ] Reindex script and admin-triggered reindex job
+- [ ] `docs/operations/reindex.md`
 
 ### 1.3 Provider abstraction
-- [~] `services/rag-api/src/advanced_rag/providers/base.py` — protocols
-- [~] `openai_provider.py`, `anthropic_provider.py`, `azure_openai_provider.py`, `ollama_provider.py`
-- [~] `tei_embedding_provider.py`, `tei_reranker_provider.py`, `cohere_reranker.py`
-- [~] `factory.py` — reads `tenant_config`, instantiates correct providers
-- [ ] Refactor `chat_service.py` to consume `ILlmProvider`; remove direct `AsyncOpenAI`
-- [ ] Refactor `indexing_service.py` similarly
-- [ ] Tests with fake providers for each implementation
+
+- [x] Provider protocols exist in `providers/base.py`
+- [x] OpenAI, Azure OpenAI, Anthropic, Ollama, TEI embedding/reranker, and Cohere reranker provider files exist
+- [x] `ProviderFactory` exists and is wired from `Settings`
+- [x] `ChatService` consumes `ILlmProvider`, `IEmbeddingProvider`, and optional `IRerankerProvider`
+- [x] `InternalIndexingService` consumes `IEmbeddingProvider`
+- [~] Tests use fake LLM/embedding providers for chat/indexing paths
+- [ ] Provider factory reads `app.tenant_config`
+- [ ] Runtime dependencies for optional Anthropic/Cohere/httpx-backed providers are promoted from lazy/import-time assumptions into package requirements before those providers are enabled
 
 ### 1.4 i18n frontends
-- [~] `react-i18next` installed (next PC) in all 3 SPAs
-- [~] `apps/<spa>/src/i18n/{es-AR,en-US}.json` seeded
-- [ ] Extract every literal string in `chat-web/src/**` and `docs-web/src/**`
-- [ ] Extract every literal string in `manage-web/src/**`
-- [ ] Locale picker in `<Header>` (shared-ui)
-- [ ] Tests with `screen.getByText` using the translation key, not the literal
+
+- [x] `i18next`, `react-i18next`, and `i18next-browser-languagedetector` are declared in all three SPA package manifests
+- [x] `es-AR`, `en-US`, and `pt-BR` catalogs exist for all three SPAs
+- [x] Visible language selectors exist in manage/chat/docs through `LanguageSelect`
+- [~] Some screen strings use `t(...)`
+- [ ] Full literal extraction from TSX is incomplete
+- [ ] Tests consistently assert translated output rather than hard-coded Spanish literals
 
 ### 1.5 Multi-language prompts
-- [ ] `services/rag-api/src/advanced_rag/rag/prompts/system_{es-AR,en-US,pt-BR}.md`
-- [ ] Loader chooses based on detected/requested language
-- [ ] Audit records `prompt_version` and `prompt_locale`
+
+- [x] `system_{es-AR,en-US,pt-BR}.md` exists
+- [x] `condenser_{es-AR,en-US,pt-BR}.md` exists
+- [x] `rewriter_{es-AR,en-US,pt-BR}.md` exists
+- [x] Answer generation loads `system_<locale>.md` with `en-US` fallback
+- [ ] Audit records `prompt_locale`
 
 ### 1.6 Token counting
-- [ ] Replace `len(text.split())` with `tiktoken.encoding_for_model` in `chunking.py`
-- [ ] Tests: known fixtures, byte-exact chunk boundaries
+
+- [ ] `chunking.py` still uses whitespace splitting, not `tiktoken.encoding_for_model`
+- [ ] Tests for known token fixtures and chunk boundaries
 
 ### 1.7 Retry/timeout wrapper
-- [ ] `services/rag-api/src/advanced_rag/providers/_retry.py` with `tenacity` policies
-- [ ] Apply to all `IEmbeddingProvider.embed`, `ILlmProvider.chat_*`, `IRerankerProvider.rerank`
-- [ ] Tests: simulated 429, 503, timeout, ConnectionError
 
-### 1.8 Branding (basic)
-- [~] `shared-ui` theme provider reads `tenant_config` via `GET /api/v1/config`
-- [~] Logo upload endpoint stores in MinIO `tenant/brand/`
-- [ ] Setup wizard step for branding inputs
-- [ ] Tests: custom brand_name appears in `<Header>`, `--brand-primary` overrides default
+- [x] `providers/_retry.py` exists with `tenacity` retry helpers
+- [x] Provider implementations import and use `retry_async`
+- [ ] Dedicated retry tests for simulated 429, 503, timeout, and connection errors
 
-**Demoable outcome**: clean install → setup wizard → admin uploads 5 docs in ES + EN → chat
-answers in language of question → logo customised.
+### 1.8 Branding
 
----
+- [ ] Setup wizard branding step
+- [ ] Tenant brand config persistence
+- [ ] Logo upload endpoint
+- [ ] Header/brand token override from tenant config
 
-## Phase 1.5 — Unified auth + design system base
+## Phase 1.5 - Unified Auth + Shared UI
 
-**Goal**: a single session serves all 3 SPAs + base shared UI in place.
+**Goal:** a single browser session serves manage, chat, and docs; shared UI primitives are
+available.
 
 ### 1.5.1 Roles
-- [~] Migration adds `app.users.role` (text, default 'viewer')
-- [ ] Backfill from existing user_roles table
-- [ ] Deprecate `user_roles` and `roles` tables (compatibility view for 1 release)
+
+- [~] Raw SQL script exists for `app.users.role`
+- [ ] EF Core migration for `app.users.role`
+- [ ] Backfill from `user_roles`
+- [ ] Compatibility/deprecation plan for `user_roles` and `roles`
 
 ### 1.5.2 Eliminate token flows
-- [ ] Remove `POST /api/auth/chat-token` controller
-- [ ] Remove `POST /api/viewer/exchange-*` controllers
-- [ ] Remove `viewer_exchange_codes` table (migration drops it)
-- [ ] Update Caddyfile to forward session cookie to FastAPI on chat routes
+
+- [ ] Remove `POST /api/auth/chat-token`
+- [ ] Remove `/api/viewer/exchange`
+- [ ] Remove `viewer_exchange_codes` runtime usage
+- [ ] Update Caddy/FastAPI/frontend code for unified session auth
+
+Current code still uses MVP token flows.
 
 ### 1.5.3 FastAPI cookie validation
-- [ ] FastAPI middleware extracts session cookie → fetches/caches user claims
-- [ ] Implementation choice (record in `open-questions.md`):
-  - Option A: Caddy injects `X-User-Claims` from a Redis/Memcached shared with .NET
-  - Option B: FastAPI calls `.NET /api/v1/session/validate` (one cached call per N sec/user)
-  - Option C: .NET signs short-lived in-memory JWT mirroring session, set as another cookie
-- [ ] Tests: invalid cookie → 401, valid cookie → user_id resolves
 
-### 1.5.4 Endpoint authorisation
-- [ ] All controllers updated to use `[Authorize(Roles="admin,editor")]` or `Roles="admin"`
-- [ ] FastAPI dependency `require_role(min_role)` for chat/feedback endpoints
-- [ ] Audit logs include `role_at_request`
+- [ ] Resolve `OQ-001`
+- [ ] Implement selected FastAPI session validation
+- [ ] Tests for invalid cookie and valid session resolution
 
-### 1.5.5 `packages/shared-ui` scaffold
-- [~] `packages/shared-ui/package.json` with workspace metadata
-- [~] `src/styles/tokens.css` (light + dark)
-- [~] `src/styles/fonts.css` (Inter via `@fontsource/inter`)
-- [~] Hooks: `useTheme`, `useShortcut`
-- [~] Layout: `AppShell`, `Sidebar`, `Header`
-- [~] Inputs: `Button`, `Input`, `Textarea`, `Select`, `Switch`
-- [ ] Inputs (rest): `Checkbox`, `RadioGroup`
+### 1.5.4 Endpoint authorization
+
+- [ ] Update role authorization model to v2 roles (`admin`, `editor`, `viewer`)
+- [ ] FastAPI role dependency for chat/feedback where needed
+- [ ] Audit records `role_at_request`
+
+### 1.5.5 `packages/shared-ui`
+
+- [x] Package manifest and workspace wiring
+- [x] Light/dark tokens, fonts, and globals
+- [x] Hooks: `useTheme`, `useShortcut`
+- [x] Layout primitives: `AppShell`, `Sidebar`, `Header`
+- [x] `Button`
+- [x] `LanguageSelect`
+- [x] `DarkModeToggle`
+- [x] `CommandPalette`
+- [ ] Inputs: `Input`, `Textarea`, `Select`, `Switch`, `Checkbox`, `RadioGroup`
 - [ ] Overlays: `Dialog`, `HoverCard`, `Tooltip`, `Popover`, `DropdownMenu`, `Drawer`
-- [ ] Data: `DataTable` (wraps TanStack Table), `Pagination`, `Badge`, `Avatar`
-- [ ] Feedback: `Toast` (Sonner), `Skeleton`, `EmptyState`
-- [ ] Markdown render: `Markdown` (`react-markdown` + `rehype-sanitize`)
-- [ ] Chat: `ChatMessage`, `ChatComposer`, `ConversationList`, `CitationCard`, `CitationDrawer`
-- [ ] Power: `CommandPalette` (cmdk), `DarkModeToggle`
-- [ ] Each component has a vitest test colocated
+- [ ] Data: `DataTable`, `Pagination`, `Badge`, `Avatar`
+- [ ] Feedback: `Toast`, `Skeleton`, `EmptyState`
+- [ ] Markdown: `Markdown`
+- [ ] Chat components: `ChatMessage`, `ChatComposer`, `ConversationList`, `CitationCard`, `CitationDrawer`
+- [ ] Colocated component tests for shared-ui primitives
 
-### 1.5.6 Apply shared-ui to existing SPAs (shell only)
-- [ ] Replace manage-web `<App>` shell with `<AppShell>` + `<Sidebar>` + `<Header>`
-- [ ] Replace chat-web shell
-- [ ] Replace docs-web shell
-- [ ] Dark mode toggle visible in all 3
-- [ ] Storybook (optional but recommended for `packages/shared-ui`)
+### 1.5.6 Apply shared-ui to SPAs
 
-**Demoable outcome**: login on `manage.localhost` → open `chat.localhost` in another tab,
-no re-login → idem `docs.localhost` → dark mode toggle persists across all 3.
+- [x] Shared styles imported by all three SPAs
+- [x] `manage-web` uses `AppShell`, `Sidebar`, `DarkModeToggle`, and `LanguageSelect`
+- [x] `chat-web` uses `AppShell`, `DarkModeToggle`, and `LanguageSelect`
+- [x] `docs-web` uses `AppShell`, `DarkModeToggle`, and `LanguageSelect`
+- [ ] Full v2 shell refactor using shared UI data/overlay primitives
+- [ ] Storybook
 
----
+## Phase 1.7 - UX Refactor Per SPA
 
-## Phase 1.7 — UX refactor per SPA
-
-**Goal**: each SPA looks and feels like a pro product.
+**Goal:** each SPA reaches the target v2 product UX.
 
 ### 1.7.1 chat-web
-- [ ] 3-pane `<AppShell>` (sidebar | main | right panel)
-- [ ] `<ConversationList>` in sidebar; group by Today/Yesterday/Week/Older
-- [ ] `<ChatMessage>` with markdown render, copy button, inline feedback
-- [ ] `<ChatComposer>` autosize, Enter to send / Shift+Enter newline, filter chips
+
+- [ ] Three-pane layout
+- [ ] Conversation list
+- [ ] Shared `ChatMessage`
+- [ ] Shared `ChatComposer`
 - [ ] Streaming cursor animation
-- [ ] `<CitationCard>` with hover preview
-- [ ] `<CitationDrawer>` right panel with `text_quote` highlight
-- [ ] Cmd+K command palette wired
-- [ ] Empty state when no conversations
-- [ ] Tabular-nums for tokens/cost footer
+- [ ] Citation preview/drawer
+- [ ] Command palette wiring
+- [ ] Filter chips
 
 ### 1.7.2 docs-web
-- [ ] Sidebar nav tree grouped by configured dimensions
+
+- [ ] Dimension-grouped sidebar tree
 - [ ] Right TOC with scroll-spy
-- [ ] Breadcrumbs + previous/next
-- [ ] Metrics panel (views, likes, favourites, citations)
-- [ ] Footer "Was this helpful?" thumbs + comment
-- [ ] Sticky favourite (heart) button
-- [ ] Global search using shared command palette
-- [ ] Sanitised HTML render with image lazy-loading + zoom
-- [ ] Sticky-header tables, scrollable on mobile
+- [ ] Breadcrumbs and previous/next
+- [ ] Metrics panel
+- [ ] Helpful reaction/comment UI
+- [ ] Favorites
+- [ ] Global search
+- [ ] Sanitized HTML render with image behavior
 
 ### 1.7.3 manage-web
-- [ ] Dashboard with KPI cards + charts (recharts)
-- [ ] `DataTable` for documents with bulk actions
-- [ ] Editor: TipTap with slash commands, autosave indicator
-- [ ] Forms with React Hook Form + Zod + inline error UX
-- [ ] Users table with role dropdown + bulk CSV import
-- [ ] Dimensions editor with drag-to-reorder (@dnd-kit)
-- [ ] Analytics page (queries, cost, top docs, unresolved questions)
-- [ ] Feedback table with filters + CSV export (existing in MVP, polished)
 
-**Demoable outcome**: side-by-side comparison video (MVP vs v2) shows the visual jump.
+- [ ] Dashboard with KPI cards/charts
+- [ ] Shared `DataTable` for documents
+- [ ] Editor autosave/slash-command polish
+- [ ] React Hook Form + Zod form refactor
+- [ ] Users role dropdown and bulk CSV import
+- [ ] Dimensions editor
+- [ ] Analytics page
 
----
+## Phase 2 - Hybrid Retrieval + Dimensions
 
-## Phase 2 — Hybrid retrieval + dimensions
-
-**Goal**: state-of-the-art retrieval precision + flexible categorisation.
+**Goal:** improve retrieval precision and support flexible categorization.
 
 ### 2.1 Dimensions schema
-- [x] Migrations: `app.dimensions`, `app.dimension_values`, `app.document_dimension_values`
-- [ ] EF Core entities + DbContext mappings
-- [x] FastAPI cross-schema read grant for filter resolution
+
+- [x] EF migration exists for `app.dimensions`, `app.dimension_values`, and `app.document_dimension_values`
+- [x] `rag_owner` read grants for dimension tables exist in the EF migration
+- [ ] EF Core entities and DbContext mappings for dimensions
 
 ### 2.2 Dimensions CRUD
-- [~] `DimensionsController.cs` (.NET) with CRUD + reorder
-- [ ] Validation: unique keys, parent-id cycle detection
-- [ ] manage-web pages: list + editor + assign-to-document
+
+- [ ] `DimensionsController`
+- [ ] Validation for unique keys and parent cycles
+- [ ] Management UI for dimensions
+- [ ] Document assignment UI
 
 ### 2.3 BM25 columns + indexes
-- [~] Migration: `rag.document_chunks.content_tsv tsvector GENERATED ALWAYS AS ...`
-- [~] Migration: GIN indexes for `content_tsv` and `content gin_trgm_ops`
-- [ ] Re-chunking script for existing chunks (or document opt-in)
+
+- [x] Alembic migration adds BM25/trigram columns and indexes
+- [ ] Re-chunk/reindex path for existing chunks beyond the migration itself
 
 ### 2.4 RRF combinator
-- [~] `services/rag-api/src/advanced_rag/rag/hybrid_retrieval.py` with the RRF SQL
-- [ ] Plug into `chat_service.py` retrieval step
-- [ ] Audit: store `vector_top_k`, `bm25_top_k` per query
-- [ ] Tests: golden set queries see ≥+10% nDCG vs vector-only
+
+- [x] `hybrid_retrieval.py` exists
+- [x] `ChatService` calls `hybrid_retrieve`
+- [x] Query audit stores vector/BM25 top-k fields
+- [ ] Golden-set retrieval metric validation
 
 ### 2.5 Reranker
-- [~] `IRerankerProvider` interface + 3 implementations (BGE-TEI, Cohere, Voyage stub)
-- [ ] Plug between RRF and final top-K in `chat_service.py`
-- [ ] `tenant_config.enable_reranker` toggle
-- [ ] Per-query `rerank=false` flag honored
-- [ ] Tests with mocked reranker
+
+- [x] `IRerankerProvider` exists
+- [~] Reranker provider files exist, but optional runtime dependencies must be verified before enabling non-default providers
+- [x] `ChatService` runs `rerank_candidates` after hybrid retrieval when a reranker is configured
+- [~] Settings include `enable_reranker`; tenant_config toggle is not implemented
+- [ ] Per-query `rerank=false` flag
+- [ ] Dedicated mocked-reranker tests
 
 ### 2.6 Filters in chat
-- [ ] `POST /api/v1/chat` body extended: `filters.dimensions: { key: value[] }`
-- [ ] Deep-linking: chat-web reads `?modulo=IMA001` from URL
-- [ ] Filter chips in `<ChatComposer>`
-- [ ] Cache key hashes filters into `filter_hash`
 
-**Demoable outcome**: query `IMA001` returns only docs tagged with that module; precision
-metric on golden set ≥ specified baseline.
+- [x] FastAPI chat schema accepts `filters.dimensionValueIds`
+- [x] Backend tests cover dimension filters partitioning cache separately
+- [x] Cache/audit paths include `filters_hash`
+- [ ] Chat-web deep-link parsing and filter chips
 
----
+## Phase 3 - Object Storage + Bulk Import
 
-## Phase 3 — Object storage + bulk import
-
-**Goal**: assets out of the DB; onboarding from a folder of PDFs is one click.
+**Goal:** move assets out of Postgres and support bulk onboarding.
 
 ### 3.1 MinIO
-- [~] `infra/compose/compose.yaml` adds `minio` service
-- [~] `infra/compose/minio/init-bucket.sh` runs on first up
-- [ ] Caddy `/storage/*` reverse-proxy with signed-URL injection
-- [ ] `tenant_config.s3_endpoint` for non-MinIO deployments
+
+- [x] `compose.v2-extras.yaml` exists with MinIO
+- [x] `infra/compose/minio/init-bucket.sh` exists
+- [ ] Caddy `/storage/*` route with signed URL behavior
+- [ ] Tenant storage config
 
 ### 3.2 Object storage abstraction
-- [ ] `services/dotnet-api/Services/ObjectStorageService.cs` (S3 SDK)
-- [ ] `services/rag-api/src/advanced_rag/storage/minio_storage.py`
-- [ ] Filesystem fallback for dev
+
+- [ ] .NET object storage abstraction
+- [ ] FastAPI object storage abstraction
+- [ ] Filesystem fallback for development
 
 ### 3.3 PDF/DOCX improvements
-- [ ] Evaluate Unstructured.io vs PyMuPDF + python-docx (test fixtures provided)
-- [ ] Extract tables as markdown
-- [ ] Images uploaded to MinIO, replaced in HTML by URL
-- [ ] Optional VLM (Claude 3.5 Sonnet) description of figures, embedded in chunk
+
+- [ ] Table extraction
+- [ ] Image upload to object storage
+- [ ] Optional VLM image descriptions
 
 ### 3.4 Editor uploads
-- [ ] TipTap image extension wires to MinIO upload
-- [ ] Drag-and-drop + paste handlers
+
+- [ ] TipTap image upload integration
+- [ ] Drag/drop and paste upload handlers
 
 ### 3.5 Bulk import
-- [ ] `POST /api/v1/documents/bulk-import` accepts ZIP
-- [ ] Enqueues one indexing job per file (uses existing `rag.indexing_jobs`)
-- [ ] manage-web progress UI
 
-**Demoable outcome**: zip of 100 PDFs → progress bar → indexed → MinIO populated; chunks
-clean of base64.
+- [ ] ZIP import endpoint
+- [ ] Indexing job enqueue per imported file
+- [ ] Progress UI
 
----
+## Phase 4 - CdA Features
 
-## Phase 4 — CdA features
-
-**Goal**: feature parity with the legacy CentroDeAyuda for end users.
+**Goal:** add selected help-center features.
 
 ### 4.1 Schema
-- [~] Migrations: `document_views`, `document_reactions`, `document_favorites`
-- [~] Materialised view `mv_document_metrics`
-- [ ] Refresh schedule (nightly via pg_cron or external worker)
+
+- [~] Raw SQL scripts exist for document views, reactions, favorites, API keys, webhooks, and metrics
+- [ ] EF Core migrations for those scripts
+- [ ] Refresh strategy for metrics
 
 ### 4.2 Endpoints
-- [ ] `POST /api/v1/documents/{id}/view`
-- [ ] `POST /api/v1/documents/{id}/reactions`
-- [ ] `POST /api/v1/documents/{id}/favorite` (toggle)
-- [ ] `GET /api/v1/users/me/favorites`
-- [ ] `GET /api/v1/analytics/documents` (admin)
-- [ ] `GET /api/v1/analytics/queries` (admin)
-- [ ] `GET /api/v1/analytics/unresolved` (admin)
+
+- [ ] Document view tracking endpoint
+- [ ] Document reactions endpoint
+- [ ] Favorites endpoint
+- [ ] User favorites endpoint
+- [ ] Analytics endpoints
+- [ ] API key CRUD and middleware
 
 ### 4.3 UI
-- [ ] Favourite heart in docs-web
-- [ ] Like/dislike in docs-web (independent of chat feedback)
-- [ ] "My favourites" page in docs-web
-- [ ] "Top read" landing in docs-web
-- [ ] Analytics dashboard in manage-web
 
-### 4.4 API keys
-- [~] Migration: `app.api_keys`
-- [ ] CRUD endpoints + UI (manage-web)
-- [ ] `X-Api-Key` middleware in both .NET and FastAPI
-- [ ] Per-key rate limiter (separate buckets from per-user)
-- [ ] Per-key monthly budget USD
+- [ ] Favorite control
+- [ ] Document reactions
+- [ ] My favorites
+- [ ] Top-read landing
+- [ ] Analytics dashboard
 
-**Demoable outcome**: user marks favourites → sees them; admin sees top 10 most-viewed and
-top 10 with negative reactions; API key works against `/api/v1/chat` without browser.
+## Phase 5 - Quality
 
----
-
-## Phase 5 — Quality (evals + observability + memory)
-
-**Goal**: confident iteration loop.
+**Goal:** reliable RAG iteration and operational visibility.
 
 ### 5.1 RAGAS evals
-- [~] `evals/golden.jsonl` seeded with 20 example Q&A
-- [ ] `evals/ragas_runner.py`
-- [ ] GitHub Actions workflow `eval.yml`
-- [ ] CI fails on >5% regression vs baseline
+
+- [x] `evals/golden.jsonl`
+- [x] `evals/ragas_runner.py`
+- [x] `evals/baseline_metrics.json`
+- [x] `.github/workflows/eval.yml`
+- [ ] Current CI execution status is not verified in this reconciliation
 
 ### 5.2 Conversational memory
-- [ ] `session_id` propagated client → server
-- [ ] Condensation prompt in `prompts/condenser_<locale>.md`
-- [ ] LLM-cheap (gpt-4o-mini / Haiku) reformulates with history
-- [ ] Cache key uses the standalone (reformulated) question
 
-### 5.3 Query rewrite (opt-in)
-- [ ] `tenant_config.enable_query_rewrite` toggle
-- [ ] LLM-cheap generates 1–3 reformulations
-- [ ] Each rewrite contributes to RRF candidate pool
+- [~] `conversation_memory.py` and condenser prompts exist
+- [~] `session_id` is accepted by FastAPI and stored in audit
+- [ ] Condensation is not called by `ChatService.answer`
+- [ ] Cache key does not use a condensed standalone question
+
+### 5.3 Query rewrite
+
+- [~] `query_rewrite.py` and rewriter prompts exist
+- [ ] Tenant toggle
+- [ ] Chat path integration
 
 ### 5.4 Citations with span
-- [ ] LLM prompt instructs return of `text_quote` per citation
-- [ ] Validator confirms quote is substring of chunk content
-- [ ] Viewer highlights span on open
+
+- [x] Alembic migration adds `text_quote` and `page_number`
+- [ ] Runtime citation generation does not populate those fields yet
+- [ ] Viewer highlighting is pending
 
 ### 5.5 OTel overlay
-- [~] `infra/compose/compose.observability.yaml` (otel-collector + tempo + prom + loki + grafana)
-- [ ] .NET OTel instrumentation (`OpenTelemetry.Instrumentation.AspNetCore`)
-- [ ] FastAPI OTel instrumentation (`opentelemetry-instrumentation-fastapi`)
-- [ ] Grafana dashboards JSON in `infra/grafana/`
+
+- [x] Compose observability overlay exists
+- [ ] .NET OpenTelemetry SDK instrumentation
+- [ ] FastAPI OpenTelemetry SDK instrumentation
+- [ ] Grafana dashboards
 
 ### 5.6 Unresolved questions
-- [ ] Nightly job clusters audit events with no/low-quality answers
-- [ ] Dashboard with cluster → suggest "create article on X"
+
+- [x] Alembic migration adds `rag.unresolved_questions`
+- [ ] Clustering job
+- [ ] Management dashboard
 
 ### 5.7 Webhooks
-- [ ] CRUD + outbound delivery worker
-- [ ] HMAC signature, retry with backoff
-- [ ] Events: `document.published`, `query.feedback.negative`, `query.answered`
 
-**Demoable outcome**: RAGAS report attached to PRs; OTel traces visible in Grafana; multi-
-turn conversation works end-to-end.
+- [~] Raw SQL script exists
+- [ ] CRUD
+- [ ] Delivery worker
+- [ ] HMAC signature and retry behavior
 
----
+## Phase 6 - Ship Readiness
 
-## Phase 6 — Ship readiness (optional, post-MVP-of-v2)
-
-- [ ] Lighthouse audit ≥ 90 perf, ≥ 95 a11y across SPAs
-- [ ] Load test with k6 (chat 100 RPS, p95 < 3s)
-- [ ] Install guide `docs/install-guide.md`
-- [ ] Admin guide `docs/admin-guide.md`
-- [ ] API reference (OpenAPI generated)
+- [ ] Lighthouse audit
+- [ ] Load test
+- [ ] Install guide
+- [ ] Admin guide
+- [ ] API reference
 - [ ] Backup/restore scripts polished

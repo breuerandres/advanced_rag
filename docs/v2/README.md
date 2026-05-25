@@ -6,7 +6,7 @@ that is **not** mentioned in `context/v2-overview.md` is unchanged.
 
 ## Read order
 
-1. `../HANDOFF.md` — start here if you haven't.
+1. `HANDOFF.md` at the repository root — start here if you haven't.
 2. `01-current-state.md` — snapshot of the MVP as it was when v2 started, distilled.
 3. `02-target-architecture.md` — what the system looks like after Phase 5.
 4. `03-phases.md` — phase-by-phase implementation checklist with file pointers.
@@ -42,7 +42,7 @@ No eval framework                       →   RAGAS continuous in CI
 | Architectural rule | New entry in `docs/adr/`, reference from `02-target-architecture.md` |
 | Schema change | Migration file under `services/*/migrations/`; reference in `03-phases.md` |
 | New UI component | `packages/shared-ui/src/components/`; reference in `02-target-architecture.md` |
-| Phase task done | Tick in `03-phases.md`; append to `context/v2-progress.md` |
+| Phase task done | Tick in `03-phases.md`; append to `context/v2-progress.md` with the evidence |
 | New rule that supersedes MVP | Row in `context/v2-overview.md` + edit the appropriate `docs/v2/` doc |
 | Open question for the user | New row in `open-questions.md` |
 

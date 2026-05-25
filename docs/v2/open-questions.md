@@ -37,7 +37,8 @@ the chosen option and a date stamp.
 
 ## OQ-002 — Embedding model default
 - **Phase**: 1
-- **Blocks**: Phase 1.2 migration
+- **Blocks**: Final shipped default and setup/config UX. It no longer blocks the 1024-d
+  RAG schema migration, which already exists.
 - **Question**: Default embedding model in the shipped `tenant_config`?
 - **Options**:
   - **A** — `text-embedding-3-large` truncated to 1024d (cloud, OpenAI account needed)
@@ -118,7 +119,8 @@ the chosen option and a date stamp.
 
 ## OQ-008 — Anthropic provider initial model
 - **Phase**: 1
-- **Blocks**: Phase 1.3 implementation
+- **Blocks**: Enabling Anthropic as a configured runtime provider. The provider file exists,
+  but the shipped default model choice is still undecided.
 - **Question**: Which Claude model does the Anthropic provider default to?
 - **Options**:
   - **A** — `claude-3-5-sonnet` (proven, broadly available)
