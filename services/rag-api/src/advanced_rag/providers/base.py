@@ -70,9 +70,7 @@ class ILlmProvider(Protocol):
     name: str
     """Stable identifier, e.g. 'openai', 'anthropic', 'azure-openai', 'ollama'."""
 
-    async def chat_stream(
-        self, req: ChatCompletionRequest
-    ) -> AsyncIterator[ChatCompletionDelta]:
+    def chat_stream(self, req: ChatCompletionRequest) -> AsyncIterator[ChatCompletionDelta]:
         """Stream completion tokens as they arrive.
 
         Implementations should yield `ChatCompletionDelta(content="...")` for each

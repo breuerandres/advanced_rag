@@ -8,8 +8,8 @@ Mirror of `docs/v2/03-phases.md` checklists but maintained as a journal. The MVP
 - Branch: `feature/v2-generic`
 - Baseline commit on `main`: `chore: import existing MVP working tree as baseline`
 - Operator: andresbr (this PC) → next PC handover pending
-- Tests run: none (per user instruction)
-- Dependencies installed: none
+- Tests run: local baseline verification now executed on 2026-05-25 (see Phase 0 and Phase 2 notes).
+- Dependencies installed: frontend/Python/.NET dependencies are present on this PC.
 
 ## Phase 0 — Preparation
 
@@ -21,6 +21,10 @@ Mirror of `docs/v2/03-phases.md` checklists but maintained as a journal. The MVP
 - 2026-05-22 — `context/v2-overview.md` and this `context/v2-progress.md` created.
 - 2026-05-22 — Appended v2 entries to `context/design-decisions.md`.
 - 2026-05-22 — **Commit `072943d`**: `docs: introduce v2 handoff documentation and ADRs`.
+- 2026-05-25 — Local baseline verification completed after Compose rebuilds:
+  - `pnpm.cmd --dir tests\e2e test` passed: first-run setup, management visual audit, and MVP happy path (3/3).
+  - Prior verification in this checkpoint also passed the three SPA typechecks/tests/builds, `packages/shared-ui` typecheck, FastAPI `pytest`/`ruff`/`mypy`, `.NET` solution tests, Compose config, and `git diff --check`.
+  - E2E compatibility fixes aligned tests with the current login-first chat/docs surfaces, current Spanish headings, and one-time viewer exchange-code behavior.
 
 ## Phase 1 — Foundations generic
 
@@ -46,12 +50,16 @@ Mirror of `docs/v2/03-phases.md` checklists but maintained as a journal. The MVP
   - Legacy `rag/embeddings.py` and `rag/chat_completion.py` removed; tests rewritten with `FakeLlmProvider` / `FakeEmbeddingProvider` against the new `ILlmProvider` / `IEmbeddingProvider` protocols.
   - Test infrastructure: `_bootstrap` in `test_chat_rag.py`, `test_indexing.py`, and `test_migrations.py` now installs `pg_trgm` and `unaccent` extensions so Alembic `upgrade head` succeeds (BM25 migration requires them). 1024-dim seeds throughout.
   - `pyproject.toml` adds `tenacity==9.1.2` (required by `providers/_retry.py`).
+- 2026-05-22 — Refreshed `services/rag-api/uv.lock` so the `tenacity==9.1.2` dependency added during the provider abstraction work is locked. Verified the original Docker failure path with `uv lock --check`, `uv sync --locked --no-dev --no-install-project`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml build rag-api`.
+- 2026-05-22 — Installed the missing i18n runtime dependencies (`i18next`, `react-i18next`, and `i18next-browser-languagedetector`) in `apps/manage-web`, `apps/chat-web`, and `apps/docs-web`, then refreshed `pnpm-lock.yaml`. Verified the original `docs-web` Docker failure path with `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml build docs-web`, plus `pnpm --dir apps/docs-web typecheck`, `pnpm --dir apps/docs-web build`, `pnpm --dir apps/chat-web typecheck`, `pnpm --dir apps/chat-web build`, `pnpm --dir apps/manage-web typecheck`, and `pnpm --dir apps/manage-web build`.
+- 2026-05-22 — Fixed the `20260522_120000` Alembic migration so existing MVP chunks can be preserved as inactive historical rows while their invalid 1536-dimensional embeddings are dropped during the move to `vector(1024)`. Added a regression test that seeds an existing chunk, cache entry, and query-audit citation before upgrading to head. Also fixed the provider streaming protocol type annotation and a stale chat test seed argument so the full FastAPI suite passes.
+- 2026-05-22 — Fixed full Compose startup for the BM25 migration by installing `pg_trgm` and `unaccent` from `postgres-init` and by making the migration's `public.unaccent` wrapper use an explicit `regdictionary` cast. Verified `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml up -d --build --force-recreate`; all services reached healthy/running state.
+- 2026-05-25 — Aligned local Compose RAG embedding dimensions with the v2 `vector(1024)` schema by setting `OPENAI_EMBEDDING_DIMENSIONS=1024` in `infra/compose/.env.example`. `OPENAI_EMBEDDING_MODEL` remains `text-embedding-3-small` until OQ-002 is resolved.
+- 2026-05-25 — Added materialized EF migration `20260522150000_AddConfigurableDimensions` for `app.dimensions`, `app.dimension_values`, and `app.document_dimension_values`, with `rag_owner` read grants. This unblocked FastAPI hybrid retrieval queries that already join `app.document_dimension_values`.
 - **PENDING (next PC)**:
-  - Install `react-i18next`, `i18next`, `i18next-browser-languagedetector` in each SPA.
   - Install `@anthropic-ai/sdk`, `cohere` Python deps in `services/rag-api/pyproject.toml` if/when those providers are exercised at runtime (the factory imports them lazily).
   - Apply Alembic migrations on first `uv run alembic upgrade head`.
-  - Materialise the SQL scripts as EF Core migrations (`services/dotnet-api/v2-migrations-sql/README.md`).
-  - Run `pnpm install` to wire `packages/shared-ui`.
+  - Materialise the remaining SQL scripts as EF Core migrations (`services/dotnet-api/v2-migrations-sql/README.md`); configurable dimensions are now materialized.
   - Wire `conversation_memory.condense_question` and `query_rewrite.rewrite_query` into `chat_service` (Phase 5.2 / 5.3) — modules exist but are not yet called from the chat path.
 
 ## Phase 1.5 — Unified auth + design system base
@@ -59,10 +67,16 @@ Mirror of `docs/v2/03-phases.md` checklists but maintained as a journal. The MVP
 - 2026-05-22 — `packages/shared-ui` scaffolded with tokens (light + dark), Inter font, hooks (`useTheme`, `useShortcut`), helper (`cn`), and components (`Button`, `AppShell`, `Header`, `Sidebar`, `DarkModeToggle`, `CommandPalette`).
   - `pnpm-workspace.yaml` updated to include `packages/*`.
   - **Commit `7de2164`**: `feat(shared-ui): design system scaffold with tokens + base components`.
+- 2026-05-22 — Wired `packages/shared-ui` into `apps/manage-web`, `apps/chat-web`, and `apps/docs-web`.
+  - Each SPA now declares `@helpcenter/shared-ui`, imports shared Inter/tokens/globals CSS, enables the Tailwind CSS v4 Vite plugin, and scans `packages/shared-ui/src` with `@source`.
+  - Existing product workflows remain intact, but each app now uses shared `AppShell`, `Header`, `Sidebar`, and a visible `DarkModeToggle`.
+  - Frontend Dockerfiles now copy `packages/shared-ui` before frozen installs/builds so Compose image builds work outside the local workspace.
+  - React type packages were aligned to React 18 across the SPAs to avoid duplicate React type trees when compiling workspace package source.
+  - `useTheme` now tolerates disabled/missing storage and media APIs.
+  - Verified with `pnpm --dir packages/shared-ui typecheck`, all three SPA typechecks, all three SPA Vitest suites, all three SPA builds, all three SPA lints, `docker compose ... build manage-web chat-web docs-web`, `docker compose ... up -d --build --force-recreate manage-web chat-web docs-web`, `docker compose ... ps`, and HTTPS 200 checks for the three local hosts.
 - **PENDING (next PC)**:
   - Apply the unified auth changes (delete `chat-token` and `viewer-exchange-*` endpoints, simplify FastAPI cookie handling — see open question OQ-001 for the chosen validation strategy).
   - Author the remaining components in `packages/shared-ui/README.md`'s pending list.
-  - Wire each SPA's `<App>` shell through `<AppShell>`/`<Sidebar>`/`<Header>`.
 
 ## Phase 1.7 — UX refactor per SPA
 
@@ -72,7 +86,7 @@ Pending. The shared-ui scaffold is in place; per-SPA refactor (3-pane chat, docs
 
 - 2026-05-22 — Hybrid retrieval SQL + reranker wrapper authored (`services/rag-api/src/advanced_rag/rag/{hybrid_retrieval,rerank,query_rewrite}.py`).
 - 2026-05-22 — `hybrid_retrieve` + `rerank_candidates` wired into `chat_service.py`; `filters` exposed on `POST /api/chat` (`filters.dimensionValueIds`); cache key includes `filters_hash`.
-- Dimension schema authored; CRUD endpoints + UI pending.
+- 2026-05-25 — Dimension schema is now materialized in an EF Core migration and verified through `AppDbContextMigrationTests`; CRUD endpoints + UI remain pending.
 
 ## Phase 3 — Object storage + bulk import
 

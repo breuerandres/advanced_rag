@@ -25,40 +25,23 @@ public sealed class SetupEndpointTests : IClassFixture<SetupWebApplicationFactor
     }
 
     [Fact]
-    public async Task FirstRunSetup_CreatesAdminThenBlocksFurtherSetupAndAllowsLogin()
+    public async Task SetupStatus_WithDefaultAdminSeed_ReportsSetupCompleteAndAllowsLogin()
     {
         using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
 
         SetupStatusResponse initialStatus = await GetSetupStatusAsync(client);
-        initialStatus.SetupRequired.Should().BeTrue();
-        initialStatus.AdminExists.Should().BeFalse();
+        initialStatus.SetupRequired.Should().BeFalse();
+        initialStatus.AdminExists.Should().BeTrue();
         initialStatus.RequiredRoles.Should().Equal("Admin", "DocumentManager", "Viewer");
 
         CsrfState csrf = await GetCsrfAsync(client);
-        using HttpResponseMessage created = await SendJsonAsync(
-            client,
-            HttpMethod.Post,
-            "/api/setup/admin",
-            new
-            {
-                email = FirstAdminEmail,
-                displayName = "First Admin",
-                password = FirstAdminPassword,
-            },
-            csrf);
-
-        created.StatusCode.Should().Be(HttpStatusCode.Created);
-        SetupAdminResponse createdBody = (await created.Content.ReadFromJsonAsync<SetupAdminResponse>())!;
-        createdBody.User.Email.Should().Be(FirstAdminEmail);
-        createdBody.User.Roles.Should().Equal("Admin");
-
-        await AssertAdminBootstrapRowsAsync(createdBody.User.Id);
+        Guid defaultAdminId = await AssertDefaultAdminBootstrapRowsAsync();
 
         using HttpResponseMessage login = await SendJsonAsync(
             client,
             HttpMethod.Post,
             "/api/auth/login",
-            new { email = FirstAdminEmail, password = FirstAdminPassword },
+            new { email = "admin@admin.com", password = "admin" },
             csrf);
         login.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -82,10 +65,11 @@ public sealed class SetupEndpointTests : IClassFixture<SetupWebApplicationFactor
         ApiErrorEnvelope error = (await blocked.Content.ReadFromJsonAsync<ApiErrorEnvelope>())!;
         error.Error.Code.Should().Be("SETUP_ALREADY_COMPLETED");
         error.Error.RequestId.Should().NotBeNullOrWhiteSpace();
+        defaultAdminId.Should().NotBeEmpty();
     }
 
     [Fact]
-    public async Task CreateFirstAdmin_WithMissingEmail_ReturnsValidationEnvelope()
+    public async Task CreateFirstAdmin_WhenDefaultAdminExists_ReturnsSetupCompletedEnvelope()
     {
         using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
         CsrfState csrf = await GetCsrfAsync(client);
@@ -102,13 +86,12 @@ public sealed class SetupEndpointTests : IClassFixture<SetupWebApplicationFactor
             },
             csrf);
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
         ApiErrorEnvelope error = (await response.Content.ReadFromJsonAsync<ApiErrorEnvelope>())!;
-        error.Error.Code.Should().Be("VALIDATION_FAILED");
-        error.Error.Details.Should().ContainKey("field");
+        error.Error.Code.Should().Be("SETUP_ALREADY_COMPLETED");
     }
 
-    private async Task AssertAdminBootstrapRowsAsync(Guid adminUserId)
+    private async Task<Guid> AssertDefaultAdminBootstrapRowsAsync()
     {
         await using AsyncServiceScope scope = _factory.Services.CreateAsyncScope();
         AppDbContext db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -116,8 +99,11 @@ public sealed class SetupEndpointTests : IClassFixture<SetupWebApplicationFactor
         (await db.Roles.AsNoTracking().Select(role => role.Name).OrderBy(name => name).ToListAsync())
             .Should()
             .Equal("Admin", "DocumentManager", "Viewer");
-        (await db.UserAiBudgetLimits.AsNoTracking().SingleAsync(budget => budget.UserId == adminUserId))
+        User defaultAdmin = await db.Users.AsNoTracking().SingleAsync(user => user.Email == "admin@admin.com");
+        (await db.UserAiBudgetLimits.AsNoTracking().SingleAsync(budget => budget.UserId == defaultAdmin.Id))
             .MonthlyBudgetUsd.Should().Be(5m);
+
+        return defaultAdmin.Id;
     }
 
     private static async Task<SetupStatusResponse> GetSetupStatusAsync(HttpClient client)

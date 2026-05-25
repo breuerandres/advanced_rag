@@ -17,6 +17,7 @@ TestResults/
 !.env.example
 infra/compose/secrets/*
 !infra/compose/secrets/README.md
+caddy-local-root.crt
 
 # Logs
 logs/

@@ -19,7 +19,7 @@ void i18n
       'pt-BR': { translation: ptBR },
     },
     detection: {
-      order: ['querystring', 'cookie', 'localStorage', 'navigator', 'htmlTag'],
+      order: ['querystring', 'cookie', 'localStorage'],
       caches: ['cookie', 'localStorage'],
       lookupQuerystring: 'lng',
       lookupCookie: 'helpcenter-locale',

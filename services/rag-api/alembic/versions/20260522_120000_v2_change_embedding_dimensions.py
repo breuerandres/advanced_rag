@@ -39,12 +39,14 @@ def upgrade() -> None:
         """
     )
 
-    # Alter the column to the new dimension. The cast forces pgvector to drop existing
-    # values; they are no longer meaningful because the new model produces vectors with
-    # different semantics, not a subspace of the old ones.
+    # Historical chunks must remain for query-audit citation references, but their
+    # 1536-d embeddings are no longer valid. Make the column nullable so inactive
+    # historical chunks can keep their rows while reindexing writes fresh 1024-d
+    # embeddings for active chunks.
     op.execute(
         """
         ALTER TABLE rag.document_chunks
+            ALTER COLUMN embedding DROP NOT NULL,
             ALTER COLUMN embedding TYPE vector(1024) USING NULL;
         """
     )
@@ -83,6 +85,7 @@ def downgrade() -> None:
     op.execute(
         """
         ALTER TABLE rag.document_chunks
+            ALTER COLUMN embedding DROP NOT NULL,
             ALTER COLUMN embedding TYPE vector(1536) USING NULL;
         """
     )
@@ -92,6 +95,11 @@ def downgrade() -> None:
             ON rag.document_chunks
             USING hnsw (embedding vector_cosine_ops)
             WITH (m = 16, ef_construction = 64);
+        """
+    )
+    op.execute(
+        """
+        DELETE FROM rag.semantic_cache_entries;
         """
     )
     op.execute(

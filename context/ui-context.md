@@ -30,6 +30,9 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - Prefer compact tables, forms, filters, detail panels, tabs, dialogs, menus, badges, and status indicators using `shadcn/ui` patterns.
 - Use `lucide-react` icons for actions when a familiar icon exists.
 - Icon-only action buttons in management surfaces must expose the same text as accessible name and hover/focus tooltip.
+- Do not force one global product header onto all three SPAs. Shared UI should provide tokens and primitives; manage, chat, and docs own their workflow-local navigation.
+- Dark mode must use the shared token palette across page backgrounds, local headers, sidebars, cards, panels, forms, tables, dialogs, badges, and document/chat content areas.
+- Each SPA must expose a visible language selector. Spanish remains the default unless the user explicitly chooses and persists another supported language.
 
 ## Task 17.5 UI Polish Quality Gate
 
@@ -50,6 +53,8 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - User role/group editing and group rename actions live in the users/groups workspace. Groups must be visible as their own operational table, not only as values inside user rows.
 - Feedback review is a separate management workspace. Chat feedback remains audit evidence tied to RAG query audit rows, but it must not replace functional management audit activity.
 - Active session identity and logout controls live at the bottom of the management sidebar, not in a top workspace bar.
+- Management account self-service lives in a dedicated `Mi cuenta` section and supports changing the current user's email and password.
+- Management dialogs should not duplicate close affordances in the header when the footer already provides cancel and the primary save action closes the dialog.
 - The audit workspace is reserved for functional management events and reads `.NET` `/api/audit/events`, backed by `app.audit_events`. Document lifecycle events are visible there, and local demo seeding with `-WithSampleDocument` inserts a sample `document.created` event.
 - Use table/list views for operational review workflows, with compact filters above or beside the result set. Search controls should be bounded instead of consuming the full workspace width when paired with short filters.
 - Use detail panels or pages for document lifecycle state, version history, audit events, indexing status, and feedback context.
@@ -83,6 +88,8 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 
 ## Chat UI
 
+- Chat runs as an independent product surface without the shared global management header.
+- Chat bootstraps by validating the .NET browser session and, while the compatibility contract exists, renewing a scoped chat token through same-origin auth routes before accepting questions.
 - Each answer exposes thumbs up/down feedback controls and an optional comment entry after the user chooses a feedback value.
 - Feedback submission must show loading, success, retryable error, and already-submitted states. The same user can update their feedback on an answer in the MVP.
 - Citation links open `docs.client.com` with scoped viewer access tokens.
@@ -90,6 +97,8 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 
 ## Document Viewer UI
 
+- `docs.localhost` root renders an independent authenticated document portal with search, category/group filters, and visible documents determined by the current user. Admins and document managers can see management-scope documents; viewers see only published documents allowed by their groups.
+- Exchange-code URLs still render the focused viewer flow for citations and explicit document links.
 - The viewer must handle exchange-code loading, expired-code, already-used-code, unauthorized, token-expired, document-not-found, and successful document states.
 - The real viewer access token must never be visible to JavaScript or shown in the URL.
 

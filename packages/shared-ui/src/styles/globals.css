@@ -116,3 +116,36 @@ code, pre {
     scroll-behavior: auto !important;
   }
 }
+
+.language-select {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--fg-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.language-select select {
+  min-height: 2.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  padding: 0 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

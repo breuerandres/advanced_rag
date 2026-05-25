@@ -19,7 +19,6 @@ Adds to `rag.query_audit_events`:
 from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "20260522_120200"
 down_revision: str | None = "20260522_120100"

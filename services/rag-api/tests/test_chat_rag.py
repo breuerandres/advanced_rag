@@ -562,6 +562,7 @@ class ChatDatabase:
             job_id,
             document_id,
             version_id,
+            corpus,
             EMBEDDING_DIMENSIONS,
             EMBEDDING_MODEL,
         )

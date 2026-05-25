@@ -122,6 +122,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - Local development uses Caddy with its **internal CA**. Caddy issues certificates automatically for `manage.localhost`, `chat.localhost`, and `docs.localhost`, and developers trust Caddy's root CA once per workstation (`caddy trust`).
 - `__Host-` cookies remain `Secure` in local development because Caddy serves HTTPS locally. There is no `Secure=false` exception in any environment.
 - The `.localhost` TLD resolves to `127.0.0.1` per RFC 6761; no `hosts` file edits are required.
+- Because the project Caddy instance runs inside Docker Compose, local Windows developers should use `infra/compose/Start-Local.ps1 -TrustCaddyCertificate` to copy and trust the Docker-generated Caddy root CA. Running `caddy trust` on the host only trusts a separate host-installed Caddy instance and does not trust the Compose container CA.
 
 ## JWT Signing Key Rotation
 
@@ -256,6 +257,7 @@ Rate limits and AI usage budgets are separate controls. Rate limits protect serv
 - The feedback review view is served by the .NET API through read-only reporting views created in the `rag` schema by FastAPI migrations and granted to the .NET reporting connection as read-only access. The management frontend does not call FastAPI directly.
 - The MVP feedback review filters are negative feedback, cited document, user, and date range.
 - Pricing lives in versioned `rag.model_pricing`; each query audit stores the pricing snapshot used.
+- RAG migrations seed initial active pricing rows for the default OpenAI models so a clean Compose deployment can answer chat without a manual SQL pricing step. Operators must review and update pricing rows when model prices or configured provider/model choices change.
 - FastAPI readiness fails if `rag.model_pricing` lacks active rows for the configured `OPENAI_CHAT_MODEL` or `OPENAI_EMBEDDING_MODEL`. Runtime chat requests must fail safely with `RAG_PROVIDER_MISCONFIGURED` rather than estimating provider cost as zero.
 - Technical logs are structured JSON files, rotated daily per service on mounted volumes.
 - HTTP errors use the shared envelope: `{ "error": { "code", "message", "details", "requestId" } }`.
@@ -381,6 +383,16 @@ Readiness must verify critical dependencies such as DB connectivity and required
 - Both can run in parallel because their schemas do not overlap. The only cross-schema interaction is FastAPI creating reporting views and granting SELECT to `app_reporting_reader` (next section).
 - `.NET` EF migrations own table-level read grants from `app` to `rag_owner` because `postgres-init` runs before `.NET` tables may exist. EF migrations conditionally grant `SELECT` on `app.document_permissions` and `app.user_ai_budget_limits` after creating or renaming those tables.
 - Each service's `entrypoint` script is `wait-for-postgres && run-migrations && start-server`. On migration failure, the container exits non-zero and Compose's restart policy retries with backoff. Operators see the failure in the technical JSON log under event `migration.failed` with the SQL error.
+
+### Initial Operational Data
+
+- EF migrations seed a default administrator account for controlled deployments:
+  - Email: `admin@admin.com`
+  - Initial password: `admin`
+  - Role: `Admin`
+  - AI budget: default USD 5 monthly budget.
+- This account exists to minimize first-run Compose setup steps. Operators must change or replace the password immediately after first login in any non-throwaway deployment.
+- Alembic migrations seed initial active pricing rows for `gpt-4.1-nano` and `text-embedding-3-small` based on OpenAI pricing visible on 2026-05-22. Pricing rows are operational configuration, not contractual billing truth; operators must update them when changing models or when provider pricing changes.
 
 ### Reporting Views
 

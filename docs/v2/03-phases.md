@@ -15,9 +15,9 @@ The v2 refactor is broken into six phases. Each phase has a goal, a checklist, a
 - [x] Write `HANDOFF.md`
 - [x] Scaffold `docs/v2/` and `docs/adr/`
 - [x] Append v2 entries to `context/design-decisions.md`, create `context/v2-overview.md` and `context/v2-progress.md`
-- [ ] **On next PC** — `pnpm install`, `uv sync`, `dotnet restore`
-- [ ] **On next PC** — Bring up MVP baseline with `docker compose up -d --build`
-- [ ] **On next PC** — Run existing tests, record green/red baseline before applying v2 changes
+- [x] **On next PC** — `pnpm install`, `uv sync`, `dotnet restore`
+- [x] **On next PC** — Bring up MVP baseline with `docker compose up -d --build`
+- [x] **On next PC** — Run existing tests, record green/red baseline before applying v2 changes
 
 ---
 
@@ -32,8 +32,8 @@ The v2 refactor is broken into six phases. Each phase has a goal, a checklist, a
 - [ ] Tests: setup happy path, validates LLM API key with a probe call
 
 ### 1.2 Embedding migration
-- [ ] Schema: change `rag.document_chunks.embedding` to `VECTOR(1024)`
-- [ ] Update `OPENAI_EMBEDDING_MODEL` default to `text-embedding-3-large`; pass `dimensions=1024`
+- [x] Schema: change `rag.document_chunks.embedding` to `VECTOR(1024)`
+- [~] Pass `dimensions=1024`; `OPENAI_EMBEDDING_MODEL` default remains pending OQ-002
 - [ ] Reindex script + admin-triggered job
 - [ ] Doc: `docs/operations/reindex.md`
 
@@ -181,9 +181,9 @@ no re-login → idem `docs.localhost` → dark mode toggle persists across all 3
 **Goal**: state-of-the-art retrieval precision + flexible categorisation.
 
 ### 2.1 Dimensions schema
-- [~] Migrations: `app.dimensions`, `app.dimension_values`, `app.document_dimension_values`
+- [x] Migrations: `app.dimensions`, `app.dimension_values`, `app.document_dimension_values`
 - [ ] EF Core entities + DbContext mappings
-- [ ] FastAPI cross-schema read grant for filter resolution
+- [x] FastAPI cross-schema read grant for filter resolution
 
 ### 2.2 Dimensions CRUD
 - [~] `DimensionsController.cs` (.NET) with CRUD + reorder

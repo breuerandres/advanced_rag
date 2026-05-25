@@ -11,7 +11,72 @@ export interface ViewerDocument {
   tokenExpiresAt: string
 }
 
+export interface SessionUser {
+  id: string
+  email: string
+  displayName: string
+  roles: string[]
+  groups: ViewerDocumentGroup[]
+}
+
+export interface SessionResponse {
+  user: SessionUser
+}
+
+export interface ViewerDocumentGroup {
+  id: string
+  name: string
+}
+
+export interface ViewerCatalogDocument {
+  id: string
+  title: string
+  state: string
+  documentType: string
+  audience: string
+  allowedGroups: ViewerDocumentGroup[]
+  updatedAt: string
+}
+
+export interface ViewerDocumentCatalog {
+  documents: ViewerCatalogDocument[]
+  groups: ViewerDocumentGroup[]
+}
+
 let csrfToken: string | null = null
+
+export async function getSession(): Promise<SessionResponse> {
+  return requestJson<SessionResponse>('/api/session')
+}
+
+export async function login(email: string, password: string): Promise<SessionResponse> {
+  await ensureCsrfToken()
+  return requestJson<SessionResponse>('/api/auth/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken ?? '',
+    },
+    body: JSON.stringify({ email, password }),
+  })
+}
+
+export async function listViewerDocuments(): Promise<ViewerDocumentCatalog> {
+  return requestJson<ViewerDocumentCatalog>('/api/viewer/documents')
+}
+
+export async function createViewerLink(documentId: string, purpose: 'chat' | 'management'): Promise<string> {
+  await ensureCsrfToken()
+  const response = await requestJson<{ url: string }>('/api/viewer/links', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken ?? '',
+    },
+    body: JSON.stringify({ documentId, purpose }),
+  })
+  return response.url
+}
 
 export async function exchangeViewerCode(code: string): Promise<void> {
   await ensureCsrfToken()

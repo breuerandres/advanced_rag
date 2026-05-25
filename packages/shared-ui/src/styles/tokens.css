@@ -98,10 +98,10 @@
 
   --border:        #e4e4e7;
   --border-strong: #d4d4d8;
-  --border-focus:  #2563eb;
+  --border-focus:  #008a7c;
 
   /* Brand accent — tenant overrides via runtime style on :root */
-  --brand-primary: #2563eb;
+  --brand-primary: #00685f;
   --accent:        var(--brand-primary);
   --accent-fg:     #ffffff;
 
@@ -129,9 +129,9 @@
 
   --border:        #27272a;
   --border-strong: #3f3f46;
-  --border-focus:  #3b82f6;
+  --border-focus:  #2dd4bf;
 
-  --brand-primary: #3b82f6;
+  --brand-primary: #2dd4bf;
   --accent:        var(--brand-primary);
   --accent-fg:     #ffffff;
 

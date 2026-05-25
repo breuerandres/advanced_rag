@@ -495,9 +495,6 @@ function GroupEditDialog({
             <p className="eyebrow">Acceso documental</p>
             <h2 id="group-edit-dialog-title">Editar grupo</h2>
           </div>
-          <Button className="text-button" type="button" onClick={onClose}>
-            Cerrar
-          </Button>
         </header>
 
         <form className="dialog-form" noValidate onSubmit={handleSubmit}>
@@ -576,9 +573,6 @@ function GroupDialog({
             <p className="eyebrow">Acceso documental</p>
             <h2 id="group-dialog-title">Crear grupo</h2>
           </div>
-          <Button className="text-button" type="button" onClick={onClose}>
-            Cerrar
-          </Button>
         </header>
 
         <form className="dialog-form" noValidate onSubmit={handleSubmit}>
@@ -691,9 +685,6 @@ function UserDialog({
             <p className="eyebrow">Identidad y permisos</p>
             <h2 id="user-dialog-title">Crear usuario</h2>
           </div>
-          <Button className="text-button" type="button" onClick={onClose}>
-            Cerrar
-          </Button>
         </header>
 
         <form className="dialog-form" noValidate onSubmit={handleSubmit}>
@@ -851,9 +842,6 @@ function UserManagementDialog({
             <p className="eyebrow">Identidad y permisos</p>
             <h2 id="user-management-dialog-title">Editar usuario</h2>
           </div>
-          <Button className="text-button" type="button" onClick={onClose}>
-            Cerrar
-          </Button>
         </header>
 
         <form className="dialog-form" noValidate onSubmit={handleSubmit}>
@@ -969,9 +957,6 @@ function BudgetDialog({
             <p className="eyebrow">Presupuesto de IA</p>
             <h2 id="budget-dialog-title">Editar presupuesto</h2>
           </div>
-          <Button className="text-button" type="button" onClick={onClose}>
-            Cerrar
-          </Button>
         </header>
 
         <form className="budget-form" noValidate onSubmit={handleSubmit}>

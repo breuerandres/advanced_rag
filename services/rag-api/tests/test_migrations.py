@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import asyncpg  # type: ignore[import-untyped]
 from alembic import command
@@ -79,6 +80,10 @@ def test_initial_alembic_migration_creates_owned_rag_schema() -> None:
     # embedding column to 1024 dims for multilingual support.
     assert state["document_chunks_embedding_type"] == "vector(1024)"
     assert EXPECTED_INDEXES.issubset(state["indexes"])
+    assert state["active_model_pricing"] == {
+        ("gpt-4.1-nano", "chat"),
+        ("text-embedding-3-small", "embedding"),
+    }
 
 
 def test_alembic_migration_runs_as_runtime_rag_owner_without_database_create_privilege() -> None:
@@ -106,6 +111,42 @@ def test_alembic_migration_runs_as_runtime_rag_owner_without_database_create_pri
     assert state["rag_tables"] == EXPECTED_TABLES
     assert state["vector_extension_exists"] is True
     assert state["reporting_reader_can_select_views"] is True
+    assert state["active_model_pricing"] == {
+        ("gpt-4.1-nano", "chat"),
+        ("text-embedding-3-small", "embedding"),
+    }
+
+
+def test_v2_embedding_dimension_migration_preserves_historical_chunk_references() -> None:
+    with PostgresContainer(
+        image=POSTGRES_IMAGE,
+        username=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+        dbname=POSTGRES_DB,
+    ) as postgres:
+        host = postgres.get_container_host_ip()
+        port = postgres.get_exposed_port(5432)
+        async_url = _async_sqlalchemy_url(host, port)
+        asyncpg_dsn = _asyncpg_dsn(host, port)
+
+        asyncio.run(_bootstrap_superuser_rag_schema(asyncpg_dsn))
+
+        config = Config(str(SERVICE_ROOT / "alembic.ini"))
+        config.set_main_option("sqlalchemy.url", async_url)
+
+        command.upgrade(config, "20260520_180000")
+        seeded_ids = asyncio.run(_seed_mvp_chunk_cache_and_citation(asyncpg_dsn))
+
+        command.upgrade(config, "head")
+
+        state = asyncio.run(_read_v2_embedding_upgrade_state(asyncpg_dsn, seeded_ids["chunk_id"]))
+
+    assert state["embedding_type"] == "vector(1024)"
+    assert state["chunk_still_exists"] is True
+    assert state["chunk_is_active"] is False
+    assert state["chunk_embedding_is_null"] is True
+    assert state["citation_still_references_chunk"] is True
+    assert state["semantic_cache_entries"] == 0
 
 
 def test_postgres_init_does_not_grant_table_access_before_app_migrations() -> None:
@@ -114,6 +155,9 @@ def test_postgres_init_does_not_grant_table_access_before_app_migrations() -> No
     )
 
     assert "GRANT USAGE ON SCHEMA app TO %I" in init_sql
+    assert "CREATE EXTENSION IF NOT EXISTS vector;" in init_sql
+    assert "CREATE EXTENSION IF NOT EXISTS pg_trgm;" in init_sql
+    assert "CREATE EXTENSION IF NOT EXISTS unaccent;" in init_sql
     assert "GRANT SELECT ON app.document_permissions" not in init_sql
     assert "GRANT SELECT ON app.user_ai_budget_limits" not in init_sql
 
@@ -227,6 +271,18 @@ async def _read_database_state(dsn: str) -> dict[str, Any]:
                 end
             """
         )
+        active_model_pricing = set(
+            await connection.fetch(
+                """
+                select model_id, model_kind
+                from rag.model_pricing
+                where model_id in ('gpt-4.1-nano', 'text-embedding-3-small')
+                  and effective_from <= now()
+                  and (effective_to is null or effective_to > now())
+                order by model_id, model_kind
+                """
+            )
+        )
     finally:
         await connection.close()
 
@@ -237,4 +293,164 @@ async def _read_database_state(dsn: str) -> dict[str, Any]:
         "vector_extension_exists": vector_extension_exists,
         "document_chunks_embedding_type": embedding_type,
         "reporting_reader_can_select_views": reporting_reader_can_select_views,
+        "active_model_pricing": {
+            (row["model_id"], row["model_kind"]) for row in active_model_pricing
+        },
     }
+
+
+async def _seed_mvp_chunk_cache_and_citation(dsn: str) -> dict[str, Any]:
+    connection = await asyncpg.connect(dsn)
+    job_id = uuid4()
+    document_id = uuid4()
+    document_version_id = uuid4()
+    chunk_id = uuid4()
+    audit_id = uuid4()
+    citation_id = uuid4()
+    cache_id = uuid4()
+    old_vector = _vector_literal(1536)
+    try:
+        await connection.execute(
+            """
+            insert into rag.indexing_jobs (
+                id, document_id, document_version_id, corpus, status, attempts,
+                chunker_version, embedding_dimensions
+            )
+            values ($1, $2, $3, 'published', 'Succeeded', 1, 1, 1536)
+            """,
+            job_id,
+            document_id,
+            document_version_id,
+        )
+        await connection.execute(
+            """
+            insert into rag.document_chunks (
+                id, indexing_job_id, document_id, document_version_id, corpus,
+                chunk_index, heading_path, token_count, char_count, content,
+                content_html, embedding, embedding_model, is_active
+            )
+            values (
+                $1, $2, $3, $4, 'published', 0, array['Existing'], 10, 42,
+                'existing content', '<p>existing content</p>', $5::vector,
+                'text-embedding-3-small', true
+            )
+            """,
+            chunk_id,
+            job_id,
+            document_id,
+            document_version_id,
+            old_vector,
+        )
+        await connection.execute(
+            """
+            insert into rag.query_audit_events (
+                id, user_id, request_id, question, answer, cache_hit,
+                embedding_model, embedding_dimensions, input_tokens,
+                cached_tokens, output_tokens, estimated_cost_usd, latency_ms,
+                access_scope_hash, corpus, prompt_version, chunker_version
+            )
+            values (
+                $1, $2, 'req-existing', 'question', 'answer', false,
+                'text-embedding-3-small', 1536, 1, 0, 1, 0.00000001, 25,
+                'scope', 'published', 1, 1
+            )
+            """,
+            audit_id,
+            uuid4(),
+        )
+        await connection.execute(
+            """
+            insert into rag.query_audit_citations (
+                id, query_audit_event_id, chunk_id, document_id,
+                document_version_id, heading_path
+            )
+            values ($1, $2, $3, $4, $5, array['Existing'])
+            """,
+            citation_id,
+            audit_id,
+            chunk_id,
+            document_id,
+            document_version_id,
+        )
+        await connection.execute(
+            """
+            insert into rag.semantic_cache_entries (
+                id, corpus, access_scope_hash, question_hash, question, answer,
+                question_embedding, embedding_model, embedding_dimensions,
+                similarity_threshold, cached_at, expires_at
+            )
+            values (
+                $1, 'published', 'scope', 'question-hash', 'question', 'answer',
+                $2::vector, 'text-embedding-3-small', 1536, 0.9000,
+                now(), now() + interval '1 hour'
+            )
+            """,
+            cache_id,
+            old_vector,
+        )
+        await connection.execute(
+            """
+            insert into rag.semantic_cache_sources (
+                cache_entry_id, document_id, document_version_id
+            )
+            values ($1, $2, $3)
+            """,
+            cache_id,
+            document_id,
+            document_version_id,
+        )
+    finally:
+        await connection.close()
+
+    return {"chunk_id": chunk_id}
+
+
+async def _read_v2_embedding_upgrade_state(dsn: str, chunk_id: Any) -> dict[str, Any]:
+    connection = await asyncpg.connect(dsn)
+    try:
+        embedding_type = await connection.fetchval(
+            """
+            select format_type(attribute.atttypid, attribute.atttypmod)
+            from pg_attribute attribute
+            join pg_class class on class.oid = attribute.attrelid
+            join pg_namespace namespace on namespace.oid = class.relnamespace
+            where namespace.nspname = 'rag'
+              and class.relname = 'document_chunks'
+              and attribute.attname = 'embedding'
+              and attribute.attnum > 0
+            """
+        )
+        chunk = await connection.fetchrow(
+            """
+            select is_active, embedding is null as embedding_is_null
+            from rag.document_chunks
+            where id = $1
+            """,
+            chunk_id,
+        )
+        citation_still_references_chunk = await connection.fetchval(
+            """
+            select exists(
+                select 1 from rag.query_audit_citations where chunk_id = $1
+            )
+            """,
+            chunk_id,
+        )
+        semantic_cache_entries = await connection.fetchval(
+            "select count(*) from rag.semantic_cache_entries"
+        )
+    finally:
+        await connection.close()
+
+    return {
+        "embedding_type": embedding_type,
+        "chunk_still_exists": chunk is not None,
+        "chunk_is_active": bool(chunk["is_active"]) if chunk is not None else None,
+        "chunk_embedding_is_null": bool(chunk["embedding_is_null"]) if chunk is not None else None,
+        "citation_still_references_chunk": citation_still_references_chunk,
+        "semantic_cache_entries": semantic_cache_entries,
+    }
+
+
+def _vector_literal(dimensions: int) -> str:
+    return "[" + ",".join("0.001" for _ in range(dimensions)) + "]"

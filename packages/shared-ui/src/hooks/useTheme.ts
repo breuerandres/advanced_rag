@@ -6,7 +6,34 @@ const STORAGE_KEY = 'helpcenter:theme';
 
 function getSystemTheme(): 'light' | 'dark' {
   if (typeof window === 'undefined') return 'light';
+  if (typeof window.matchMedia !== 'function') return 'light';
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function getStoredTheme(): Theme {
+  if (typeof window === 'undefined') return 'system';
+  try {
+    const storage = window.localStorage;
+    if (!storage || typeof storage.getItem !== 'function') {
+      return 'system';
+    }
+    const stored = storage.getItem(STORAGE_KEY);
+    return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+function saveStoredTheme(theme: Theme) {
+  if (typeof window === 'undefined') return;
+  try {
+    const storage = window.localStorage;
+    if (storage && typeof storage.setItem === 'function') {
+      storage.setItem(STORAGE_KEY, theme);
+    }
+  } catch {
+    // localStorage may be disabled / quota-exceeded; non-fatal.
+  }
 }
 
 function applyTheme(theme: Theme): 'light' | 'dark' {
@@ -30,20 +57,12 @@ export function useTheme(): {
   setTheme: (theme: Theme) => void;
   toggle: () => void;
 } {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'system';
-    const stored = window.localStorage.getItem(STORAGE_KEY) as Theme | null;
-    return stored ?? 'system';
-  });
+  const [theme, setThemeState] = useState<Theme>(() => getStoredTheme());
   const [resolved, setResolved] = useState<'light' | 'dark'>(() => applyTheme(theme));
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // localStorage may be disabled / quota-exceeded; non-fatal.
-    }
+    saveStoredTheme(next);
     setResolved(applyTheme(next));
   }, []);
 
@@ -54,6 +73,7 @@ export function useTheme(): {
   // Reactive to OS preference changes when in 'system' mode.
   useEffect(() => {
     if (theme !== 'system') return;
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => setResolved(applyTheme('system'));
     mq.addEventListener('change', handler);

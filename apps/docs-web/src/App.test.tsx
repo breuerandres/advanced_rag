@@ -25,6 +25,53 @@ test('shows loading exchange state', () => {
   expect(screen.getByText('Validando enlace...')).toBeInTheDocument()
 })
 
+test('renders the independent document portal grouped by category', async () => {
+  setLocation('https://docs.localhost/')
+  mockFetch([
+    jsonResponse({
+      user: {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        email: 'viewer@example.com',
+        displayName: 'Viewer User',
+        roles: ['Viewer'],
+        groups: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legales' }],
+      },
+    }),
+    jsonResponse({
+      groups: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legales' }],
+      documents: [
+        {
+          id: '55555555-5555-5555-5555-555555555555',
+          title: 'Manual legal',
+          state: 'Published',
+          documentType: 'Manual',
+          audience: 'Legal',
+          allowedGroups: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legales' }],
+          updatedAt: '2026-05-22T12:00:00Z',
+        },
+      ],
+    }),
+  ])
+
+  render(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Biblioteca de documentos' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Legales' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Manual legal' })).toBeInTheDocument()
+  expect(screen.queryByRole('navigation', { name: /Navegacion del visor/i })).not.toBeInTheDocument()
+})
+
+test('shows login when the docs host has no session', async () => {
+  setLocation('https://docs.localhost/')
+  mockFetch([
+    errorResponse('AUTH_REQUIRED'),
+  ])
+
+  render(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Iniciar sesion' })).toBeInTheDocument()
+})
+
 test.each([
   ['VIEWER_CODE_EXPIRED', 'El enlace expiro. Pedi uno nuevo desde el chat.'],
   ['VIEWER_CODE_USED', 'Este enlace ya fue usado. Pedi uno nuevo desde el chat.'],

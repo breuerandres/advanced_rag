@@ -9,6 +9,7 @@
     "page_title": "Chat",
     "composer_placeholder": "Faça uma pergunta…",
     "send": "Enviar",
+    "send_question": "Enviar pergunta",
     "stop": "Parar",
     "empty_state_title": "Comece uma conversa",
     "empty_state_subtitle": "Faça uma pergunta sobre a documentação. A IA responde com citações.",

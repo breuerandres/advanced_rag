@@ -41,3 +41,39 @@ public sealed record ViewerDocumentResponse(
             result.TokenExpiresAt);
     }
 }
+
+public sealed record ViewerDocumentCatalogResponse(
+    IReadOnlyList<ViewerDocumentCatalogItemResponse> Documents,
+    IReadOnlyList<ViewerDocumentGroupResponse> Groups)
+{
+    public static ViewerDocumentCatalogResponse FromCatalog(ViewerDocumentCatalog catalog)
+    {
+        return new ViewerDocumentCatalogResponse(
+            catalog.Documents.Select(ViewerDocumentCatalogItemResponse.FromItem).ToArray(),
+            catalog.Groups.Select(group => new ViewerDocumentGroupResponse(group.Id, group.Name)).ToArray());
+    }
+}
+
+public sealed record ViewerDocumentCatalogItemResponse(
+    Guid Id,
+    string Title,
+    string State,
+    string DocumentType,
+    string Audience,
+    IReadOnlyList<ViewerDocumentGroupResponse> AllowedGroups,
+    DateTimeOffset UpdatedAt)
+{
+    public static ViewerDocumentCatalogItemResponse FromItem(ViewerDocumentCatalogItem item)
+    {
+        return new ViewerDocumentCatalogItemResponse(
+            item.Id,
+            item.Title,
+            item.State,
+            item.DocumentType,
+            item.Audience,
+            item.AllowedGroups.Select(group => new ViewerDocumentGroupResponse(group.Id, group.Name)).ToArray(),
+            item.UpdatedAt);
+    }
+}
+
+public sealed record ViewerDocumentGroupResponse(Guid Id, string Name);

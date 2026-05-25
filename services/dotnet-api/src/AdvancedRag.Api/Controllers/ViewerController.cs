@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using AdvancedRag.Api.Models.Viewer;
+using AdvancedRag.App.Auth;
 using AdvancedRag.App.Viewer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,10 +14,17 @@ public sealed class ViewerController : ApiControllerBase
     public const string ViewerTokenCookieName = "__Host-viewer-token";
 
     private readonly IViewerAccessService _viewer;
+    private readonly IViewerDocumentCatalogService _catalog;
+    private readonly IAuthService _auth;
 
-    public ViewerController(IViewerAccessService viewer)
+    public ViewerController(
+        IViewerAccessService viewer,
+        IViewerDocumentCatalogService catalog,
+        IAuthService auth)
     {
         _viewer = viewer;
+        _catalog = catalog;
+        _auth = auth;
     }
 
     [HttpPost("links")]
@@ -93,8 +101,30 @@ public sealed class ViewerController : ApiControllerBase
         }
     }
 
+    [HttpGet("documents")]
+    [Authorize]
+    public async Task<IActionResult> ListDocumentsAsync(CancellationToken ct)
+    {
+        AuthenticatedUser? user = await ResolveCurrentUserAsync(ct);
+        if (user is null)
+        {
+            return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.");
+        }
+
+        ViewerDocumentCatalog catalog = await _catalog.ListAsync(user, ct);
+        return Ok(ViewerDocumentCatalogResponse.FromCatalog(catalog));
+    }
+
     private IReadOnlyList<string> ActorRoles()
     {
         return User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray();
+    }
+
+    private async Task<AuthenticatedUser?> ResolveCurrentUserAsync(CancellationToken ct)
+    {
+        string? userIdValue = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(userIdValue, out var userId)
+            ? await _auth.GetActiveUserAsync(userId, ct)
+            : null;
     }
 }

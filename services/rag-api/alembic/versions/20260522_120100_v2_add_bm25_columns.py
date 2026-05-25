@@ -31,7 +31,7 @@ def upgrade() -> None:
         """
         CREATE OR REPLACE FUNCTION rag.f_immutable_unaccent(text)
             RETURNS text AS $$
-                SELECT public.unaccent('public.unaccent', $1);
+                SELECT public.unaccent('public.unaccent'::regdictionary, $1);
             $$ LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT;
         """
     )

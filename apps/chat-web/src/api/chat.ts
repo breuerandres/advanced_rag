@@ -30,7 +30,35 @@ export interface ChatUsage {
   costUsd: number
 }
 
+export interface SessionUser {
+  id: string
+  email: string
+  displayName: string
+  roles: string[]
+  groups: Array<{ id: string; name: string }>
+}
+
+export interface SessionResponse {
+  user: SessionUser
+}
+
 let csrfToken: string | null = null
+
+export async function getSession(): Promise<SessionResponse> {
+  return requestJson<SessionResponse>('/api/session')
+}
+
+export async function login(email: string, password: string): Promise<SessionResponse> {
+  await ensureCsrfToken()
+  return requestJson<SessionResponse>('/api/auth/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken ?? '',
+    },
+    body: JSON.stringify({ email, password }),
+  })
+}
 
 export async function submitQuestion(question: string): Promise<ChatResult> {
   const response = await fetch('/api/chat', {
@@ -51,18 +79,14 @@ export async function submitQuestion(question: string): Promise<ChatResult> {
 }
 
 export async function renewChatToken(): Promise<void> {
-  const response = await fetch('/api/auth/chat-token', {
+  await ensureCsrfToken()
+  await requestJson('/api/auth/chat-token', {
     method: 'POST',
-    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      'X-Request-ID': createRequestId(),
+      'X-CSRF-Token': csrfToken ?? '',
     },
   })
-  const body = safeJson(await response.text())
-  if (!response.ok) {
-    throw parseApiError(response, body)
-  }
 }
 
 export async function submitFeedback(
@@ -182,6 +206,25 @@ async function ensureCsrfToken(): Promise<void> {
   }
 
   csrfToken = response.headers.get('X-CSRF-Token')
+}
+
+async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers)
+  if (!headers.has('X-Request-ID')) {
+    headers.set('X-Request-ID', createRequestId())
+  }
+
+  const response = await fetch(path, {
+    ...init,
+    credentials: 'include',
+    headers,
+  })
+  const body = safeJson(await response.text())
+  if (!response.ok) {
+    throw parseApiError(response, body)
+  }
+
+  return body as T
 }
 
 function safeJson(text: string): unknown {

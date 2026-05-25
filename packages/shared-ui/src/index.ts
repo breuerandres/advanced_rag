@@ -16,5 +16,7 @@ export { AppShell } from './components/AppShell';
 export { Header } from './components/Header';
 export { Sidebar } from './components/Sidebar';
 export { DarkModeToggle } from './components/DarkModeToggle';
+export { LanguageSelect } from './components/LanguageSelect';
+export type { LanguageSelectOption, LanguageSelectProps } from './components/LanguageSelect';
 export { CommandPalette } from './components/CommandPalette';
 export type { CommandGroup, CommandItem } from './components/CommandPalette';

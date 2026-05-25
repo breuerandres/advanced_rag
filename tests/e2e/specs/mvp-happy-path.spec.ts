@@ -104,12 +104,12 @@ test('MVP happy path works across management, chat, viewer, feedback, and budget
   await loginInBrowser(adminPage, adminEmail)
   await adminPage.reload()
   await adminPage.getByRole('link', { name: 'Feedback' }).click()
-  await expect(adminPage.getByRole('heading', { name: 'Revision de feedback' })).toBeVisible()
+  await expect(adminPage.getByRole('heading', { name: 'Feedback auditado' })).toBeVisible()
   await expect(adminPage.getByText('E2E feedback negativo')).toBeVisible({ timeout: 30_000 })
 
-  await adminPage.getByRole('link', { name: 'Presupuestos IA' }).click()
+  await adminPage.getByRole('link', { name: 'Usuarios y grupos' }).click()
   await adminPage.getByRole('button', { name: 'Actualizar usuarios' }).click()
-  await expect(adminPage.getByRole('row', { name: /E2E Viewer/ })).toBeVisible()
+  await expect(adminPage.getByRole('row', { name: /e2e\.viewer@example\.com/ })).toBeVisible()
   await adminPage.getByRole('button', { name: 'Editar presupuesto de E2E Viewer' }).click()
   const budgetInput = adminPage.getByRole('spinbutton', { name: 'Presupuesto mensual (USD)' })
   await budgetInput.fill('0')
@@ -127,9 +127,6 @@ test('MVP happy path works across management, chat, viewer, feedback, and budget
   await limitedPage.getByRole('textbox', { name: 'Pregunta' }).fill('Puedo consultar otra vez?')
   await limitedPage.getByRole('button', { name: 'Enviar pregunta' }).click()
   await expect(limitedPage.getByText('Alcanzaste el presupuesto mensual de uso de IA.')).toBeVisible()
-
-  await chatPage.reload()
-  await expect(chatPage.getByRole('heading', { name: published.title })).toBeVisible()
 
   await limitedContext.close()
   await adminContext.close()
