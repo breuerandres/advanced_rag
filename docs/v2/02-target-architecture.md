@@ -141,11 +141,14 @@ Browser (manage|chat|docs)
 Subsequent requests from manage / chat / docs to .NET → cookie validated
 Subsequent requests from chat to FastAPI:
   ↓
-Caddy forwards cookie → FastAPI extracts `sub`, `role`, `groups` from session-bound JWT
-                          (FastAPI's JWT validator reads the session cookie via Caddy)
-  OR
-.NET exchanges the cookie for a short-lived JWT in a header, set by Caddy reverse proxy
-    via `header_up X-Bearer-Token {auth_bearer_from_session}`.
+Caddy forwards cookie → FastAPI hashes the cookie value
+  ↓
+FastAPI cache miss → internal GET /internal/session/validate to .NET
+                    with Cookie + X-Internal-Service-Token
+  ↓
+.NET validates session and active user, then returns safe chat claims
+  ↓
+FastAPI caches claims for 60s and uses them for role, groups, access_scope_hash, corpus
 
 Role hierarchy: viewer < editor < admin
 - viewer: chat + docs
@@ -153,11 +156,12 @@ Role hierarchy: viewer < editor < admin
 - admin: + users, dimensions, api-keys, config
 ```
 
-Implementation detail (decided in ADR-0006): FastAPI relies on `X-User-Claims` injected by
-Caddy from a JSON map mounted as `caddy_session_to_claims.json`. Caddy reads the session
-cookie, looks up the user in a memcached/redis layer populated by .NET, and forwards the
-serialised JWT-equivalent claims to FastAPI. This avoids per-request .NET calls while
-keeping the cookie the only browser auth artefact.
+Implementation detail (OQ-001 resolved on 2026-05-25): FastAPI validates `__Host-session`
+through an internal-only .NET validation endpoint and an in-process 60-second claims cache.
+The endpoint is reachable only over the Docker network, requires `X-Internal-Service-Token`,
+and returns only safe authorization inputs. Caddy/Redis claim injection was rejected because
+the current Compose stack has no Redis/memcached service or Caddy auth plugin, and an extra
+JWT cookie was rejected because it would recreate the MVP chat-token pattern.
 
 ## 6. Design system
 

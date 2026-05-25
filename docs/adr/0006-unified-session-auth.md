@@ -40,14 +40,23 @@ Role hierarchy:
 | `editor` | partial (own docs) | full | full | + draft/edit own docs, send to review |
 | `admin` | full | full | full | + publish, users, dimensions, config, api-keys |
 
-FastAPI authenticates by reading the session cookie via Caddy. The chosen FastAPI
-validation strategy (Open Question OQ-001):
+FastAPI authenticates by validating the session cookie through an internal .NET contract.
+OQ-001 was resolved on 2026-05-25:
 
-- **Default plan**: Caddy injects `X-User-Claims` header into FastAPI requests after
-  resolving the session cookie via a Redis cache that .NET keeps populated on login /
-  refresh.
-- **Fallback**: short-lived JWT signed by .NET on each request, set as a separate cookie
-  validated locally by FastAPI (closer to MVP pattern, simpler to ship).
+- FastAPI calls a Docker-network-only endpoint such as `GET /internal/session/validate`.
+- FastAPI forwards the session cookie and includes `X-Internal-Service-Token`.
+- .NET validates the cookie with its normal session middleware, reloads the active user,
+  and returns safe chat claims: `user_id`, `role`, `groups`, `access_scope_hash`, and
+  `corpus`.
+- FastAPI caches the returned claims in process for 60 seconds, keyed by a SHA-256 hash of
+  the session cookie value.
+- Cache misses or invalid sessions fail closed with `AUTH_REQUIRED`/401.
+
+The earlier Redis/Caddy claim-injection idea is rejected for this product stage because
+the current Compose stack does not include Redis/memcached or Caddy auth plumbing. Adding
+that infrastructure only to avoid a cold-cache internal .NET call is not justified for the
+single-instance Compose deployment. An extra JWT cookie is also rejected because it
+reintroduces the chat-token pattern under a different name.
 
 Endpoints deleted:
 - `POST /api/auth/chat-token`
@@ -107,10 +116,13 @@ expand the attack surface (every subdomain shares them, including any compromise
   session cookie set on `manage.client.com` is **not** automatically sent to
   `chat.client.com`. Solution: same session is re-established on each SPA's domain on
   first request via a "session bootstrap" call, or every SPA is served behind a single
-  hostname (recommended). See Open Question OQ-001.
+  hostname (recommended).
+- Cold-cache chat requests now depend on .NET availability. The mitigation is a short
+  FastAPI in-process cache and fail-closed behavior (`AUTH_REQUIRED`) when validation
+  cannot be completed.
 
 ## References
 
 - OWASP Session Management Cheat Sheet
 - `services/dotnet-api/src/AdvancedRag.Api/Controllers/AuthController.cs` (to be edited)
-- Open Question OQ-001 (FastAPI cookie validation strategy)
+- `docs/v2/open-questions.md` OQ-001 resolved entry

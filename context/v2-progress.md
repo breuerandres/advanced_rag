@@ -69,9 +69,12 @@ Mirror of `docs/v2/03-phases.md` checklists, maintained as a journal. The MVP
   - `.NET` still exposes `/api/viewer/exchange`.
   - FastAPI chat still reads `__Host-chat-token`.
   - Chat/docs frontend clients still call the MVP token/exchange routes.
+- 2026-05-25 - `OQ-001` was resolved: FastAPI will validate `__Host-session` by calling
+  an internal-only .NET session validation endpoint on cache miss, guarded by
+  `X-Internal-Service-Token`, and cache safe claims in process for 60 seconds. This is a
+  design decision only; implementation is still pending.
 - Pending:
-  - Resolve `OQ-001`.
-  - Implement the selected FastAPI session validation strategy.
+  - Implement the selected `OQ-001` FastAPI session validation strategy.
   - Remove or replace MVP chat-token and viewer exchange flows in backend, frontend, and tests.
   - Finish pending shared-ui primitives listed in `packages/shared-ui/README.md`.
 
@@ -136,11 +139,12 @@ Pending.
 
 ## Open Questions
 
-See `docs/v2/open-questions.md`. At this reconciliation, `OQ-001` through `OQ-010` remain
+See `docs/v2/open-questions.md`. `OQ-001` is resolved; `OQ-002` through `OQ-010` remain
 open.
 
 ## Next Recommended Work
 
-Resolve `OQ-001` and implement Phase 1.5 unified auth before adding more v2 UI polish.
-The code currently has shared UI and RAG provider/retrieval work, but browser auth still
-uses the MVP multi-token design.
+Implement the `OQ-001` internal session validation path and then remove or replace the MVP
+chat-token and viewer exchange-code flows before adding more v2 UI polish. The code
+currently has shared UI and RAG provider/retrieval work, but browser auth still uses the
+MVP multi-token design.

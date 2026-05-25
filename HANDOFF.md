@@ -67,14 +67,16 @@ The statuses below are based on files and code paths present in the repo.
 
 ## Recommended Next Work
 
-The next architecture-critical step is Phase 1.5 unified auth, but it is blocked by
-`docs/v2/open-questions.md` `OQ-001`.
+The next architecture-critical step is Phase 1.5 unified auth. `OQ-001` has been resolved
+as the internal .NET session validation strategy, but the code still uses the MVP token
+flows.
 
 Do this next:
 
-1. Resolve `OQ-001` in `docs/v2/open-questions.md`.
-2. Implement the selected FastAPI session-validation path.
-3. Remove or replace the MVP `chat-token` and viewer exchange-code flows in the same
+1. Implement the `OQ-001` FastAPI session-validation path: FastAPI calls an internal-only
+   `.NET` session validation endpoint with the session cookie and `X-Internal-Service-Token`
+   on cache miss, then caches safe claims for 60 seconds.
+2. Remove or replace the MVP `chat-token` and viewer exchange-code flows in the same
    change set, including tests and frontend API clients.
 
 Do not add more UI polish before this. The current code has shared UI and provider wiring,
@@ -82,8 +84,8 @@ but browser auth is still the MVP multi-token model.
 
 ## Open Questions
 
-See `docs/v2/open-questions.md`. As of this reconciliation, no open question was moved to
-`Resolved`.
+See `docs/v2/open-questions.md`. `OQ-001` is resolved; `OQ-002` through `OQ-010` remain
+open.
 
 ## Precision Rule
 

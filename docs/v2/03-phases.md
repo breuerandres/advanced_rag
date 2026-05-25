@@ -104,7 +104,7 @@ Current code still uses MVP token flows.
 
 ### 1.5.3 FastAPI cookie validation
 
-- [ ] Resolve `OQ-001`
+- [x] Resolve `OQ-001` (2026-05-25: internal .NET session validation + 60s FastAPI cache)
 - [ ] Implement selected FastAPI session validation
 - [ ] Tests for invalid cookie and valid session resolution
 

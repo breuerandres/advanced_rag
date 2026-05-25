@@ -30,6 +30,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Viewer Access Tokens](#2026-05-11---viewer-access-tokens)
 - [Viewer Access Token TTL](#2026-05-11---viewer-access-token-ttl)
 - [Viewer Access Token Reuse](#2026-05-11---viewer-access-token-reuse)
+- [OQ-001 FastAPI Session Validation Strategy](#2026-05-25---oq-001-fastapi-session-validation-strategy)
 - [Task 7 Auth Foundation](#2026-05-13---task-7-auth-foundation)
 - [Task 8 User Administration And Budget Configuration](#2026-05-14---task-8-user-administration-and-budget-configuration)
 
@@ -1589,7 +1590,23 @@ in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
 
 **Consequences:** Chat now requires a database user. The "anonymous viewer link" use case moves to an opt-in HMAC-signed share-link endpoint in Phase 5+.
 
-**Evidence:** See ADR-0006 (`docs/adr/0006-unified-session-auth.md`). Open Question OQ-001 covers the chosen FastAPI cookie validation strategy.
+**Evidence:** See ADR-0006 (`docs/adr/0006-unified-session-auth.md`). OQ-001 resolves the FastAPI cookie validation strategy.
+
+## 2026-05-25 - OQ-001 FastAPI Session Validation Strategy
+
+**Context:** ADR-0006 requires one browser auth cookie for manage, chat, and docs, but FastAPI still needs current user claims for chat authorization, retrieval filtering, semantic cache partitioning, budget audit, and feedback ownership. The current Compose/Caddy stack has no Redis, memcached, Caddy auth plugin, or claim-injection layer.
+
+**Options Considered:** Caddy injects `X-User-Claims` from Redis/memcached, FastAPI calls a .NET session validation endpoint and caches the result in process, or .NET sets an extra short-lived JWT cookie that FastAPI validates locally.
+
+**Decision:** Use an internal-only .NET validation endpoint plus FastAPI in-process caching. FastAPI forwards the session cookie to `.NET` over the Docker network on cache miss, includes `X-Internal-Service-Token`, and caches safe claims for 60 seconds keyed by a SHA-256 hash of the session cookie value.
+
+**Rationale:** This matches the current single-instance Compose deployment without adding Redis or custom Caddy auth plumbing. It preserves the v2 target of one browser auth cookie while keeping FastAPI authorization inputs current enough for chat.
+
+**Tradeoffs:** Cold-cache chat requests depend on .NET availability and add one internal HTTP call. Warm requests avoid that dependency for 60 seconds. Revocation-sensitive changes can be stale for up to the cache TTL, which is materially shorter than the MVP chat-token lifetime.
+
+**Consequences:** The implementation must add a Docker-network-only `.NET` validation endpoint guarded by the internal service token, a FastAPI session validator/cache, and tests for invalid cookie, valid session resolution, cache hit behavior, and fail-closed .NET validation failures. It must not log raw session cookies. Browser chat/feedback mutations still require CSRF protection as part of unified session auth.
+
+**Evidence:** `docs/v2/open-questions.md` OQ-001 resolved on 2026-05-25; current `infra/compose/compose.yaml` and `infra/compose/Caddyfile` contain no Redis/memcached service or Caddy auth integration.
 
 ## 2026-05-22 - `packages/shared-ui` Design System
 

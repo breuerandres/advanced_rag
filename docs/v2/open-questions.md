@@ -13,28 +13,6 @@ the chosen option and a date stamp.
 
 ---
 
-## OQ-001 — FastAPI cookie validation strategy
-- **Phase**: 1.5
-- **Blocks**: FastAPI session validation
-- **Question**: How should FastAPI validate the `__Host-session` cookie set by .NET, given
-  that FastAPI cannot per-request introspect .NET on every chat request without adding
-  latency?
-- **Options**:
-  - **A** (default, recommended) — Caddy adds an `X-User-Claims` header by looking up the
-    session cookie in a Redis cache populated by .NET on login/refresh. FastAPI trusts the
-    header (Caddy is trusted infra). Cache TTL = same as session refresh interval (e.g. 5
-    min). Failure mode: cache miss → 401, browser retries → .NET refreshes claims.
-  - **B** — FastAPI calls `.NET /api/v1/session/validate` once and caches in-process (e.g.
-    structlog-bound cache keyed by cookie hash) for 60 s. Simpler but adds an in-flight
-    .NET dependency to every cold chat.
-  - **C** — .NET signs a short-lived JWT mirroring the session and sets it as an extra
-    cookie that FastAPI validates locally. Closest to MVP but reintroduces the chat-token
-    pattern under a different name.
-- **Recommended**: A. Decide before Phase 1.5.3.
-- **Owner**: User
-
----
-
 ## OQ-002 — Embedding model default
 - **Phase**: 1
 - **Blocks**: Final shipped default and setup/config UX. It no longer blocks the 1024-d
@@ -157,4 +135,32 @@ the chosen option and a date stamp.
 
 ## Resolved
 
-(Items move here once decided. Empty at handoff.)
+## OQ-001 — FastAPI cookie validation strategy
+- **Resolved**: 2026-05-25
+- **Phase**: 1.5
+- **Blocks**: FastAPI session validation
+- **Question**: How should FastAPI validate the `__Host-session` cookie set by .NET, given
+  that FastAPI cannot per-request introspect .NET on every chat request without adding
+  latency?
+- **Decision**: Option B, implemented as an internal-only validation contract. FastAPI
+  calls a Docker-network-only `.NET` endpoint such as `GET /internal/session/validate`,
+  forwards the session cookie, and includes `X-Internal-Service-Token`. The endpoint
+  returns the current safe chat claims (`user_id`, `role`, `groups`, `access_scope_hash`,
+  and `corpus`) for an active user. FastAPI caches the result in process for 60 seconds,
+  keyed by a SHA-256 hash of the session cookie value. Cache misses or failed validation
+  return `AUTH_REQUIRED`/401. The implementation remains pending.
+- **Rejected options**:
+  - **A**: Caddy/Redis claim injection would require a Redis or memcached service plus
+    custom Caddy/auth plumbing that does not exist in the current Compose/Caddy stack.
+    Adding that moving part is not justified for the current single-instance Compose
+    product.
+  - **C**: An extra JWT cookie would keep the browser-visible auth model close to the MVP
+    chat-token pattern and violate the v2 target of one browser auth cookie.
+- **Implementation notes**:
+  - The validation endpoint must not be exposed by Caddy public routes.
+  - The internal service token is the same Compose secret already used for internal
+    `.NET -> FastAPI` calls unless implementation discovers a concrete reason to split it.
+  - FastAPI must not log the raw session cookie. Logging the cache key is unnecessary; if
+    needed for diagnostics, log only a short non-reversible hash prefix.
+  - Browser mutating chat/feedback requests remain CSRF-protected as part of the unified
+    session implementation.
