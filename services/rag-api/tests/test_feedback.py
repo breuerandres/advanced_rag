@@ -106,7 +106,7 @@ def _client(database: ChatDatabase) -> TestClient:
         ),
     )
     client = TestClient(app)
-    client.cookies.set("__Host-chat-token", "valid")
+    client.cookies.set("__Host-session", "valid")
     return client
 
 

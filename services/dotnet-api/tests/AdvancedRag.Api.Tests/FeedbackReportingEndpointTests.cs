@@ -80,7 +80,7 @@ public sealed class FeedbackReportingEndpointTests
             host,
             csrf);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return new LoginSession(CookiePair(GetSetCookie(response, "__Host-advanced-rag-session")));
+        return new LoginSession(CookiePair(GetSetCookie(response, "__Host-session")));
     }
 
     private static async Task<CsrfState> GetCsrfAsync(HttpClient client, string host)

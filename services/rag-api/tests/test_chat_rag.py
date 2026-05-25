@@ -73,7 +73,7 @@ def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() 
             ),
         )
         client = TestClient(app)
-        client.cookies.set("__Host-chat-token", "valid")
+        client.cookies.set("__Host-session", "valid")
 
         with client.stream(
             "POST",
@@ -139,7 +139,7 @@ def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated
             ),
         )
         client = TestClient(app)
-        client.cookies.set("__Host-chat-token", "valid")
+        client.cookies.set("__Host-session", "valid")
 
         first = client.post(
             "/api/chat",
@@ -217,7 +217,7 @@ def test_chat_filters_by_dimension_partitions_cache_separately() -> None:
             ),
         )
         client = TestClient(app)
-        client.cookies.set("__Host-chat-token", "valid")
+        client.cookies.set("__Host-session", "valid")
 
         unfiltered = client.post(
             "/api/chat",
@@ -273,7 +273,7 @@ def test_budget_exhaustion_blocks_before_paid_provider_calls() -> None:
             ),
         )
         client = TestClient(app)
-        client.cookies.set("__Host-chat-token", "valid")
+        client.cookies.set("__Host-session", "valid")
 
         response = client.post(
             "/api/chat",

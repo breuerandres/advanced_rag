@@ -64,18 +64,30 @@ Mirror of `docs/v2/03-phases.md` checklists, maintained as a journal. The MVP
   - `AppShell`, `DarkModeToggle`, and `LanguageSelect` used by manage/chat/docs.
   - `Sidebar` used by management.
   - Local workflow headers in chat/docs instead of a forced shared global header.
-- Unified auth is not implemented:
-  - `.NET` still exposes `POST /api/auth/chat-token`.
-  - `.NET` still exposes `/api/viewer/exchange`.
-  - FastAPI chat still reads `__Host-chat-token`.
-  - Chat/docs frontend clients still call the MVP token/exchange routes.
 - 2026-05-25 - `OQ-001` was resolved: FastAPI will validate `__Host-session` by calling
   an internal-only .NET session validation endpoint on cache miss, guarded by
-  `X-Internal-Service-Token`, and cache safe claims in process for 60 seconds. This is a
-  design decision only; implementation is still pending.
+  `X-Internal-Service-Token`, and cache safe claims in process for 60 seconds.
+- 2026-05-25 - OQ-001 implementation started:
+  - `.NET` now sets the browser session cookie as `__Host-session`.
+  - `.NET` exposes `GET /internal/session/validate`, guarded by
+    `X-Internal-Service-Token`, returning safe RAG claims for the active session.
+  - FastAPI has `DotnetSessionValidator` with a 60-second in-process cache keyed by
+    SHA-256 of the raw session cookie value.
+  - FastAPI chat and feedback read the configured `SESSION_COOKIE_NAME`
+    (`__Host-session` in Compose) and call `app.state.session_validator`.
+  - `chat-web` no longer calls `POST /api/auth/chat-token`; chat and feedback requests
+    send the in-memory CSRF header and rely on the unified session cookie.
+  - Compose wires `DOTNET_SESSION_VALIDATE_URL` and `SESSION_COOKIE_NAME` for `rag-api`.
+- Unified auth is still partial:
+  - `.NET` still exposes `POST /api/auth/chat-token`.
+  - `.NET` still exposes `/api/viewer/exchange`.
+  - `apps/docs-web/src/api/viewer.ts` still calls `/api/viewer/exchange`.
+  - FastAPI currently trusts the CSRF header sent by `chat-web`; local CSRF validation for
+    FastAPI chat/feedback mutations is still pending.
 - Pending:
-  - Implement the selected `OQ-001` FastAPI session validation strategy.
-  - Remove or replace MVP chat-token and viewer exchange flows in backend, frontend, and tests.
+  - Remove or replace remaining MVP chat-token and viewer exchange flows in backend,
+    frontend, and tests.
+  - Add FastAPI CSRF validation for browser chat/feedback mutations.
   - Finish pending shared-ui primitives listed in `packages/shared-ui/README.md`.
 
 ## Phase 1.7 - UX Refactor Per SPA
@@ -144,7 +156,7 @@ open.
 
 ## Next Recommended Work
 
-Implement the `OQ-001` internal session validation path and then remove or replace the MVP
-chat-token and viewer exchange-code flows before adding more v2 UI polish. The code
-currently has shared UI and RAG provider/retrieval work, but browser auth still uses the
-MVP multi-token design.
+Finish Phase 1.5 by removing or replacing the remaining MVP chat-token and viewer
+exchange-code flows before adding more v2 UI polish. The chat runtime now uses the
+OQ-001 internal session validation path, but docs viewing and legacy backend endpoints
+still keep the multi-token model alive.

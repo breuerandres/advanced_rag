@@ -60,7 +60,7 @@ public sealed class ConfigurationEndpointTests
 
         using HttpResponseMessage response = await client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return CookiePair(GetSetCookie(response, "__Host-advanced-rag-session"));
+        return CookiePair(GetSetCookie(response, "__Host-session"));
     }
 
     private static async Task<CsrfState> GetCsrfAsync(HttpClient client)

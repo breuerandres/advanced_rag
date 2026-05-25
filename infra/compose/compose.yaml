@@ -99,6 +99,8 @@ services:
       RAG_SEMANTIC_CACHE_TTL_HOURS: ${RAG_SEMANTIC_CACHE_TTL_HOURS}
       RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD: ${RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD}
       DOTNET_JWKS_URL: http://dotnet-api:8080/.well-known/jwks.json
+      DOTNET_SESSION_VALIDATE_URL: http://dotnet-api:8080/internal/session/validate
+      SESSION_COOKIE_NAME: __Host-session
       Csrf__SigningKeyFile: /run/secrets/csrf_signing_key
       INTERNAL_SERVICE_TOKEN_FILE: /run/secrets/internal_service_token
     depends_on:

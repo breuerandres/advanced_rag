@@ -36,7 +36,7 @@
 - The FastAPI service targets Python 3.12. `services/rag-api/.python-version` must stay on the Python 3.12 line and `pyproject.toml` must constrain `requires-python` to `>=3.12,<3.13` unless the stack decision is updated.
 - FastAPI must not parse PDF/DOCX imports in the MVP.
 - Use Alembic migrations for the `rag` schema.
-- Store chunk text/metadata and its vector embedding together in `rag.document_chunks` for the MVP. The default embedding column uses pgvector `vector(1536)` and the OpenAI embeddings request must pass the configured `OPENAI_EMBEDDING_DIMENSIONS`.
+- Store chunk text/metadata and its vector embedding together in `rag.document_chunks`. The current v2 migration resizes the default embedding column to pgvector `vector(1024)` and the embeddings request must pass the configured `OPENAI_EMBEDDING_DIMENSIONS`.
 - Store citations as `rag.query_audit_citations` child rows of `rag.query_audit_events`.
 - Store one simple thumbs feedback value and optional sanitized comment on `rag.query_audit_events` for the MVP. Allow the same user to update feedback on the same answer by overwriting the single feedback value/comment and updating `feedback_updated_at`; split feedback into a child table only if multi-feedback/history requirements are introduced.
 - Enforce per-user AI usage budgets before new paid chat work whenever possible. Return stable error code `AI_BUDGET_EXCEEDED` when a user has reached the configured budget. Do not treat budget exhaustion as a general authorization failure for document viewing or management workflows.
@@ -107,7 +107,7 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | PDF extraction | `PdfPig` `0.1.14` | Assisted import only. |
 | DOCX extraction | `DocumentFormat.OpenXml` `3.5.1` | Assisted import only. |
 | HTML sanitization | `Ganss.Xss` via `HtmlSanitizer` `9.0.892` | Sanitize stored normalized document HTML and any review comment input that may render HTML. |
-| Authentication | Cookie authentication plus local users in `app.users`; hand-rolled PBKDF2-SHA256 password hashing using `Rfc2898DeriveBytes` | Decided during Task 7 implementation. Session cookies are host-only `__Host-advanced-rag-session` cookies. |
+| Authentication | Cookie authentication plus local users in `app.users`; hand-rolled PBKDF2-SHA256 password hashing using `Rfc2898DeriveBytes` | Session cookies are host-only `__Host-session` cookies. The legacy chat-token endpoint still exists until Phase 1.5 cleanup. |
 | CSRF | Signed double-submit token using `__Host-CSRF` cookie plus `X-CSRF-Token` header | HMAC secret is shared with FastAPI through `csrf_signing_key`; see `architecture.md`. |
 | JWT signing/validation | `System.IdentityModel.Tokens.Jwt` `8.14.0` + `Microsoft.IdentityModel.Tokens` | RS256, `kid` header, two active keys for rotation. |
 | Testing | `xUnit` + `FluentAssertions` + `Microsoft.AspNetCore.Mvc.Testing` (`WebApplicationFactory`) + `Testcontainers.PostgreSql` | Integration tests hit a real Postgres container; no DB mocking. |
@@ -122,11 +122,11 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | Migrations | `Alembic` | Generates SQL for `rag` schema only. Owns the read-only reporting views consumed by .NET. |
 | Validation | `pydantic` v2 | All request/response models, all config via `pydantic-settings`. |
 | Logging | `structlog` configured with `JSONRenderer` + stdlib `logging` bridge | Daily rolling JSON via a custom file handler; same log envelope as .NET. |
-| HTTP client | `httpx` (async) | For OpenAI client transport overrides if needed; otherwise use the OpenAI SDK directly. |
+| HTTP client | `httpx` (async) | Used for FastAPI -> .NET internal session validation and available for provider transports that require direct HTTP calls. |
 | OpenAI | `openai` (official Python SDK, async client) | Wrap behind a thin internal adapter that the rest of the service depends on. |
-| Vector DB | `pgvector` Postgres extension + `pgvector.asyncpg` integration registered through SQLAlchemy types | Column type `Vector(1536)`. |
+| Vector DB | `pgvector` Postgres extension + `pgvector.asyncpg` integration registered through SQLAlchemy types | Current v2 column type is `Vector(1024)` after migration `20260522_120000_v2_change_embedding_dimensions.py`. |
 | Tokenization | `tiktoken` | Chunk sizing and token-cost calculations. |
-| JWT validation crypto | `pyjwt[crypto]` `2.12.1` | Required for RS256 chat-token validation; brings `cryptography` through the PyJWT crypto extra. |
+| JWT validation crypto | `pyjwt[crypto]` `2.12.1` | Required for the legacy RS256 chat-token validator while `POST /api/auth/chat-token` remains in the codebase. |
 | Tracing/correlation | `asgi-correlation-id` | Reads/propagates `X-Request-ID`. |
 | Testing | `pytest` + `pytest-asyncio` + `httpx.AsyncClient` + `testcontainers[postgres]` | Integration tests hit a real Postgres container with `pgvector`. |
 

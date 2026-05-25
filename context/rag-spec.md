@@ -7,7 +7,7 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 ## Models And Provider
 
 - Chat: OpenAI `gpt-4.1-nano` via `/v1/chat/completions`. Configured by `OPENAI_CHAT_MODEL`.
-- Embeddings: OpenAI `text-embedding-3-small` with its native `dimensions=1536`. Configured by `OPENAI_EMBEDDING_MODEL` and `OPENAI_EMBEDDING_DIMENSIONS`.
+- Embeddings: `Settings` currently default to OpenAI `text-embedding-3-large` with `dimensions=1024`; `infra/compose/.env.example` still sets `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`. The shipped default remains blocked by `OQ-002`.
 - SDK: official `openai` Python SDK, async client, with `max_retries=2` and `timeout=30` seconds at the SDK level. Service-level retry/circuit-breaker is added with `tenacity` only for transient errors (`APIConnectionError`, `RateLimitError`, `APIStatusError` with 5xx).
 - Every paid call (`embeddings.create`, `chat.completions.create`) records the actual model id, usage tokens, latency, and pricing snapshot in `rag.query_audit_events`.
 
@@ -27,7 +27,7 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
   - `char_count`
   - `content` (the chunk text, plain text with light HTML removed)
   - `content_html` (the original HTML fragment, preserved for citation rendering)
-  - `embedding` (`Vector(1536)`)
+  - `embedding` (`Vector(1024)`)
   - `embedding_model` (string snapshot)
   - `created_at`
 - Chunking is deterministic given the same input HTML, the same configured chunker version, and the same target/overlap parameters. The chunker version (`CHUNKER_VERSION` constant, starts at `1`) is recorded on every indexing job for traceability.
@@ -50,22 +50,22 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 
 - Default `k = 8` chunks per query.
 - Similarity metric: cosine distance (`<=>` in pgvector). HNSW index is built on `embedding` with `vector_cosine_ops`.
-- Filtering: applied **at SQL level** before similarity ranking. The retrieval query joins `rag.document_chunks` against allowed document records resolved from `.NET`-owned `app.document_permissions` through read-only database grants. FastAPI uses the signed chat-token claims (`role`, `groups`, `attributes`, `corpus`) as the user's scope inputs, but it does not receive or trust a precomputed document-id allow list in the token.
+- Filtering: applied **at SQL level** before similarity ranking. The retrieval query joins `rag.document_chunks` against allowed document records resolved from `.NET`-owned `app.document_permissions` through read-only database grants. FastAPI uses the session validation claims (`role`, `groups`, `corpus`, and `access_scope_hash`) as the user's scope inputs, but it does not receive or trust a precomputed document-id allow list.
 - Only chunks belonging to the latest successfully indexed version of each allowed document are eligible (a `rag.document_chunks.is_active` boolean defaulted to `true` and flipped to `false` when a newer version supersedes the prior version's chunks).
 - No reranking step in the MVP. A future cross-encoder rerank stage is the natural next optimization once retrieval quality metrics exist.
 - The retrieved chunks plus their `heading_path` and a short context window (chunk index Â±0; no neighbor expansion in MVP) are fed to the chat completion.
 
 ## Access Claim (Effective Scope Delivery)
 
-- `.NET` issues the chat access token (JWT, RS256) with the following claims relevant to RAG:
-  - `sub` (user id)
+- FastAPI receives the following RAG-relevant claims from the OQ-001 `.NET` internal session validation endpoint:
+  - `userId` (user id)
   - `role` (one of `Admin`, `DocumentManager`, `Viewer`)
   - `groups` (array of group ids, sorted alphabetically)
-  - `attributes` (object of `string â†’ string`, keys sorted alphabetically)
   - `access_scope_hash` (hex SHA-256, see below)
   - `corpus` (one of `published`, `preview`)
-  - `exp`, `iat`, `iss`, `aud`, `jti`, `kid` (header)
-- FastAPI validates and trusts the signed claims as the user's scope inputs. It uses `access_scope_hash` for cache partitioning and audit, and uses `role` + `groups` + `attributes` + `corpus` for the SQL permission filter.
+- The legacy RS256 chat-token validator remains in code only as a compatibility fallback while the chat-token endpoint still exists.
+- FastAPI validates the session through `.NET`, then trusts the returned safe claims as the user's scope inputs for up to the configured 60-second cache TTL. It uses `access_scope_hash` for cache partitioning and audit, and uses `role` + `groups` + `corpus` for the SQL permission filter.
+- The current internal validation response does not return separate attributes. `access_scope_hash` still uses the versioned role/groups/attributes canonical form below with an empty attributes object when no attributes are supplied.
 - `access_scope_hash` is not an authorization mechanism and must never be used by itself to decide whether a chunk is retrievable.
 - For the MVP, the retrieval SQL filter resolves group/attribute rules directly against `app.document_permissions` through read-only grants applied by `.NET` EF migrations after the tables exist. FastAPI may also read `app.user_ai_budget_limits` for budget enforcement through the same grant path. These are the only approved FastAPI reads from the `app` schema and are documented in `architecture.md` Operations.
 

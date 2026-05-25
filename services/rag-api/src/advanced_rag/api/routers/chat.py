@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Request
 from starlette.responses import StreamingResponse
 
-from advanced_rag.auth.chat_tokens import ChatTokenValidatorProtocol
+from advanced_rag.auth.session_validation import SessionValidatorProtocol
 from advanced_rag.core.errors import ApiException
 from advanced_rag.core.request_id import REQUEST_ID_HEADER
 from advanced_rag.rag.chat_service import ChatAnswer, ChatService
@@ -26,12 +26,13 @@ router = APIRouter(tags=["chat"])
 
 @router.post("/api/chat")
 async def post_chat(body: ChatRequest, request: Request) -> StreamingResponse:
-    token = request.cookies.get("__Host-chat-token")
-    if not token:
-        raise ApiException("AUTH_REQUIRED", 401, "Chat session required.")
+    request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
+    session_cookie = request.cookies.get(request.app.state.settings.session_cookie_name)
+    if not session_cookie:
+        raise ApiException("AUTH_REQUIRED", 401, "Session required.")
 
-    validator: ChatTokenValidatorProtocol = request.app.state.chat_token_validator
-    claims = validator.validate(token)
+    validator: SessionValidatorProtocol = request.app.state.session_validator
+    claims = await validator.validate(session_cookie, request_id=request_id)
     if not request.app.state.rate_limiter.allow(f"chat:user:{claims.user_id}", 30, 60):
         raise ApiException(
             "CHAT_RATE_LIMITED",
@@ -40,7 +41,6 @@ async def post_chat(body: ChatRequest, request: Request) -> StreamingResponse:
             details={"limit": 30, "windowSeconds": 60},
         )
     service: ChatService = request.app.state.chat_service
-    request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
     filters = (
         body.filters.dimension_value_ids
         if body.filters is not None and body.filters.dimension_value_ids
@@ -71,12 +71,13 @@ async def post_feedback(
     body: FeedbackRequest,
     request: Request,
 ) -> FeedbackResponse:
-    token = request.cookies.get("__Host-chat-token")
-    if not token:
-        raise ApiException("AUTH_REQUIRED", 401, "Chat session required.")
+    request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
+    session_cookie = request.cookies.get(request.app.state.settings.session_cookie_name)
+    if not session_cookie:
+        raise ApiException("AUTH_REQUIRED", 401, "Session required.")
 
-    validator: ChatTokenValidatorProtocol = request.app.state.chat_token_validator
-    claims = validator.validate(token)
+    validator: SessionValidatorProtocol = request.app.state.session_validator
+    claims = await validator.validate(session_cookie, request_id=request_id)
     service: FeedbackService = request.app.state.feedback_service
     comment = await service.submit_feedback(
         query_audit_event_id=query_audit_event_id,

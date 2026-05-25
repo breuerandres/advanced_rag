@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     chat_token_audience: str = "advanced-rag-chat"
     chat_token_public_keys_by_kid: dict[str, str] = {}
     dotnet_jwks_url: str = ""
+    dotnet_session_validate_url: str = "http://dotnet-api:8080/internal/session/validate"
+    session_cookie_name: str = "__Host-session"
+    session_validation_cache_seconds: int = 60
     log_directory: str = "/var/log/rag-api"
 
     @property

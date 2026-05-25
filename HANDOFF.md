@@ -38,7 +38,7 @@ The statuses below are based on files and code paths present in the repo.
 | Multilingual prompts | System, condenser, and rewriter prompts exist for `es-AR`, `en-US`, and `pt-BR`; answer generation loads `system_<locale>.md` | `services/rag-api/src/advanced_rag/rag/prompts/`, `rag/answer_generator.py` |
 | Token counting | Still uses whitespace splitting, not `tiktoken` | `services/rag-api/src/advanced_rag/rag/chunking.py` |
 | Retry wrapper | Implemented and imported by provider implementations; no dedicated retry tests were found | `services/rag-api/src/advanced_rag/providers/_retry.py`, `providers/*.py`, `services/rag-api/tests/` |
-| Unified auth | Not implemented; MVP chat-token and viewer exchange flows still exist | `AuthController.cs`, `ViewerController.cs`, `api/routers/chat.py`, `apps/chat-web/src/api/chat.ts`, `apps/docs-web/src/api/viewer.ts` |
+| Unified auth | Partial: `.NET` sets `__Host-session`, exposes internal session validation, FastAPI chat/feedback read that session, and `chat-web` no longer renews chat tokens. Legacy chat-token and viewer exchange flows still exist. | `Program.cs`, `InternalSessionController.cs`, `session_validation.py`, `api/routers/chat.py`, `apps/chat-web/src/api/chat.ts`, `AuthController.cs`, `ViewerController.cs`, `apps/docs-web/src/api/viewer.ts` |
 | Shared UI | Package exists with tokens, fonts, globals, hooks, `Button`, `AppShell`, `Sidebar`, `Header`, `DarkModeToggle`, `LanguageSelect`, and `CommandPalette` | `packages/shared-ui/` |
 | Shared UI usage | All three SPAs import shared styles and use shared shell controls; management uses `Sidebar`; chat/docs do not use the shared global `Header` | `apps/*/src/main.tsx`, `apps/*/src/App.tsx` |
 | i18n | Runtime dependencies and locale catalogs exist in all three SPAs; full literal extraction is incomplete | `apps/*/package.json`, `apps/*/src/i18n/`, `apps/*/src/App.tsx` |
@@ -57,7 +57,7 @@ The statuses below are based on files and code paths present in the repo.
 |---|---|
 | Phase 0 - Preparation | Done and merged into `mvp-implementation` |
 | Phase 1 - Foundations generic | Partial: provider wiring, prompts, i18n scaffolds, retry wrapper, and 1024-d RAG schema exist; tenant config endpoints, reindex tooling, token-counting refactor, and branding setup are pending |
-| Phase 1.5 - Unified auth + shared UI | Partial: shared-ui and SPA shell usage exist; unified auth is not implemented |
+| Phase 1.5 - Unified auth + shared UI | Partial: shared-ui and SPA shell usage exist; the chat path uses OQ-001 session validation, while legacy chat-token and viewer exchange flows remain |
 | Phase 1.7 - UX refactor per SPA | Partial: current apps use some shared shell controls; target v2 chat/docs/manage UX remains pending |
 | Phase 2 - Hybrid retrieval + dimensions | Partial: hybrid retrieval is wired; dimensions CRUD/UI and retrieval quality validation are pending |
 | Phase 3 - Object storage + bulk import | Scaffolded: Compose overlay exists; app integration is pending |
@@ -67,20 +67,21 @@ The statuses below are based on files and code paths present in the repo.
 
 ## Recommended Next Work
 
-The next architecture-critical step is Phase 1.5 unified auth. `OQ-001` has been resolved
-as the internal .NET session validation strategy, but the code still uses the MVP token
-flows.
+The next architecture-critical step is finishing Phase 1.5 unified auth. `OQ-001` has
+been implemented for the chat path, but the code still exposes the MVP chat-token endpoint
+and still uses the viewer exchange-code flow for docs.
 
 Do this next:
 
-1. Implement the `OQ-001` FastAPI session-validation path: FastAPI calls an internal-only
-   `.NET` session validation endpoint with the session cookie and `X-Internal-Service-Token`
-   on cache miss, then caches safe claims for 60 seconds.
-2. Remove or replace the MVP `chat-token` and viewer exchange-code flows in the same
-   change set, including tests and frontend API clients.
+1. Remove `POST /api/auth/chat-token`, `ChatTokenIssuer`, and the remaining chat-token
+   tests once no runtime path depends on them.
+2. Replace `/api/viewer/exchange` and `viewer_exchange_codes` with the v2 session/role
+   docs access path, including `docs-web` tests and API client updates.
+3. Add FastAPI CSRF validation for browser chat/feedback mutations; `chat-web` sends the
+   header today, but FastAPI does not yet validate it locally.
 
 Do not add more UI polish before this. The current code has shared UI and provider wiring,
-but browser auth is still the MVP multi-token model.
+but browser auth is still transitional until the remaining legacy token flows are removed.
 
 ## Open Questions
 

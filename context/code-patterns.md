@@ -245,19 +245,20 @@ async def post_chat(
 
 ```python
 # src/advanced_rag/api/dependencies.py
-from fastapi import Header, HTTPException, Request
-from advanced_rag.auth.token_validator import validate_chat_token
+from fastapi import Depends, Request
+from advanced_rag.auth.session_validation import SessionValidatorProtocol
 from advanced_rag.audit.writer import QueryAuditWriter
+from advanced_rag.core.errors import ApiException
 
 async def request_id(request: Request) -> str:
     return request.state.request_id  # populated by asgi-correlation-id middleware
 
-async def current_user(request: Request):
-    cookie = request.cookies.get("__Host-chat-token")
+async def current_user(request: Request, rid: str = Depends(request_id)):
+    cookie = request.cookies.get(request.app.state.settings.session_cookie_name)
     if cookie is None:
-        from advanced_rag.core.errors import ApiException
-        raise ApiException("AUTH_REQUIRED", 401, "Chat session required.")
-    return await validate_chat_token(cookie)
+        raise ApiException("AUTH_REQUIRED", 401, "Session required.")
+    validator: SessionValidatorProtocol = request.app.state.session_validator
+    return await validator.validate(cookie, request_id=rid)
 
 def audit_writer(request: Request) -> QueryAuditWriter:
     return request.app.state.audit_writer
@@ -331,7 +332,7 @@ def upgrade() -> None:
         sa.Column("content_html", sa.Text(), nullable=False),
         sa.Column("token_count", sa.Integer(), nullable=False),
         sa.Column("char_count", sa.Integer(), nullable=False),
-        sa.Column("embedding", Vector(1536), nullable=False),
+        sa.Column("embedding", Vector(1024), nullable=False),
         sa.Column("embedding_model", sa.Text(), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),

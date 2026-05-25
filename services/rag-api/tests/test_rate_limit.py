@@ -14,6 +14,35 @@ from test_chat_rag import (
 )
 
 
+def test_chat_authenticates_with_unified_session_cookie() -> None:
+    session_validator = FakeSessionValidator(
+        ChatTokenClaims(
+            user_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            role="Viewer",
+            groups=["bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"],
+            access_scope_hash="scope-allowed",
+            corpus="published",
+        )
+    )
+    app = create_app(
+        embedding_provider=FakeEmbeddingProvider(),
+        llm_provider=FakeLlmProvider(),
+        session_validator=session_validator,
+    )
+    app.state.chat_service = FakeChatService()
+    client = TestClient(app)
+    client.cookies.set("__Host-session", "session-cookie-value")
+
+    response = client.post(
+        "/api/chat",
+        json={"question": "Como hago el onboarding?"},
+        headers={"X-Request-ID": "req-session-cookie"},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert session_validator.calls == [("session-cookie-value", "req-session-cookie")]
+
+
 def test_chat_after_thirty_questions_per_user_is_rate_limited() -> None:
     app = create_app(
         embedding_provider=FakeEmbeddingProvider(),
@@ -30,7 +59,7 @@ def test_chat_after_thirty_questions_per_user_is_rate_limited() -> None:
     )
     app.state.chat_service = FakeChatService()
     client = TestClient(app)
-    client.cookies.set("__Host-chat-token", "valid")
+    client.cookies.set("__Host-session", "valid")
 
     for _ in range(30):
         response = client.post("/api/chat", json={"question": "Como hago el onboarding?"})
@@ -55,3 +84,13 @@ class FakeChatService:
             output_tokens=0,
             estimated_cost_usd=Decimal("0"),
         )
+
+
+class FakeSessionValidator:
+    def __init__(self, claims: ChatTokenClaims) -> None:
+        self._claims = claims
+        self.calls: list[tuple[str, str | None]] = []
+
+    async def validate(self, session_cookie: str, request_id: str | None = None) -> ChatTokenClaims:
+        self.calls.append((session_cookie, request_id))
+        return self._claims

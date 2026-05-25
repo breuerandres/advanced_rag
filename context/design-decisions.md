@@ -1604,9 +1604,9 @@ in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
 
 **Tradeoffs:** Cold-cache chat requests depend on .NET availability and add one internal HTTP call. Warm requests avoid that dependency for 60 seconds. Revocation-sensitive changes can be stale for up to the cache TTL, which is materially shorter than the MVP chat-token lifetime.
 
-**Consequences:** The implementation must add a Docker-network-only `.NET` validation endpoint guarded by the internal service token, a FastAPI session validator/cache, and tests for invalid cookie, valid session resolution, cache hit behavior, and fail-closed .NET validation failures. It must not log raw session cookies. Browser chat/feedback mutations still require CSRF protection as part of unified session auth.
+**Consequences:** The implementation adds a Docker-network-only `.NET` validation endpoint guarded by the internal service token, a FastAPI session validator/cache, and tests for valid session resolution, cache hit behavior, and fail-closed .NET validation failures. It must not log raw session cookies. Browser chat/feedback mutations still require CSRF protection as part of unified session auth.
 
-**Evidence:** `docs/v2/open-questions.md` OQ-001 resolved on 2026-05-25; current `infra/compose/compose.yaml` and `infra/compose/Caddyfile` contain no Redis/memcached service or Caddy auth integration.
+**Evidence:** `docs/v2/open-questions.md` OQ-001 resolved on 2026-05-25. Current implementation evidence is `InternalSessionController.cs`, `session_validation.py`, `api/routers/chat.py`, `apps/chat-web/src/api/chat.ts`, `infra/compose/compose.yaml`, and focused `.NET`/FastAPI/chat-web tests. The current `infra/compose/compose.yaml` and `infra/compose/Caddyfile` contain no Redis/memcached service or Caddy auth integration.
 
 ## 2026-05-22 - `packages/shared-ui` Design System
 

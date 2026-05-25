@@ -145,10 +145,10 @@ the chosen option and a date stamp.
 - **Decision**: Option B, implemented as an internal-only validation contract. FastAPI
   calls a Docker-network-only `.NET` endpoint such as `GET /internal/session/validate`,
   forwards the session cookie, and includes `X-Internal-Service-Token`. The endpoint
-  returns the current safe chat claims (`user_id`, `role`, `groups`, `access_scope_hash`,
+  returns the current safe chat claims (`userId`, `role`, `groups`, `accessScopeHash`,
   and `corpus`) for an active user. FastAPI caches the result in process for 60 seconds,
   keyed by a SHA-256 hash of the session cookie value. Cache misses or failed validation
-  return `AUTH_REQUIRED`/401. The implementation remains pending.
+  return `AUTH_REQUIRED`/401.
 - **Rejected options**:
   - **A**: Caddy/Redis claim injection would require a Redis or memcached service plus
     custom Caddy/auth plumbing that does not exist in the current Compose/Caddy stack.
@@ -162,5 +162,5 @@ the chosen option and a date stamp.
     `.NET -> FastAPI` calls unless implementation discovers a concrete reason to split it.
   - FastAPI must not log the raw session cookie. Logging the cache key is unnecessary; if
     needed for diagnostics, log only a short non-reversible hash prefix.
-  - Browser mutating chat/feedback requests remain CSRF-protected as part of the unified
-    session implementation.
+  - `chat-web` sends `X-CSRF-Token` on chat/feedback mutations. FastAPI local CSRF
+    validation for those browser mutations is still pending and tracked in Phase 1.5.

@@ -45,6 +45,7 @@ export interface SessionResponse {
 let csrfToken: string | null = null
 
 export async function getSession(): Promise<SessionResponse> {
+  csrfToken = null
   return requestJson<SessionResponse>('/api/session')
 }
 
@@ -61,11 +62,13 @@ export async function login(email: string, password: string): Promise<SessionRes
 }
 
 export async function submitQuestion(question: string): Promise<ChatResult> {
+  await ensureCsrfToken()
   const response = await fetch('/api/chat', {
     method: 'POST',
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken ?? '',
       'X-Request-ID': createRequestId(),
     },
     body: JSON.stringify({ question }),
@@ -78,27 +81,18 @@ export async function submitQuestion(question: string): Promise<ChatResult> {
   return parseChatStream(text)
 }
 
-export async function renewChatToken(): Promise<void> {
-  await ensureCsrfToken()
-  await requestJson('/api/auth/chat-token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken ?? '',
-    },
-  })
-}
-
 export async function submitFeedback(
   queryAuditEventId: string,
   value: FeedbackValue,
   comment: string,
 ): Promise<FeedbackResult> {
+  await ensureCsrfToken()
   const response = await fetch(`/api/feedback/${queryAuditEventId}`, {
     method: 'POST',
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken ?? '',
       'X-Request-ID': createRequestId(),
     },
     body: JSON.stringify({ value, comment }),
@@ -196,6 +190,10 @@ function parseChatStream(stream: string): ChatResult {
 }
 
 async function ensureCsrfToken(): Promise<void> {
+  if (csrfToken) {
+    return
+  }
+
   const response = await fetch('/api/csrf', {
     credentials: 'include',
     headers: { 'X-Request-ID': createRequestId() },

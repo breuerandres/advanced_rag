@@ -40,7 +40,7 @@ chat.localhost {
     }
   }
 
-  @dotnet path /api/auth/* /api/session/* /api/csrf /api/viewer/*
+  @dotnet path /api/auth/* /api/session /api/session/* /api/csrf /api/viewer/*
   handle @dotnet {
     reverse_proxy dotnet-api:8080
   }

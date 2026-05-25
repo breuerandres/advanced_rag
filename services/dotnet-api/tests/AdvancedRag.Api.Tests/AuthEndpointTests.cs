@@ -39,7 +39,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
             csrf);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var sessionCookie = GetSetCookie(response, "__Host-advanced-rag-session");
+        var sessionCookie = GetSetCookie(response, "__Host-session");
         var normalizedSessionCookie = sessionCookie.ToLowerInvariant();
         normalizedSessionCookie.Should().Contain("httponly", Exactly.Once());
         normalizedSessionCookie.Should().Contain("secure", Exactly.Once());
@@ -64,7 +64,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
             session.SessionCookie);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var clearedCookie = GetSetCookie(response, "__Host-advanced-rag-session");
+        var clearedCookie = GetSetCookie(response, "__Host-session");
         var normalizedClearedCookie = clearedCookie.ToLowerInvariant();
         normalizedClearedCookie.Should().Contain("expires=thu, 01 jan 1970", Exactly.Once());
         normalizedClearedCookie.Should().NotContain("domain=");
@@ -104,6 +104,28 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
         body!.User.Email.Should().Be(AuthWebApplicationFactory.TestUserEmail);
         body.User.Roles.Should().BeEquivalentTo(["Viewer"]);
         body.User.Groups.Should().ContainSingle(group => group.Id == AuthWebApplicationFactory.TestGroupId);
+    }
+
+    [Fact]
+    public async Task InternalSessionValidate_WithValidSessionAndInternalToken_ReturnsSafeClaims()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var session = await LoginAsync(client, "chat.localhost");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/internal/session/validate");
+        request.Headers.Host = "dotnet-api";
+        request.Headers.Add("Cookie", session.SessionCookie);
+        request.Headers.Add("X-Internal-Service-Token", AuthWebApplicationFactory.InternalServiceToken);
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<InternalSessionValidationResponse>();
+        body.Should().NotBeNull();
+        body!.UserId.Should().Be(AuthWebApplicationFactory.TestUserId);
+        body.Role.Should().Be("Viewer");
+        body.Groups.Should().BeEquivalentTo([AuthWebApplicationFactory.TestGroupId]);
+        body.AccessScopeHash.Should().NotBeNullOrWhiteSpace();
+        body.Corpus.Should().Be("published");
     }
 
     [Fact]
@@ -153,7 +175,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
             csrf);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return new LoginSession(csrf, CookiePair(GetSetCookie(response, "__Host-advanced-rag-session")));
+        return new LoginSession(csrf, CookiePair(GetSetCookie(response, "__Host-session")));
     }
 
     private static async Task<CsrfState> GetCsrfAsync(HttpClient client, string host)
@@ -183,6 +205,10 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
             Content = JsonContent.Create(body),
         };
         request.Headers.Host = host;
+        if (path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase))
+        {
+            request.Headers.Add("X-Forwarded-For", $"auth-test-{Guid.NewGuid():N}");
+        }
 
         if (csrf is not null)
         {
@@ -245,6 +271,13 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
         IReadOnlyList<SessionGroup> Groups);
 
     private sealed record SessionGroup(Guid Id, string Name);
+
+    private sealed record InternalSessionValidationResponse(
+        Guid UserId,
+        string Role,
+        IReadOnlyList<Guid> Groups,
+        string AccessScopeHash,
+        string Corpus);
 }
 
 public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
@@ -252,6 +285,7 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>, 
     public static readonly Guid TestUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     public static readonly Guid TestRoleId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public static readonly Guid TestGroupId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    public const string InternalServiceToken = "test-internal-service-token";
     public const string TestUserEmail = "viewer@example.com";
     private const string ValidPasswordHash =
         "pbkdf2-sha256$210000$AQIDBAUGBwgJCgsMDQ4PEA==$JdDMG3pUrVLfeEbOlhWCrHZ8tt8ULmvax1+L5RUnbdg=";
@@ -292,6 +326,7 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>, 
                 ["Jwt:Audience"] = "advanced-rag-chat",
                 ["Jwt:SigningKeysJson"] = _jwtSigningKeysJson,
                 ["Csrf:SigningKey"] = "local-test-csrf-signing-key-with-enough-entropy",
+                ["InternalService:Token"] = InternalServiceToken,
             });
         });
     }

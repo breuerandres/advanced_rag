@@ -88,6 +88,7 @@ Current controller files under `services/dotnet-api/src/AdvancedRag.Api/Controll
 - `ConfigurationController.cs`
 - `DocumentsController.cs`
 - `GroupsController.cs`
+- `InternalSessionController.cs`
 - `ReportingController.cs`
 - `SetupController.cs`
 - `UsersController.cs`
@@ -155,6 +156,7 @@ Existing files under `services/rag-api/src/advanced_rag/providers/`:
 
 Existing files:
 
+- `services/rag-api/src/advanced_rag/auth/session_validation.py`
 - `services/rag-api/src/advanced_rag/rag/answer_generator.py`
 - `services/rag-api/src/advanced_rag/rag/chat_service.py`
 - `services/rag-api/src/advanced_rag/rag/indexing_service.py`

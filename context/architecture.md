@@ -53,7 +53,7 @@ Detailed endpoint-by-endpoint DTOs are finalized during implementation planning 
 
 | Contract Group | Owner | Exposure | Responsibilities |
 | --- | --- | --- | --- |
-| Auth/session | .NET API | Browser same-origin `/api/auth/*` and `/api/session/*` | Login, logout, current session, CSRF token support, secure session cookies, and chat-token renewal |
+| Auth/session | .NET API | Browser same-origin `/api/auth/*` and `/api/session/*`; internal `/internal/session/validate` | Login, logout, current session, CSRF token support, secure session cookies, internal session validation for FastAPI, and legacy chat-token renewal until Phase 1.5 cleanup |
 | Users/groups | .NET API | Management same-origin `/api/*` | User administration, role assignment, group/department management, activation/deactivation |
 | Documents | .NET API | Management same-origin `/api/*` | Document CRUD, metadata, filters, assisted import extraction, lifecycle transitions, publish request, indexing retry, archive, restore, and management audit |
 | Viewer | .NET API | Docs same-origin `/api/*`; link creation from chat/management | Viewer exchange-link creation, one-time code exchange, viewer token cookie issuance, document access validation, and document loading |
@@ -96,12 +96,11 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - JWTs, refresh tokens, session IDs, and other credential-bearing tokens must not be stored in `localStorage` or `sessionStorage`.
 - SameSite cookies are defense in depth, not the only CSRF defense. Mutating browser requests must include an approved CSRF mitigation such as synchronizer tokens or a signed double-submit cookie/header pattern.
 - Browser session cookies must be host-only `__Host-` prefixed cookies when set through the same-origin frontend hosts. Avoid broad parent-domain cookies such as `Domain=.client.com` for the MVP.
-- FastAPI validates short-lived signed access tokens issued by .NET for public chat requests. Validation is local in FastAPI and checks signature, expiration, issuer/audience, user identifier, roles, groups/departments, and `access_scope_hash`; FastAPI should not call .NET to introspect the session on every chat request.
-- .NET remains the authority for login, session issuance, user state, role/group assignment, and token signing key management.
-- Chat access tokens must be short-lived. The initial MVP default is 15 minutes, configurable per deployment. Revocation-sensitive changes such as disabling a user or changing access groups take effect no later than token expiration unless an explicit revocation/introspection mechanism is added later.
-- `chat.client.com` obtains or renews its chat access token through a same-origin route such as `/api/auth/chat-token`, routed by Caddy to the .NET API. .NET issues the chat token only when the main secure session is valid.
-- The chat access token is stored only in a host-only `HttpOnly`, `Secure`, `SameSite` cookie for `chat.client.com`. It is not exposed to browser JavaScript.
-- FastAPI does not own a separate refresh token in the MVP. When the chat token expires, the chat frontend asks .NET for a new one; if the main session is no longer valid, the user must authenticate again.
+- Current Phase 1.5 implementation is transitional: FastAPI chat/feedback read the `__Host-session` cookie and validate it through `.NET` internal `GET /internal/session/validate` on cache miss with `X-Internal-Service-Token`.
+- FastAPI caches safe session claims in process for 60 seconds keyed by a SHA-256 hash of the session cookie value. Raw session cookies must not be logged.
+- .NET remains the authority for login, session issuance, user state, role/group assignment, internal session validation, and token signing key management.
+- Legacy `POST /api/auth/chat-token` and `__Host-chat-token` still exist in code until Phase 1.5 cleanup, but the current `chat-web` runtime no longer calls that route before chat requests.
+- `docs-web` still uses the legacy viewer exchange-code flow; replacing `/api/viewer/exchange` is pending.
 - Roles define system capabilities.
 - Groups/departments and document attributes define content access.
 - Document access in the MVP is group/department-based plus document attributes. Per-user document access exceptions are out of scope. If a customer needs an exception, administrators create a specific group and assign the user to that group.
@@ -114,7 +113,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - `.NET` exposes `GET /api/csrf` (non-mutating) that issues a signed request token in the response header `X-CSRF-Token` and sets the same token in a host-only `__Host-CSRF` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`).
 - Frontends call `GET /api/csrf` on app boot and after each session change, store the response header value in memory (not localStorage), and send it as the `X-CSRF-Token` header on every state-changing request.
 - `.NET` validates the HMAC-signed header token against the `__Host-CSRF` cookie on every mutating endpoint before route handling.
-- `chat.client.com` mutating requests against FastAPI (e.g., `POST /api/chat`, `POST /api/feedback`) are also CSRF-protected by the same `__Host-CSRF` cookie + header pair. FastAPI validates the pair locally with the same HMAC secret. The shared secret is delivered through the Compose secret `csrf_signing_key`.
+- `chat.client.com` mutating requests against FastAPI (e.g., `POST /api/chat`, `POST /api/feedback`) now send the same `X-CSRF-Token` header from `chat-web`; FastAPI local validation of the `__Host-CSRF` cookie/header pair is still pending.
 - SameSite=Strict on the auth/session cookies is treated as defense in depth, not the only CSRF defense.
 
 ## Local Development HTTPS
@@ -280,7 +279,7 @@ Non-sensitive runtime configuration uses environment variables, including intern
 
 OpenAI models are configurable with environment variables such as `OPENAI_CHAT_MODEL`, `OPENAI_EMBEDDING_MODEL`, and `OPENAI_EMBEDDING_DIMENSIONS`. Model prices are stored in the database.
 
-The MVP default chat model is `gpt-4.1-nano` to minimize cost while the MVP is being validated. The MVP default embedding model is `text-embedding-3-small` with its native `OPENAI_EMBEDDING_DIMENSIONS=1536` so embeddings fit the pgvector `vector(1536)` column without a schema migration. These defaults remain runtime configuration values, not hardcoded business logic. Chat response speed, answer quality, and cost are product quality attributes and must be tracked through latency, feedback, and cost metrics in RAG query audit and logs.
+The current default chat model is `gpt-4.1-nano` to minimize cost while the product is being validated. The v2 RAG schema uses `OPENAI_EMBEDDING_DIMENSIONS=1024` and pgvector `vector(1024)`. `infra/compose/.env.example` still sets `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`; the final shipped embedding default remains blocked by `OQ-002`. These defaults remain runtime configuration values, not hardcoded business logic. Chat response speed, answer quality, and cost are product quality attributes and must be tracked through latency, feedback, and cost metrics in RAG query audit and logs.
 
 ## Operational Defaults
 
@@ -339,7 +338,7 @@ Rate limit exceedances must use stable safe error codes and must not expose inte
 ### `rag` Schema, Owned By FastAPI
 
 - `indexing_jobs`
-- `document_chunks` with the `vector(1536)` embedding stored on the chunk row by default
+- `document_chunks` with the `vector(1024)` embedding stored on the chunk row after the v2 migration
 - `semantic_cache_entries`
 - `semantic_cache_sources`
 - `query_audit_events` with one simple feedback value/comment per answer

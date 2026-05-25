@@ -15,11 +15,9 @@ import {
   createViewerLink,
   getSession,
   login,
-  renewChatToken,
   submitFeedback,
   submitQuestion,
   type ChatCitation,
-  type ChatResult,
   type ChatUsage,
   type FeedbackValue,
 } from './api/chat'
@@ -64,7 +62,6 @@ export default function App() {
     async function boot() {
       try {
         await getSession()
-        await renewChatToken()
         if (!cancelled) {
           setMode('ready')
         }
@@ -105,7 +102,7 @@ export default function App() {
     setFeedbackSubmitted(false)
     setComment('')
     try {
-      const result = await askWithTokenRenewal(normalizedQuestion)
+      const result = await submitQuestion(normalizedQuestion)
       setAnswer(result.answer)
       setQueryAuditEventId(result.queryAuditEventId)
       setCitations(result.citations)
@@ -189,7 +186,7 @@ export default function App() {
           <div className="chat-status-strip" aria-label="Estado del chat">
             <span>
               <ShieldCheck size={16} aria-hidden="true" />
-              Token de chat temporal
+              Sesion unificada
             </span>
             <span>
               <Clock3 size={16} aria-hidden="true" />
@@ -340,7 +337,6 @@ function ChatLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
     setIsSubmitting(true)
     try {
       await login(email, password)
-      await renewChatToken()
       onAuthenticated()
     } catch (caught) {
       setError(formatApiError(caught, 'No se pudo iniciar sesion.'))
@@ -408,19 +404,6 @@ function ChatAuthFrame({
       </section>
     </main>
   )
-}
-
-async function askWithTokenRenewal(question: string): Promise<ChatResult> {
-  try {
-    return await submitQuestion(question)
-  } catch (caught) {
-    if (caught instanceof ApiError && caught.code === 'AUTH_TOKEN_EXPIRED') {
-      await renewChatToken()
-      return await submitQuestion(question)
-    }
-
-    throw caught
-  }
 }
 
 function ChatErrorMessage({ error }: { error: ChatErrorState }) {

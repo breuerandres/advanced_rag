@@ -98,15 +98,24 @@ available.
 - [ ] Remove `POST /api/auth/chat-token`
 - [ ] Remove `/api/viewer/exchange`
 - [ ] Remove `viewer_exchange_codes` runtime usage
-- [ ] Update Caddy/FastAPI/frontend code for unified session auth
+- [~] Update Caddy/FastAPI/frontend code for unified session auth
 
-Current code still uses MVP token flows.
+Current code is transitional:
+
+- `.NET` issues the browser session cookie as `__Host-session`.
+- `.NET` exposes internal `GET /internal/session/validate` guarded by
+  `X-Internal-Service-Token`.
+- FastAPI chat and feedback read `__Host-session` through the configured session validator.
+- `chat-web` no longer calls `POST /api/auth/chat-token` before chat requests.
+- Legacy `POST /api/auth/chat-token`, `/api/viewer/exchange`, and
+  `viewer_exchange_codes` runtime usage still exist.
+- `docs-web` still calls `/api/viewer/exchange`.
 
 ### 1.5.3 FastAPI cookie validation
 
 - [x] Resolve `OQ-001` (2026-05-25: internal .NET session validation + 60s FastAPI cache)
-- [ ] Implement selected FastAPI session validation
-- [ ] Tests for invalid cookie and valid session resolution
+- [x] Implement selected FastAPI session validation
+- [x] Tests for fail-closed invalid validation, cache behavior, and valid session resolution
 
 ### 1.5.4 Endpoint authorization
 

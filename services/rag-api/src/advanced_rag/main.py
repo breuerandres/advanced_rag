@@ -16,6 +16,11 @@ from advanced_rag.auth.chat_tokens import (
     ChatTokenValidatorProtocol,
     JwksChatTokenValidator,
 )
+from advanced_rag.auth.session_validation import (
+    DotnetSessionValidator,
+    LegacyChatTokenSessionValidator,
+    SessionValidatorProtocol,
+)
 from advanced_rag.core.config import Settings
 from advanced_rag.core.errors import (
     ApiException,
@@ -54,6 +59,7 @@ def create_app(
     llm_provider: ILlmProvider | None = None,
     reranker_provider: IRerankerProvider | None = None,
     chat_token_validator: ChatTokenValidatorProtocol | None = None,
+    session_validator: SessionValidatorProtocol | None = None,
 ) -> FastAPI:
     """Compose the FastAPI app.
 
@@ -88,6 +94,15 @@ def create_app(
         resolved_settings,
     )
     app.state.chat_token_validator = chat_token_validator or _create_chat_token_validator(resolved_settings)
+    if session_validator is not None:
+        app.state.session_validator = session_validator
+    elif chat_token_validator is not None:
+        app.state.session_validator = LegacyChatTokenSessionValidator(lambda: app.state.chat_token_validator)
+    else:
+        app.state.session_validator = _create_session_validator(
+            resolved_settings,
+            lambda: app.state.chat_token_validator,
+        )
     app.state.chat_service = ChatService(
         app.state.session_factory,
         app.state.embedding_provider,
@@ -173,6 +188,21 @@ def _create_chat_token_validator(settings: Settings) -> ChatTokenValidatorProtoc
             public_keys_by_kid=settings.chat_token_public_keys_by_kid,
         )
     )
+
+
+def _create_session_validator(
+    settings: Settings,
+    legacy_token_validator: Callable[[], ChatTokenValidatorProtocol],
+) -> SessionValidatorProtocol:
+    if settings.dotnet_session_validate_url and settings.resolved_internal_service_token:
+        return DotnetSessionValidator(
+            validate_url=settings.dotnet_session_validate_url,
+            internal_service_token=settings.resolved_internal_service_token,
+            cache_seconds=settings.session_validation_cache_seconds,
+            session_cookie_name=settings.session_cookie_name,
+        )
+
+    return LegacyChatTokenSessionValidator(legacy_token_validator)
 
 
 app = create_app()

@@ -164,7 +164,7 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
             host,
             csrf);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return new LoginSession(csrf, CookiePair(GetSetCookie(response, "__Host-advanced-rag-session")));
+        return new LoginSession(csrf, CookiePair(GetSetCookie(response, "__Host-session")));
     }
 
     private static async Task<CsrfState> GetCsrfAsync(HttpClient client, string host)

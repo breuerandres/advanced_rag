@@ -11,6 +11,7 @@ dependencies = [
     "alembic==1.18.4",
     "asyncpg==0.31.0",
     "fastapi==0.136.1",
+    "httpx==0.28.1",
     "openai==2.36.0",
     "pgvector==0.4.2",
     "pydantic-settings==2.14.1",

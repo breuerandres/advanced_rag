@@ -13,7 +13,7 @@ test('shows the empty initial chat state without the shared global sidebar', asy
 
   expect(await screen.findByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
   expect(screen.queryByRole('navigation', { name: /Navegacion del chat/i })).not.toBeInTheDocument()
-  expect(screen.getByText('Token de chat temporal')).toBeInTheDocument()
+  expect(screen.getByText('Sesion unificada')).toBeInTheDocument()
   expect(screen.getByText('Hacé una pregunta sobre las instrucciones publicadas.')).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeEnabled()
   expect(screen.getByText('0 / 4000')).toBeInTheDocument()
@@ -22,7 +22,7 @@ test('shows the empty initial chat state without the shared global sidebar', asy
 
 test('disables the question input while submitting', async () => {
   const pendingChat = deferred<Response>()
-  renderAuthenticatedChat([pendingChat.promise])
+  renderAuthenticatedChat([csrfResponse(), pendingChat.promise])
   const user = userEvent.setup()
 
   await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Como ingreso?')
@@ -43,6 +43,7 @@ test('disables the question input while submitting', async () => {
 
 test('submits feedback after a chat answer and allows updating it', async () => {
   const fetchMock = renderAuthenticatedChat([
+    csrfResponse(),
     sseResponse([
       ['answer-token', { delta: 'Usa credencial visible.' }],
       [
@@ -94,6 +95,7 @@ test('submits feedback after a chat answer and allows updating it', async () => 
 
 test('shows a successful answer with citations and cache hit indicator', async () => {
   renderAuthenticatedChat([
+    csrfResponse(),
     sseResponse([
       ['cache-hit', { cached_at: '2026-05-18T10:00:00Z' }],
       ['answer-token', { delta: 'Consultá el procedimiento de seguridad.' }],
@@ -128,6 +130,7 @@ test('shows a successful answer with citations and cache hit indicator', async (
 
 test('shows the monthly budget exhausted state', async () => {
   renderAuthenticatedChat([
+    csrfResponse(),
     jsonResponse(
       429,
       apiError('AI_BUDGET_EXCEEDED', 'Monthly budget exceeded.', 'request-budget-1'),
@@ -144,35 +147,24 @@ test('shows the monthly budget exhausted state', async () => {
   expect(screen.getByText('Podés seguir abriendo documentos autorizados.')).toBeInTheDocument()
 })
 
-test('renews the chat token when the session token expires and retries the question', async () => {
-  const fetchMock = renderAuthenticatedChat([
-    jsonResponse(
-      401,
-      apiError('AUTH_TOKEN_EXPIRED', 'Chat token expired.', 'request-auth-1'),
-    ),
+test('shows the auth-expired state when the unified session is rejected', async () => {
+  renderAuthenticatedChat([
     csrfResponse(),
-    jsonResponse(200, { status: 'ok' }),
-    sseResponse([
-      ['answer-token', { delta: 'La sesión de chat fue renovada.' }],
-      ['citations', { query_audit_event_id: '33333333-3333-3333-3333-333333333333', citations: [] }],
-      ['done', {}],
-    ]),
+    jsonResponse(401, apiError('AUTH_REQUIRED', 'Session required.', 'request-auth-1')),
   ])
   const user = userEvent.setup()
 
   await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Sigo autenticado?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
-  expect(await screen.findByText('La sesión de chat fue renovada.')).toBeInTheDocument()
-  expect(fetchMock).toHaveBeenNthCalledWith(
-    6,
-    '/api/auth/chat-token',
-    expect.objectContaining({ method: 'POST' }),
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Tu sesión de chat expiró.',
   )
 })
 
 test('shows a safe generic error with request id', async () => {
   renderAuthenticatedChat([
+    csrfResponse(),
     jsonResponse(503, apiError('RAG_PROVIDER_UNAVAILABLE', 'Provider unavailable.', 'request-503')),
   ])
   const user = userEvent.setup()
@@ -191,6 +183,7 @@ test('opens citations through viewer exchange links', async () => {
     value: { assign },
   })
   const fetchMock = renderAuthenticatedChat([
+    csrfResponse(),
     sseResponse([
       ['answer-token', { delta: 'Usa credencial visible.' }],
       [
@@ -208,7 +201,6 @@ test('opens citations through viewer exchange links', async () => {
       ],
       ['done', {}],
     ]),
-    csrfResponse(),
     jsonResponse(200, { url: 'https://docs.client.com/open?code=abc' }),
   ])
   const user = userEvent.setup()
@@ -237,8 +229,6 @@ test('shows login when the chat host has no session and opens the chat after sig
         groups: [],
       },
     }),
-    csrfResponse(),
-    jsonResponse(200, { expiresAt: '2026-05-22T12:15:00Z' }),
   ])
   const user = userEvent.setup()
 
@@ -276,8 +266,6 @@ function renderAuthenticatedChat(responses: Array<Response | Promise<Response>>)
         groups: [],
       },
     }),
-    csrfResponse(),
-    jsonResponse(200, { expiresAt: '2026-05-22T12:15:00Z' }),
     ...responses,
   ])
   render(<App />)
