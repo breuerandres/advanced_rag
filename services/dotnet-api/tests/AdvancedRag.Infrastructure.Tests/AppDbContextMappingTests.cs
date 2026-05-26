@@ -21,6 +21,7 @@ public sealed class AppDbContextMappingTests
         [typeof(ImportMetadata)] = "import_metadata",
         [typeof(UserAiBudgetLimit)] = "user_ai_budget_limits",
         [typeof(AuditEvent)] = "audit_events",
+        [typeof(TenantConfig)] = "tenant_config",
     };
 
     [Fact]

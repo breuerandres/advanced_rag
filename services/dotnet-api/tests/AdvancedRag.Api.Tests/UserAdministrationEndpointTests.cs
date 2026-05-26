@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using AdvancedRag.App.Auth;
+using AdvancedRag.App.Configuration;
 using AdvancedRag.App.Users;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -228,22 +229,95 @@ public sealed class UserAdministrationWebApplicationFactory : WebApplicationFact
         {
             services.RemoveAll<IAuthService>();
             services.RemoveAll<IUserAdministrationService>();
+            services.RemoveAll<ITenantConfigService>();
             services.AddSingleton<IAuthService>(_auth);
             services.AddSingleton<IUserAdministrationService>(_users);
+            services.AddSingleton<ITenantConfigService, FakeTenantConfigService>();
         });
+    }
+}
+
+public sealed class FakeTenantConfigService : ITenantConfigService
+{
+    private TenantConfig _config = ToConfig(TenantConfigDraft.CreateDefault() with
+    {
+        SupportedLocales = ["es-AR", "en-US", "pt-BR"],
+    });
+
+    public Task<TenantConfig> GetAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(_config);
+    }
+
+    public Task<TenantConfig> UpdateAsync(TenantConfigDraft draft, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        _config = ToConfig(draft);
+        return Task.FromResult(_config);
+    }
+
+    private static TenantConfig ToConfig(TenantConfigDraft draft)
+    {
+        return new TenantConfig(
+            Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+            draft.BrandName,
+            draft.BrandLogoUrl,
+            draft.BrandFaviconUrl,
+            draft.PrimaryColor,
+            draft.DefaultLocale,
+            draft.SupportedLocales,
+            draft.LlmProvider,
+            draft.LlmModel,
+            draft.LlmBaseUrl,
+            draft.EmbeddingProvider,
+            draft.EmbeddingModel,
+            draft.EmbeddingDimensions,
+            draft.RerankerProvider,
+            draft.RerankerModel,
+            draft.RerankerBaseUrl,
+            draft.EnableBm25,
+            draft.EnableReranker,
+            draft.EnableConversationalMemory,
+            draft.EnableQueryRewrite,
+            draft.RagTopKVector,
+            draft.RagTopKBm25,
+            draft.RagTopKFinal,
+            draft.RrfK,
+            draft.ConversationHistoryTurns,
+            draft.CacheTtlHours,
+            draft.CacheSimilarityThreshold,
+            draft.DefaultMonthlyBudgetUsd,
+            draft.GlobalDailyBudgetUsd,
+            draft.EnableVlmImageDescription,
+            draft.EnableOtel,
+            draft.S3Endpoint,
+            draft.S3Bucket,
+            draft.S3Region,
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow);
     }
 }
 
 public sealed class FakeAuthService : IAuthService
 {
     public static readonly Guid AdminUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid DocumentManagerUserId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
     public static readonly Guid TargetUserId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public const string AdminEmail = "admin@example.com";
+    public const string DocumentManagerEmail = "manager@example.com";
     public const string TargetEmail = "target@example.com";
     public const string ValidPassword = "password";
     private readonly Dictionary<Guid, FakeUserState> _users = new()
     {
         [AdminUserId] = new(AdminUserId, AdminEmail, "Admin User", true, ["Admin"], []),
+        [DocumentManagerUserId] = new(
+            DocumentManagerUserId,
+            DocumentManagerEmail,
+            "Document Manager",
+            true,
+            ["DocumentManager"],
+            []),
         [TargetUserId] = new(TargetUserId, TargetEmail, "Target User", true, ["Viewer"], []),
     };
 

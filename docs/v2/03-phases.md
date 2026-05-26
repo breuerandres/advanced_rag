@@ -22,11 +22,11 @@ pluggable.
 
 ### 1.1 Tenant config
 
-- [~] Raw SQL script for `app.tenant_config` exists in `services/dotnet-api/v2-migrations-sql/001_add_tenant_config.*.sql`
-- [ ] EF Core migration for `app.tenant_config`
-- [ ] Setup wizard endpoint writes `tenant_config` in the same transaction as setup
-- [ ] `GET /api/v1/config` returns public-safe config; `PUT` is admin-only
-- [ ] Tests for setup/config behavior and safe secret handling
+- [x] Raw SQL script for `app.tenant_config` exists in `services/dotnet-api/v2-migrations-sql/001_add_tenant_config.*.sql`
+- [x] EF Core migration for `app.tenant_config`
+- [x] Setup wizard endpoint writes `tenant_config` in the same transaction as setup
+- [x] `GET /api/v1/config` returns public-safe config; `PUT` is admin-only
+- [x] Tests for setup/config behavior and safe secret handling
 
 ### 1.2 Embedding migration
 

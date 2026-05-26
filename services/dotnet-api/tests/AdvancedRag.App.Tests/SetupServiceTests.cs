@@ -1,4 +1,5 @@
 using AdvancedRag.App.Auth;
+using AdvancedRag.App.Configuration;
 using AdvancedRag.App.Setup;
 using AdvancedRag.App.Users;
 using FluentAssertions;
@@ -44,6 +45,12 @@ public sealed class SetupServiceTests
 
         repository.CreatedUsers.Should().ContainSingle().Which.PasswordHash.Should().Be("hashed:temporary-password");
         repository.RequiredRoles.Should().Equal("Admin", "DocumentManager", "Viewer");
+        repository.CreatedTenantConfig.Should().NotBeNull();
+        repository.CreatedTenantConfig!.BrandName.Should().Be("Help Center");
+        repository.CreatedTenantConfig.DefaultLocale.Should().Be("es-AR");
+        repository.CreatedTenantConfig.SupportedLocales.Should().Equal("es-AR");
+        repository.CreatedTenantConfig.LlmProvider.Should().Be("openai");
+        repository.CreatedTenantConfig.EmbeddingDimensions.Should().Be(1024);
     }
 
     [Fact]
@@ -111,6 +118,8 @@ public sealed class SetupServiceTests
 
         public IReadOnlyList<string> RequiredRoles { get; private set; } = [];
 
+        public TenantConfigDraft? CreatedTenantConfig { get; private set; }
+
         public Task<bool> AdminExistsAsync(CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
@@ -120,6 +129,7 @@ public sealed class SetupServiceTests
         public Task<UserManagementUser?> CreateFirstAdminAsync(
             UserDraft user,
             UserBudgetDraft budget,
+            TenantConfigDraft tenantConfig,
             IReadOnlyList<string> requiredRoles,
             CancellationToken ct)
         {
@@ -130,6 +140,7 @@ public sealed class SetupServiceTests
             }
 
             CreatedUsers.Add(user with { Id = CreatedAdminId });
+            CreatedTenantConfig = tenantConfig;
             RequiredRoles = requiredRoles;
             _adminExists = true;
 

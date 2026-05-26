@@ -23,6 +23,7 @@ public sealed class AppDbContextMigrationTests
         "documents",
         "review_comments",
         "roles",
+        "tenant_config",
         "user_ai_budget_limits",
         "user_groups",
         "user_roles",
@@ -115,6 +116,7 @@ public sealed class AppDbContextMigrationTests
         schemas.Should().BeEquivalentTo(["app"]);
         appTables.Should().BeEquivalentTo(ExpectedAppTables);
         documentVersionColumns.Should().Contain("indexing_status");
+        await AssertTenantConfigSingletonAsync(db);
         ragOwnerPrivileges.Should().BeEquivalentTo(
             [
                 "dimension_values",
@@ -123,6 +125,56 @@ public sealed class AppDbContextMigrationTests
                 "document_permissions",
                 "user_ai_budget_limits",
             ]);
+    }
+
+    private static async Task AssertTenantConfigSingletonAsync(AppDbContext db)
+    {
+        TenantConfigRow tenantConfig = await db.Database
+            .SqlQueryRaw<TenantConfigRow>(
+                """
+                select
+                    brand_name as "BrandName",
+                    default_locale as "DefaultLocale",
+                    supported_locales as "SupportedLocales",
+                    llm_provider as "LlmProvider",
+                    llm_model as "LlmModel",
+                    embedding_provider as "EmbeddingProvider",
+                    embedding_model as "EmbeddingModel",
+                    embedding_dimensions as "EmbeddingDimensions",
+                    enable_bm25 as "EnableBm25",
+                    enable_reranker as "EnableReranker",
+                    cache_ttl_hours as "CacheTtlHours",
+                    cache_similarity_threshold as "CacheSimilarityThreshold",
+                    default_monthly_budget_usd as "DefaultMonthlyBudgetUsd"
+                from app.tenant_config
+                """)
+            .SingleAsync();
+
+        tenantConfig.BrandName.Should().Be("Help Center");
+        tenantConfig.DefaultLocale.Should().Be("es-AR");
+        tenantConfig.SupportedLocales.Should().Equal("es-AR");
+        tenantConfig.LlmProvider.Should().Be("openai");
+        tenantConfig.LlmModel.Should().Be("gpt-4o-mini");
+        tenantConfig.EmbeddingProvider.Should().Be("openai");
+        tenantConfig.EmbeddingModel.Should().Be("text-embedding-3-large");
+        tenantConfig.EmbeddingDimensions.Should().Be(1024);
+        tenantConfig.EnableBm25.Should().BeTrue();
+        tenantConfig.EnableReranker.Should().BeTrue();
+        tenantConfig.CacheTtlHours.Should().Be(24);
+        tenantConfig.CacheSimilarityThreshold.Should().Be(0.90m);
+        tenantConfig.DefaultMonthlyBudgetUsd.Should().Be(5.00m);
+
+        int singletonIndexes = await db.Database
+            .SqlQueryRaw<int>(
+                """
+                select count(*)::int as "Value"
+                from pg_indexes
+                where schemaname = 'app'
+                  and tablename = 'tenant_config'
+                  and indexname = 'ux_tenant_config_singleton'
+                """)
+            .SingleAsync();
+        singletonIndexes.Should().Be(1);
     }
 
     [Fact]
@@ -310,4 +362,19 @@ public sealed class AppDbContextMigrationTests
         string RoleName,
         decimal MonthlyBudgetUsd,
         bool BudgetIsDisabled);
+
+    private sealed record TenantConfigRow(
+        string BrandName,
+        string DefaultLocale,
+        string[] SupportedLocales,
+        string LlmProvider,
+        string LlmModel,
+        string EmbeddingProvider,
+        string EmbeddingModel,
+        int EmbeddingDimensions,
+        bool EnableBm25,
+        bool EnableReranker,
+        int CacheTtlHours,
+        decimal CacheSimilarityThreshold,
+        decimal DefaultMonthlyBudgetUsd);
 }

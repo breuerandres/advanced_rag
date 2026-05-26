@@ -1,4 +1,5 @@
 using AdvancedRag.App.Auth;
+using AdvancedRag.App.Configuration;
 using AdvancedRag.App.Users;
 
 namespace AdvancedRag.App.Setup;
@@ -67,6 +68,7 @@ public sealed class SetupService : ISetupService
         UserManagementUser? created = await _repository.CreateFirstAdminAsync(
             user,
             budget,
+            TenantConfigDraft.CreateDefault(),
             RequiredRoleNames,
             ct);
 

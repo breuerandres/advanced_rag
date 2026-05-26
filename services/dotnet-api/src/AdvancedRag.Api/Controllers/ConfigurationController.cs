@@ -1,4 +1,7 @@
+using AdvancedRag.Api.Errors;
+using AdvancedRag.Api.Middleware;
 using AdvancedRag.Api.Models.Configuration;
+using AdvancedRag.App.Configuration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Globalization;
@@ -11,10 +14,12 @@ namespace AdvancedRag.Api.Controllers;
 public sealed class ConfigurationController : ControllerBase
 {
     private readonly IConfiguration _configuration;
+    private readonly ITenantConfigService _tenantConfig;
 
-    public ConfigurationController(IConfiguration configuration)
+    public ConfigurationController(IConfiguration configuration, ITenantConfigService tenantConfig)
     {
         _configuration = configuration;
+        _tenantConfig = tenantConfig;
     }
 
     [HttpGet]
@@ -66,6 +71,39 @@ public sealed class ConfigurationController : ControllerBase
             ]);
 
         return Ok(response);
+    }
+
+    [HttpGet("/api/v1/config")]
+    [AllowAnonymous]
+    public async Task<ActionResult<TenantConfigResponse>> GetTenantConfigAsync(CancellationToken ct)
+    {
+        TenantConfig config = await _tenantConfig.GetAsync(ct);
+        return Ok(TenantConfigResponse.FromTenantConfig(config));
+    }
+
+    [HttpPut("/api/v1/config")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> UpdateTenantConfigAsync(
+        [FromBody] UpdateTenantConfigRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            TenantConfig config = await _tenantConfig.UpdateAsync(request.ToDraft(), ct);
+            return Ok(TenantConfigResponse.FromTenantConfig(config));
+        }
+        catch (TenantConfigException exception)
+        {
+            return StatusCode(
+                exception.HttpStatus,
+                ErrorResponse.Create(
+                    exception.Code,
+                    exception.Message,
+                    HttpContext.Items.TryGetValue(RequestIdMiddleware.ContextItemKey, out object? value)
+                        ? value?.ToString() ?? string.Empty
+                        : string.Empty,
+                    exception.Details));
+        }
     }
 
     private int GetInt(string environmentKey, string configurationKey, int fallback)

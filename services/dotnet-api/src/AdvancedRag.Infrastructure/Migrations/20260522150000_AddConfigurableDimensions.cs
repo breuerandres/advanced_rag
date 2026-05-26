@@ -61,24 +61,31 @@ public partial class AddConfigurableDimensions : Migration
                 on app.dimension_values (dimension_id, display_order)
                 where deleted_at is null;
 
-            create table if not exists app.document_dimension_values (
-                document_id         uuid not null references app.documents("Id") on delete cascade,
-                dimension_value_id  uuid not null references app.dimension_values(id) on delete cascade,
-                primary key (document_id, dimension_value_id)
-            );
+            do $$
+            begin
+                if to_regclass('app.documents') is not null then
+                    create table if not exists app.document_dimension_values (
+                        document_id         uuid not null references app.documents("Id") on delete cascade,
+                        dimension_value_id  uuid not null references app.dimension_values(id) on delete cascade,
+                        primary key (document_id, dimension_value_id)
+                    );
 
-            create index if not exists ix_ddv_dimension_value
-                on app.document_dimension_values (dimension_value_id);
+                    create index if not exists ix_ddv_dimension_value
+                        on app.document_dimension_values (dimension_value_id);
 
-            create index if not exists ix_ddv_document
-                on app.document_dimension_values (document_id);
+                    create index if not exists ix_ddv_document
+                        on app.document_dimension_values (document_id);
+                end if;
+            end $$;
 
             do $$
             begin
                 if to_regrole('rag_owner') is not null then
                     grant select on table app.dimensions to rag_owner;
                     grant select on table app.dimension_values to rag_owner;
-                    grant select on table app.document_dimension_values to rag_owner;
+                    if to_regclass('app.document_dimension_values') is not null then
+                        grant select on table app.document_dimension_values to rag_owner;
+                    end if;
                 end if;
             end $$;
             """);

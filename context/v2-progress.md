@@ -61,9 +61,19 @@ Mirror of `docs/v2/03-phases.md` checklists, maintained as a journal. The MVP
 - 2026-05-25 - Current RAG embedding dimension defaults are 1024 in `Settings` and
   `infra/compose/.env.example`; `OPENAI_EMBEDDING_MODEL` remains `text-embedding-3-small`
   in Compose until `OQ-002` is resolved.
+- 2026-05-26 - Phase 1.1 tenant configuration completed:
+  - Added EF migration `20260526120000_AddTenantConfig` for the singleton
+    `app.tenant_config` row based on the raw v2 SQL script.
+  - Added `.NET` application, EF repository, entity mapping, and API models for tenant
+    configuration.
+  - Added public-safe `GET /api/v1/config` and admin-only `PUT /api/v1/config`.
+  - Setup now passes the default tenant config draft into the same transactional
+    first-admin creation path; the EF repository inserts the singleton when missing.
+  - Hardened the earlier dimensions migration so partial legacy upgrade tests that do
+    not yet have `app.documents` do not fail while creating dimension tables.
+  - Verified with focused TDD checks and the full `.NET` solution test suite.
 - Pending:
   - Materialize remaining v2 `.NET` SQL scripts as EF Core migrations.
-  - Extend setup/config APIs to persist and read `app.tenant_config`.
   - Add reindex tooling and `docs/operations/reindex.md`.
   - Replace whitespace token counting in `chunking.py` with model-aware tokenization.
   - Add dedicated retry behavior tests for provider retry paths.

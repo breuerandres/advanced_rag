@@ -124,3 +124,43 @@ public sealed class AuditEvent
     public required string RequestId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+public sealed class TenantConfig
+{
+    public Guid Id { get; set; }
+    public required string BrandName { get; set; }
+    public string? BrandLogoUrl { get; set; }
+    public string? BrandFaviconUrl { get; set; }
+    public required string PrimaryColor { get; set; }
+    public required string DefaultLocale { get; set; }
+    public required string[] SupportedLocales { get; set; }
+    public required string LlmProvider { get; set; }
+    public required string LlmModel { get; set; }
+    public string? LlmBaseUrl { get; set; }
+    public required string EmbeddingProvider { get; set; }
+    public required string EmbeddingModel { get; set; }
+    public int EmbeddingDimensions { get; set; }
+    public required string RerankerProvider { get; set; }
+    public required string RerankerModel { get; set; }
+    public string? RerankerBaseUrl { get; set; }
+    public bool EnableBm25 { get; set; }
+    public bool EnableReranker { get; set; }
+    public bool EnableConversationalMemory { get; set; }
+    public bool EnableQueryRewrite { get; set; }
+    public int RagTopKVector { get; set; }
+    public int RagTopKBm25 { get; set; }
+    public int RagTopKFinal { get; set; }
+    public int RrfK { get; set; }
+    public int ConversationHistoryTurns { get; set; }
+    public int CacheTtlHours { get; set; }
+    public decimal CacheSimilarityThreshold { get; set; }
+    public decimal DefaultMonthlyBudgetUsd { get; set; }
+    public decimal? GlobalDailyBudgetUsd { get; set; }
+    public bool EnableVlmImageDescription { get; set; }
+    public bool EnableOtel { get; set; }
+    public string? S3Endpoint { get; set; }
+    public required string S3Bucket { get; set; }
+    public required string S3Region { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}

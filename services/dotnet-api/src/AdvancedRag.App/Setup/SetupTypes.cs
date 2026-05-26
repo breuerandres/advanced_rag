@@ -1,3 +1,4 @@
+using AdvancedRag.App.Configuration;
 using AdvancedRag.App.Users;
 
 namespace AdvancedRag.App.Setup;
@@ -21,6 +22,7 @@ public interface ISetupRepository
     Task<UserManagementUser?> CreateFirstAdminAsync(
         UserDraft user,
         UserBudgetDraft budget,
+        TenantConfigDraft tenantConfig,
         IReadOnlyList<string> requiredRoles,
         CancellationToken ct);
 }

@@ -24,6 +24,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<ImportMetadata> ImportMetadata => Set<ImportMetadata>();
     public DbSet<UserAiBudgetLimit> UserAiBudgetLimits => Set<UserAiBudgetLimit>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<TenantConfig> TenantConfigs => Set<TenantConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -199,6 +200,48 @@ public sealed class AppDbContext : DbContext
             entity.HasIndex(item => item.CreatedAt);
             entity.HasIndex(item => item.ActorUserId);
             entity.HasIndex(item => item.EventType);
+        });
+
+        modelBuilder.Entity<TenantConfig>(entity =>
+        {
+            entity.ToTable("tenant_config", Schema);
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).HasColumnName("id");
+            entity.Property(item => item.BrandName).HasColumnName("brand_name").IsRequired();
+            entity.Property(item => item.BrandLogoUrl).HasColumnName("brand_logo_url");
+            entity.Property(item => item.BrandFaviconUrl).HasColumnName("brand_favicon_url");
+            entity.Property(item => item.PrimaryColor).HasColumnName("primary_color").IsRequired();
+            entity.Property(item => item.DefaultLocale).HasColumnName("default_locale").IsRequired();
+            entity.Property(item => item.SupportedLocales).HasColumnName("supported_locales").IsRequired();
+            entity.Property(item => item.LlmProvider).HasColumnName("llm_provider").IsRequired();
+            entity.Property(item => item.LlmModel).HasColumnName("llm_model").IsRequired();
+            entity.Property(item => item.LlmBaseUrl).HasColumnName("llm_base_url");
+            entity.Property(item => item.EmbeddingProvider).HasColumnName("embedding_provider").IsRequired();
+            entity.Property(item => item.EmbeddingModel).HasColumnName("embedding_model").IsRequired();
+            entity.Property(item => item.EmbeddingDimensions).HasColumnName("embedding_dimensions");
+            entity.Property(item => item.RerankerProvider).HasColumnName("reranker_provider").IsRequired();
+            entity.Property(item => item.RerankerModel).HasColumnName("reranker_model").IsRequired();
+            entity.Property(item => item.RerankerBaseUrl).HasColumnName("reranker_base_url");
+            entity.Property(item => item.EnableBm25).HasColumnName("enable_bm25");
+            entity.Property(item => item.EnableReranker).HasColumnName("enable_reranker");
+            entity.Property(item => item.EnableConversationalMemory).HasColumnName("enable_conversational_memory");
+            entity.Property(item => item.EnableQueryRewrite).HasColumnName("enable_query_rewrite");
+            entity.Property(item => item.RagTopKVector).HasColumnName("rag_top_k_vector");
+            entity.Property(item => item.RagTopKBm25).HasColumnName("rag_top_k_bm25");
+            entity.Property(item => item.RagTopKFinal).HasColumnName("rag_top_k_final");
+            entity.Property(item => item.RrfK).HasColumnName("rrf_k");
+            entity.Property(item => item.ConversationHistoryTurns).HasColumnName("conversation_history_turns");
+            entity.Property(item => item.CacheTtlHours).HasColumnName("cache_ttl_hours");
+            entity.Property(item => item.CacheSimilarityThreshold).HasColumnName("cache_similarity_threshold").HasPrecision(4, 3);
+            entity.Property(item => item.DefaultMonthlyBudgetUsd).HasColumnName("default_monthly_budget_usd").HasPrecision(8, 2);
+            entity.Property(item => item.GlobalDailyBudgetUsd).HasColumnName("global_daily_budget_usd").HasPrecision(10, 2);
+            entity.Property(item => item.EnableVlmImageDescription).HasColumnName("enable_vlm_image_description");
+            entity.Property(item => item.EnableOtel).HasColumnName("enable_otel");
+            entity.Property(item => item.S3Endpoint).HasColumnName("s3_endpoint");
+            entity.Property(item => item.S3Bucket).HasColumnName("s3_bucket").IsRequired();
+            entity.Property(item => item.S3Region).HasColumnName("s3_region").IsRequired();
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
         });
     }
 }

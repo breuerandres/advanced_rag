@@ -1,9 +1,11 @@
 using System.Data;
 using AdvancedRag.App.Auth;
+using AdvancedRag.App.Configuration;
 using AdvancedRag.App.Setup;
 using AdvancedRag.App.Users;
 using AdvancedRag.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using TenantConfigEntity = AdvancedRag.Infrastructure.Persistence.TenantConfig;
 
 namespace AdvancedRag.Infrastructure.Setup;
 
@@ -25,6 +27,7 @@ public sealed class EfSetupRepository : ISetupRepository
     public async Task<UserManagementUser?> CreateFirstAdminAsync(
         UserDraft user,
         UserBudgetDraft budget,
+        TenantConfigDraft tenantConfig,
         IReadOnlyList<string> requiredRoles,
         CancellationToken ct)
     {
@@ -58,6 +61,7 @@ public sealed class EfSetupRepository : ISetupRepository
             UpdatedAt = DateTimeOffset.UtcNow,
             UpdatedByUserId = budget.UpdatedByUserId,
         });
+        await EnsureTenantConfigAsync(tenantConfig, ct);
 
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
@@ -73,6 +77,54 @@ public sealed class EfSetupRepository : ISetupRepository
             budget.MonthlyBudgetUsd,
             0m,
             budget.IsDisabled);
+    }
+
+    private async Task EnsureTenantConfigAsync(TenantConfigDraft draft, CancellationToken ct)
+    {
+        if (await _db.TenantConfigs.AnyAsync(ct))
+        {
+            return;
+        }
+
+        _db.TenantConfigs.Add(new TenantConfigEntity
+        {
+            Id = Guid.NewGuid(),
+            BrandName = draft.BrandName,
+            BrandLogoUrl = draft.BrandLogoUrl,
+            BrandFaviconUrl = draft.BrandFaviconUrl,
+            PrimaryColor = draft.PrimaryColor,
+            DefaultLocale = draft.DefaultLocale,
+            SupportedLocales = draft.SupportedLocales.ToArray(),
+            LlmProvider = draft.LlmProvider,
+            LlmModel = draft.LlmModel,
+            LlmBaseUrl = draft.LlmBaseUrl,
+            EmbeddingProvider = draft.EmbeddingProvider,
+            EmbeddingModel = draft.EmbeddingModel,
+            EmbeddingDimensions = draft.EmbeddingDimensions,
+            RerankerProvider = draft.RerankerProvider,
+            RerankerModel = draft.RerankerModel,
+            RerankerBaseUrl = draft.RerankerBaseUrl,
+            EnableBm25 = draft.EnableBm25,
+            EnableReranker = draft.EnableReranker,
+            EnableConversationalMemory = draft.EnableConversationalMemory,
+            EnableQueryRewrite = draft.EnableQueryRewrite,
+            RagTopKVector = draft.RagTopKVector,
+            RagTopKBm25 = draft.RagTopKBm25,
+            RagTopKFinal = draft.RagTopKFinal,
+            RrfK = draft.RrfK,
+            ConversationHistoryTurns = draft.ConversationHistoryTurns,
+            CacheTtlHours = draft.CacheTtlHours,
+            CacheSimilarityThreshold = draft.CacheSimilarityThreshold,
+            DefaultMonthlyBudgetUsd = draft.DefaultMonthlyBudgetUsd,
+            GlobalDailyBudgetUsd = draft.GlobalDailyBudgetUsd,
+            EnableVlmImageDescription = draft.EnableVlmImageDescription,
+            EnableOtel = draft.EnableOtel,
+            S3Endpoint = draft.S3Endpoint,
+            S3Bucket = draft.S3Bucket,
+            S3Region = draft.S3Region,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        });
     }
 
     private async Task<bool> AdminExistsInternalAsync(CancellationToken ct)
