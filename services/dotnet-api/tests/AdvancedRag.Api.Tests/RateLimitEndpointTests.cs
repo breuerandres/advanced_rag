@@ -96,35 +96,6 @@ public sealed class RateLimitEndpointTests : IClassFixture<AuthWebApplicationFac
         body!.Error.Code.Should().Be("IMPORT_RATE_LIMITED");
     }
 
-    [Fact]
-    public async Task ViewerExchange_AfterThirtyAttempts_IsRateLimited()
-    {
-        using HttpClient client = _factory.CreateClient();
-        CsrfState csrf = await GetCsrfAsync(client, "docs.localhost");
-
-        for (int attempt = 0; attempt < 30; attempt++)
-        {
-            using HttpResponseMessage allowed = await SendJsonAsync(
-                client,
-                "/api/viewer/exchange",
-                new { Code = $"invalid-{attempt}" },
-                csrf,
-                host: "docs.localhost");
-            allowed.StatusCode.Should().NotBe((HttpStatusCode)429);
-        }
-
-        using HttpResponseMessage limited = await SendJsonAsync(
-            client,
-            "/api/viewer/exchange",
-            new { Code = "invalid-final" },
-            csrf,
-            host: "docs.localhost");
-
-        limited.StatusCode.Should().Be((HttpStatusCode)429);
-        ApiErrorEnvelope? body = await limited.Content.ReadFromJsonAsync<ApiErrorEnvelope>();
-        body!.Error.Code.Should().Be("VIEWER_EXCHANGE_RATE_LIMITED");
-    }
-
     private static async Task<CsrfState> GetCsrfAsync(HttpClient client, string host)
     {
         using HttpRequestMessage request = new(HttpMethod.Get, "/api/csrf");

@@ -8,7 +8,7 @@
 | Management frontend | React | Corporate document management UI |
 | Chat frontend | React | End-user chatbot UI |
 | Document viewer frontend | React | Token-gated document viewer |
-| Management/API backend | .NET 8 | Authentication, users, roles, document lifecycle, viewer access tokens, management audit |
+| Management/API backend | .NET 8 | Authentication, users, roles, document lifecycle, session-authenticated document viewing, management audit |
 | RAG backend | FastAPI | Public chat API, retrieval, semantic cache, embeddings, RAG audit, indexing worker |
 | Database | PostgreSQL with pgvector | Relational data, document content, audit, vectors, cache, indexing jobs |
 | AI provider | OpenAI | Chat completions/responses and embeddings |
@@ -53,10 +53,10 @@ Detailed endpoint-by-endpoint DTOs are finalized during implementation planning 
 
 | Contract Group | Owner | Exposure | Responsibilities |
 | --- | --- | --- | --- |
-| Auth/session | .NET API | Browser same-origin `/api/auth/*` and `/api/session/*`; internal `/internal/session/validate` | Login, logout, current session, CSRF token support, secure session cookies, internal session validation for FastAPI, and legacy chat-token renewal until Phase 1.5 cleanup |
+| Auth/session | .NET API | Browser same-origin `/api/auth/*` and `/api/session/*`; internal `/internal/session/validate` | Login, logout, current session, CSRF token support, secure session cookies, and internal session validation for FastAPI |
 | Users/groups | .NET API | Management same-origin `/api/*` | User administration, role assignment, group/department management, activation/deactivation |
 | Documents | .NET API | Management same-origin `/api/*` | Document CRUD, metadata, filters, assisted import extraction, lifecycle transitions, publish request, indexing retry, archive, restore, and management audit |
-| Viewer | .NET API | Docs same-origin `/api/*`; link creation from chat/management | Viewer exchange-link creation, one-time code exchange, viewer token cookie issuance, document access validation, and document loading |
+| Viewer | .NET API | Docs same-origin `/api/*`; link creation from chat/management | Session-authenticated document links, document access validation, and document loading |
 | Chat/RAG | FastAPI | Chat same-origin `/api/chat/*` through Caddy | Question submission, retrieval, answer generation, citations, semantic cache lookup/write, RAG query audit, and token/cost/latency tracking |
 | Feedback/reporting | FastAPI and .NET API | Chat feedback via FastAPI; management reporting via .NET | Feedback submission tied to RAG query audit, plus read-only management feedback review/reporting over RAG audit data |
 | Usage budgets | .NET API and FastAPI | Management configuration via .NET; enforcement in FastAPI | Per-user monthly AI budget configuration, usage reporting, and chat budget enforcement based on RAG cost audit |
@@ -81,7 +81,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 ## Storage Model
 
 - **PostgreSQL database:** one database per customer deployment.
-- **`app` schema:** owned by .NET. Stores users, roles, groups/departments, documents, document metadata, lifecycle state, permissions, viewer token records if persisted, and management audit events.
+- **`app` schema:** owned by .NET. Stores users, roles, groups/departments, documents, document metadata, lifecycle state, permissions, session-authenticated document access data, and management audit events.
 - **`rag` schema:** owned by FastAPI. Stores indexing jobs, document chunks with embeddings, semantic cache entries and sources, query audit events with simple feedback, query audit citations, and model pricing.
 - **Document source content:** canonical normalized HTML and metadata are stored in Postgres.
 - **Imported files:** PDF/DOCX originals are not retained in the MVP. Imports are assisted extraction flows owned by the .NET management API: .NET accepts PDF/DOCX uploads up to 10 MB, extracts text from the uploaded file, and returns it to `manage.client.com`, which inserts it into the document editor so the user can correct formatting, structure, and attributes before saving. The system stores the user-edited normalized HTML plus import metadata such as original filename, MIME type, size, hash, importer, timestamp, extraction result, and file size.
@@ -96,16 +96,15 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - JWTs, refresh tokens, session IDs, and other credential-bearing tokens must not be stored in `localStorage` or `sessionStorage`.
 - SameSite cookies are defense in depth, not the only CSRF defense. Mutating browser requests must include an approved CSRF mitigation such as synchronizer tokens or a signed double-submit cookie/header pattern.
 - Browser session cookies must be host-only `__Host-` prefixed cookies when set through the same-origin frontend hosts. Avoid broad parent-domain cookies such as `Domain=.client.com` for the MVP.
-- Current Phase 1.5 implementation is transitional: FastAPI chat/feedback read the `__Host-session` cookie and validate it through `.NET` internal `GET /internal/session/validate` on cache miss with `X-Internal-Service-Token`.
+- Phase 1.5 unified auth uses `__Host-session` as the only browser auth cookie. FastAPI chat/feedback read the `__Host-session` cookie and validate it through `.NET` internal `GET /internal/session/validate` on cache miss with `X-Internal-Service-Token`.
 - FastAPI caches safe session claims in process for 60 seconds keyed by a SHA-256 hash of the session cookie value. Raw session cookies must not be logged.
 - .NET remains the authority for login, session issuance, user state, role/group assignment, internal session validation, and token signing key management.
-- Legacy `POST /api/auth/chat-token` and `__Host-chat-token` still exist in code until Phase 1.5 cleanup, but the current `chat-web` runtime no longer calls that route before chat requests.
-- `docs-web` still uses the legacy viewer exchange-code flow; replacing `/api/viewer/exchange` is pending.
+- Legacy `POST /api/auth/chat-token`, `__Host-chat-token`, `/api/viewer/exchange`, and `__Host-viewer-token` runtime flows have been removed. The deprecated viewer exchange/audit tables are not part of the current EF model or initial app-schema migration.
 - Roles define system capabilities.
 - Groups/departments and document attributes define content access.
 - Document access in the MVP is group/department-based plus document attributes. Per-user document access exceptions are out of scope. If a customer needs an exception, administrators create a specific group and assign the user to that group.
 - RAG retrieval and semantic cache matching must use the effective access scope.
-- Viewer links use scoped viewer access tokens, not the user's main session JWT.
+- Viewer links use document-id locators only; the user's authenticated session is revalidated server-side before document content is returned.
 
 ## CSRF Strategy
 
@@ -113,7 +112,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - `.NET` exposes `GET /api/csrf` (non-mutating) that issues a signed request token in the response header `X-CSRF-Token` and sets the same token in a host-only `__Host-CSRF` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`).
 - Frontends call `GET /api/csrf` on app boot and after each session change, store the response header value in memory (not localStorage), and send it as the `X-CSRF-Token` header on every state-changing request.
 - `.NET` validates the HMAC-signed header token against the `__Host-CSRF` cookie on every mutating endpoint before route handling.
-- `chat.client.com` mutating requests against FastAPI (e.g., `POST /api/chat`, `POST /api/feedback`) now send the same `X-CSRF-Token` header from `chat-web`; FastAPI local validation of the `__Host-CSRF` cookie/header pair is still pending.
+- `chat.client.com` mutating requests against FastAPI (e.g., `POST /api/chat`, `POST /api/feedback`) send the same `X-CSRF-Token` header from `chat-web`; FastAPI validates the `__Host-CSRF` cookie/header pair locally before session validation.
 - SameSite=Strict on the auth/session cookies is treated as defense in depth, not the only CSRF defense.
 
 ## Local Development HTTPS
@@ -125,7 +124,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 
 ## JWT Signing Key Rotation
 
-- All JWTs (main session, chat access token, viewer access token) are signed with **RS256**.
+- Any JWTs issued by `.NET` are signed with **RS256**.
 - `.NET` maintains **two active keys** at all times: `current` (used for new tokens) and `previous` (only used for validation during the rotation overlap window).
 - Each issued token includes the `kid` (key id) header so the verifier can pick the right public key.
 - Public keys are exposed by `.NET` at `GET /.well-known/jwks.json` for internal consumers (FastAPI). FastAPI fetches and caches the JWKS at startup and refreshes every 5 minutes.
@@ -152,17 +151,13 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 | `DocumentManager` | Can create, read, update, import, archive eligible draft or in-review documents, restore archived documents to draft, edit metadata, and send documents to review. Cannot publish. |
 | `Viewer` | No access to `manage.client.com`. Can use chat and open allowed documents in `docs.client.com`. |
 
-## Viewer Access Tokens
+## Viewer Document Access
 
-`docs.client.com` is token-gated. Links from `manage.client.com` and `chat.client.com` must include or exchange for a scoped viewer access token issued by the .NET API.
+`docs.client.com` is session-gated. Links from `manage.client.com` and `chat.client.com` carry only a `documentId` query value, never a credential-bearing token. `docs.client.com` calls same-origin `.NET` routes with its authenticated `__Host-session` cookie, and `.NET` revalidates the current user, role, groups, document state, and permissions before returning document content.
 
-Viewer access from chat or management uses a one-time exchange code instead of placing the real viewer access token in the URL. Chat or management requests a document link from the .NET API. .NET returns a URL such as `https://docs.client.com/open?code=...`. The code is single-use, expires after 60 seconds by default, and is exchanged by `docs.client.com` through a same-origin `/api/*` route backed by .NET. After a successful exchange, .NET sets the real scoped viewer access token in a host-only `HttpOnly`, `Secure`, `SameSite` cookie for `docs.client.com`.
+Chat-created document links are limited to `Published` documents. Management-created links may allow `Draft`, `In Review`, and `Published` when the user has `Admin` or `DocumentManager`. The link itself is not authorization; it is only a document locator.
 
-Viewer access tokens must be short-lived and document-specific. They expire after 15 minutes and are reusable during that validity window. They include at least `document_id`, `user_id`, `purpose`, `allowed_status`, `access_scope_hash`, `expires_at`, and `jti`. The `jti` is used for audit and revocation if viewer token records are persisted; one-time-use viewer tokens are not required in the MVP. Links from chat are limited to `Published` documents. Links from management may allow `Draft`, `In Review`, and `Published` when the user has `Admin` or `DocumentManager`.
-
-Expired, already-used, invalid, or unauthorized exchange codes must not expose document details. `docs.client.com` shows a safe expired-link or access-denied state and gives the user a path back to chat or management.
-
-The main session JWT must not be placed in document viewer URLs.
+The main session token and any other credential-bearing token must not be placed in document viewer URLs. Unauthorized or missing-session document requests must return the shared error envelope without exposing document details.
 
 ## Document Lifecycle And Indexing
 
@@ -297,13 +292,10 @@ The MVP starts with conservative operational defaults that are configurable per 
 | RAG semantic cache similarity threshold | `0.90` |
 | OpenAI embedding dimensions | `1536` |
 | Chat access token TTL | `15` minutes |
-| Viewer exchange code TTL | `60` seconds |
-| Viewer access token TTL | `15` minutes |
 | Login rate limit by IP | `5` attempts per minute |
 | Login rate limit by user | `10` attempts per 15 minutes |
 | Chat request rate limit | `30` questions per minute per user |
 | Import extraction rate limit | `10` imports per hour per user |
-| Viewer exchange rate limit | `30` exchanges per minute per user |
 | AI usage budget | `USD 5` per calendar month per user |
 
 Rate limit exceedances must use stable safe error codes and must not expose internal implementation details. AI usage budget exhaustion is handled separately with `AI_BUDGET_EXCEEDED`.
@@ -330,8 +322,6 @@ Rate limit exceedances must use stable safe error codes and must not expose inte
 - `document_tags`
 - `review_comments`
 - `import_metadata`
-- `viewer_exchange_codes`
-- `viewer_token_audit`
 - `user_ai_budget_limits`
 - `audit_events`
 

@@ -128,41 +128,6 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
         body.Corpus.Should().Be("published");
     }
 
-    [Fact]
-    public async Task ChatToken_WithMainSession_SetsSecureHostOnlyChatTokenCookie()
-    {
-        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        var session = await LoginAsync(client, "chat.localhost");
-
-        using var response = await SendJsonAsync(
-            client,
-            HttpMethod.Post,
-            "/api/auth/chat-token",
-            new { },
-            "chat.localhost",
-            session.Csrf,
-            session.SessionCookie);
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var chatCookie = GetSetCookie(response, "__Host-chat-token");
-        var normalizedChatCookie = chatCookie.ToLowerInvariant();
-        normalizedChatCookie.Should().Contain("httponly", Exactly.Once());
-        normalizedChatCookie.Should().Contain("secure", Exactly.Once());
-        normalizedChatCookie.Should().Contain("samesite=strict", Exactly.Once());
-        normalizedChatCookie.Should().Contain("path=/", Exactly.Once());
-        normalizedChatCookie.Should().NotContain("domain=");
-
-        var payload = ReadJwtPayload(chatCookie);
-        payload.GetProperty("sub").GetString().Should().Be(AuthWebApplicationFactory.TestUserId.ToString());
-        payload.GetProperty("role").GetString().Should().Be("Viewer");
-        payload.GetProperty("groups").EnumerateArray()
-            .Select(item => item.GetString())
-            .Should()
-            .BeEquivalentTo([AuthWebApplicationFactory.TestGroupId.ToString()]);
-        payload.GetProperty("access_scope_hash").GetString().Should().NotBeNullOrWhiteSpace();
-        payload.GetProperty("corpus").GetString().Should().Be("published");
-    }
-
     private static async Task<LoginSession> LoginAsync(HttpClient client, string host)
     {
         var csrf = await GetCsrfAsync(client, host);
@@ -235,22 +200,6 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
     private static string CookiePair(string setCookie)
     {
         return setCookie.Split(';', 2)[0];
-    }
-
-    private static JsonElement ReadJwtPayload(string setCookie)
-    {
-        var token = CookiePair(setCookie).Split('=', 2)[1];
-        var payload = token.Split('.')[1];
-        var json = Encoding.UTF8.GetString(Base64UrlDecode(payload));
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.Clone();
-    }
-
-    private static byte[] Base64UrlDecode(string value)
-    {
-        var padded = value.Replace('-', '+').Replace('_', '/');
-        padded = padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '=');
-        return Convert.FromBase64String(padded);
     }
 
     private sealed record CsrfState(string Token, string Cookie);

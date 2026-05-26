@@ -74,7 +74,7 @@ docker compose --env-file infra/compose/.env.example -f infra/compose/compose.ya
 ]
 ```
 
-The `.NET` API uses the `current` private key to issue chat tokens. Missing or placeholder JWT keys cause `/api/auth/chat-token` to fail with `INTERNAL_ERROR`; the `.NET` logs will show `No current JWT signing key is configured.`
+The `.NET` API uses the `current` private key for server-side signing needs such as internal compatibility paths and future rotated credentials. Browser chat and document viewing use the unified `__Host-session` cookie, not a separate chat-token or viewer-token cookie. Missing or placeholder JWT keys can still make `.NET` readiness or signing-dependent tests fail; the `.NET` logs will show `No current JWT signing key is configured.`
 
 ## Manual Placeholder Setup
 

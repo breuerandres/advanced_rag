@@ -4,41 +4,36 @@ Internal design system consumed by `apps/manage-web`, `apps/chat-web`, and `apps
 
 See `docs/adr/0007-shared-ui-design-system.md` for the rationale.
 
-## What's here (initial scaffold)
+## What's here
 
-- `src/styles/tokens.css` — CSS variables for light + dark themes
-- `src/styles/fonts.css` — Inter via `@fontsource/inter`
-- `src/styles/globals.css` — base resets
-- `src/hooks/useTheme.ts` — dark mode + persistence
-- `src/hooks/useShortcut.ts` — keyboard shortcut binding
-- `src/lib/cn.ts` — `clsx`/`tailwind-merge` helper
-- `src/components/Button.tsx` — primary, secondary, ghost, danger variants
-- `src/components/AppShell.tsx` — sidebar + main + optional right panel layout
-- `src/components/Header.tsx` — top header with logo, theme toggle, avatar slot
-- `src/components/Sidebar.tsx` — collapsible left sidebar
-- `src/components/DarkModeToggle.tsx` — visible toggle component
-- `src/components/LanguageSelect.tsx` — visible locale selector
-- `src/components/CommandPalette.tsx` — cmdk-backed command palette
-- `src/index.ts` — barrel exports
+- `src/styles/tokens.css` - CSS variables for light and dark themes.
+- `src/styles/fonts.css` - Inter via `@fontsource/inter`.
+- `src/styles/globals.css` - base resets.
+- `src/hooks/useTheme.ts` - dark mode and persistence.
+- `src/hooks/useShortcut.ts` - keyboard shortcut binding.
+- `src/lib/cn.ts` - `clsx`/`tailwind-merge` helper.
+- Layout and controls: `AppShell`, `Header`, `Sidebar`, `Button`, `DarkModeToggle`, `LanguageSelect`, `CommandPalette`.
+- Forms: `Input`, `Textarea`, `Select`, `Checkbox`, `RadioGroup`, `Switch`.
+- Overlays: `Dialog`, `Drawer`, `HoverCard`, `Tooltip`, `Popover`, `DropdownMenu`.
+- Data: `DataTable` (TanStack Table wrapper), `Pagination`, `Badge`, `Avatar`.
+- Feedback: `ToastViewport`/`notify`, `Skeleton`, `EmptyState`.
+- Content and chat: `Markdown`, `ChatMessage`, `ChatComposer`, `ConversationList`, `CitationCard`, `CitationDrawer`.
+- `src/index.ts` - barrel exports.
 
 ## What's pending
 
-Per `docs/v2/03-phases.md` §Phase 1.5.5:
+Phase 1.5.5 component primitives are implemented. Future hardening work:
 
-- Inputs: `Input`, `Textarea`, `Select`, `Checkbox`, `RadioGroup`, `Switch`
-- Overlays: `Dialog`, `Drawer`, `HoverCard`, `Tooltip`, `Popover`, `DropdownMenu`
-- Data: `DataTable` (TanStack Table wrapper), `Pagination`, `Badge`, `Avatar`
-- Feedback: `Toast` (Sonner), `Skeleton`, `EmptyState`
-- Markdown: `Markdown` (react-markdown + rehype-sanitize)
-- Chat: `ChatMessage`, `ChatComposer`, `ConversationList`, `CitationCard`, `CitationDrawer`
+- Apply shared UI data and overlay primitives to the three SPAs during Phase 1.5.6/1.7.
+- Add Storybook when the component API stabilizes.
 
-Each pending component must:
+Each component must continue to:
 
 1. Live in `src/components/<Name>.tsx`.
 2. Be built on Radix UI primitives where applicable.
 3. Use design tokens from `styles/tokens.css`.
-4. Support keyboard nav + visible focus + WCAG AA contrast in both themes.
-5. Have a colocated `<Name>.test.tsx` (Vitest + @testing-library/react).
+4. Support keyboard nav, visible focus, and WCAG AA contrast in both themes.
+5. Have a colocated `<Name>.test.tsx` when new behavior is added.
 6. Be exported through `src/index.ts`.
 
 ## Consuming from an app
@@ -49,7 +44,7 @@ In each app's `src/main.tsx`:
 import '@helpcenter/shared-ui/styles/fonts.css';
 import '@helpcenter/shared-ui/styles/tokens.css';
 import '@helpcenter/shared-ui/styles/globals.css';
-import './index.css';   // app-local Tailwind directives
+import './index.css';
 ```
 
 And then:

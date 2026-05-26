@@ -26,6 +26,7 @@ import type { DocumentDetail, DocumentSummary } from "../../api/documents";
 import { listGroups, type GroupSummary } from "../../api/users";
 import { Button } from "../../components/ui/button";
 import { RichTextEditor } from "./RichTextEditor";
+import { Checkbox, DataTable, Input } from "@helpcenter/shared-ui";
 
 type DocumentStateFilter =
   | "all"
@@ -409,42 +410,61 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
             ) : null}
 
             {loadState === "ready" && filteredDocuments.length > 0 ? (
-              <div className="table-frame">
-                <table className="data-table documents-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Documento</th>
-                      <th scope="col">Estado</th>
-                      <th scope="col">Tipo</th>
-                      <th scope="col">Audiencia</th>
-                      <th scope="col">Acceso</th>
-                      <th scope="col">Indexacion</th>
-                      <th scope="col">Versiones</th>
-                      <th scope="col">Actualizado</th>
-                      <th scope="col">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDocuments.map((document) => (
-                      <tr key={document.id}>
-                        <th scope="row">{document.title}</th>
-                        <td>
+              <DataTable<DocumentSummary>
+                className="table-frame documents-table"
+                columns={[
+                  {
+                    key: "document",
+                    header: "Documento",
+                    rowHeader: true,
+                    render: (document) => document.title,
+                  },
+                  {
+                    key: "state",
+                    header: "Estado",
+                    render: (document) => (
                           <span className={`badge document-state ${stateClass(document.state)}`}>
                             {displayState(document.state)}
                           </span>
-                        </td>
-                        <td>{document.documentType || "-"}</td>
-                        <td>{document.audience || "-"}</td>
-                        <td>
-                          {displayGroups(groups, document.allowedGroupIds)}
-                        </td>
-                        <td>{displayIndexing(document.indexingStatus)}</td>
-                        <td>
-                          Borrador {document.draftVersionNumber ?? "-"} /
-                          Publicada {document.publishedVersionNumber ?? "-"}
-                        </td>
-                        <td>{formatDate(document.updatedAt)}</td>
-                        <td>
+                    ),
+                  },
+                  {
+                    key: "type",
+                    header: "Tipo",
+                    render: (document) => document.documentType || "-",
+                  },
+                  {
+                    key: "audience",
+                    header: "Audiencia",
+                    render: (document) => document.audience || "-",
+                  },
+                  {
+                    key: "access",
+                    header: "Acceso",
+                    render: (document) => displayGroups(groups, document.allowedGroupIds),
+                  },
+                  {
+                    key: "indexing",
+                    header: "Indexacion",
+                    render: (document) => displayIndexing(document.indexingStatus),
+                  },
+                  {
+                    key: "versions",
+                    header: "Versiones",
+                    render: (document) =>
+                      `Borrador ${document.draftVersionNumber ?? "-"} / Publicada ${
+                        document.publishedVersionNumber ?? "-"
+                      }`,
+                  },
+                  {
+                    key: "updated",
+                    header: "Actualizado",
+                    render: (document) => formatDate(document.updatedAt),
+                  },
+                  {
+                    key: "actions",
+                    header: "Acciones",
+                    render: (document) => (
                           <div className="row-actions">
                             <Button
                               className="icon-button"
@@ -495,12 +515,12 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                               </Button>
                             ) : null}
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    ),
+                  },
+                ]}
+                data={filteredDocuments}
+                getRowId={(document) => document.id}
+              />
             ) : null}
           </>
         ) : editorState ? (
@@ -561,6 +581,9 @@ function DocumentEditor({
     documentDetail,
     userRoles,
   );
+  const hasReviewValidationError =
+    validationError ===
+    "Completa titulo, tipo, audiencia, grupos y contenido antes de enviar a revision.";
 
   async function saveDraft() {
     setValidationError(null);
@@ -678,7 +701,8 @@ function DocumentEditor({
         <div className="dialog-grid">
           <label className="field">
             <span>Titulo</span>
-            <input
+            <Input
+              invalid={hasReviewValidationError && title.trim().length === 0}
               type="text"
               value={title}
               onChange={(event) => {
@@ -689,7 +713,8 @@ function DocumentEditor({
           </label>
           <label className="field">
             <span>Tipo</span>
-            <input
+            <Input
+              invalid={hasReviewValidationError && documentType.trim().length === 0}
               type="text"
               value={documentType}
               onChange={(event) => {
@@ -700,7 +725,8 @@ function DocumentEditor({
           </label>
           <label className="field">
             <span>Audiencia</span>
-            <input
+            <Input
+              invalid={hasReviewValidationError && audience.trim().length === 0}
               type="text"
               value={audience}
               onChange={(event) => {
@@ -741,14 +767,13 @@ function DocumentEditor({
           <legend>Grupos con acceso</legend>
           {groups.length > 0 ? (
             groups.map((group) => (
-              <label className="checkbox-field" key={group.id}>
-                <input
-                  type="checkbox"
-                  checked={allowedGroupIds.includes(group.id)}
-                  onChange={() => toggleGroup(group.id)}
-                />
-                <span>{group.name}</span>
-              </label>
+              <Checkbox
+                className="checkbox-field"
+                key={group.id}
+                label={group.name}
+                checked={allowedGroupIds.includes(group.id)}
+                onCheckedChange={() => toggleGroup(group.id)}
+              />
             ))
           ) : (
             <p className="muted-copy">No hay grupos disponibles.</p>

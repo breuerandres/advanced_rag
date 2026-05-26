@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
+import { DataTable } from '@helpcenter/shared-ui'
 import { listFeedbackReport, type FeedbackReportItem } from '../../api/reporting'
 import { Button } from '../../components/ui/button'
 
@@ -89,6 +90,50 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
     URL.revokeObjectURL(url)
   }
 
+  const columns = [
+    {
+      key: 'question',
+      header: 'Pregunta',
+      className: 'feedback-question-column',
+      render: (item: FeedbackReportItem) => (
+        <>
+          <span className="user-name">{item.question}</span>
+          <span className="user-email">{item.answerSummary}</span>
+        </>
+      ),
+    },
+    {
+      key: 'user',
+      header: 'Usuario',
+      className: 'feedback-user-column',
+      render: (item: FeedbackReportItem) => item.userDisplayName,
+    },
+    {
+      key: 'feedback',
+      header: 'Feedback',
+      className: 'feedback-value-column feedback-value-cell',
+      render: (item: FeedbackReportItem) => (item.feedbackValue === 'down' ? 'No sirvio' : 'Sirvio'),
+    },
+    {
+      key: 'comment',
+      header: 'Comentario',
+      className: 'feedback-comment-column',
+      render: (item: FeedbackReportItem) => item.feedbackComment ?? '-',
+    },
+    {
+      key: 'cache',
+      header: 'Cache',
+      className: 'feedback-cache-column',
+      render: (item: FeedbackReportItem) => (item.cacheHit ? 'Si' : 'No'),
+    },
+    {
+      key: 'date',
+      header: 'Fecha',
+      className: 'feedback-date-column',
+      render: (item: FeedbackReportItem) => formatDateTime(item.feedbackUpdatedAt),
+    },
+  ]
+
   return (
     <section className={embedded ? 'audit-feedback-panel' : 'workspace'} id="feedback">
         <header className="workspace-header">
@@ -172,43 +217,12 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
         ) : null}
 
         {items.length > 0 ? (
-          <div className="table-frame">
-            <table className="data-table feedback-table">
-              <colgroup>
-                <col className="feedback-question-column" />
-                <col className="feedback-user-column" />
-                <col className="feedback-value-column" />
-                <col className="feedback-comment-column" />
-                <col className="feedback-cache-column" />
-                <col className="feedback-date-column" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th scope="col">Pregunta</th>
-                  <th scope="col">Usuario</th>
-                  <th scope="col">Feedback</th>
-                  <th scope="col">Comentario</th>
-                  <th scope="col">Cache</th>
-                  <th scope="col">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.queryAuditEventId}>
-                    <th scope="row">
-                      <span className="user-name">{item.question}</span>
-                      <span className="user-email">{item.answerSummary}</span>
-                    </th>
-                    <td>{item.userDisplayName}</td>
-                    <td className="feedback-value-cell">{item.feedbackValue === 'down' ? 'No sirvio' : 'Sirvio'}</td>
-                    <td>{item.feedbackComment ?? '-'}</td>
-                    <td>{item.cacheHit ? 'Si' : 'No'}</td>
-                    <td>{formatDateTime(item.feedbackUpdatedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            className="table-frame feedback-table"
+            columns={columns}
+            data={items}
+            getRowId={(item) => item.queryAuditEventId}
+          />
         ) : null}
     </section>
   )

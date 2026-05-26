@@ -35,13 +35,14 @@ Designer files are derived.
 | 008 | `008_add_webhooks.up.sql` / `.down.sql` | Outgoing webhook subscriptions | — |
 | 009 | `009_add_document_language_summary.up.sql` / `.down.sql` | Adds `language`, `summary`, `external_key` to documents | 0003 |
 | 010 | `010_add_document_versions_markdown.up.sql` / `.down.sql` | Adds `content_format` and `content_markdown` to versions | — |
-| 011 | `011_drop_viewer_exchange_codes.up.sql` / `.down.sql` | Removes deprecated viewer exchange code flow | 0006 |
 | 012 | `012_add_mv_document_metrics.up.sql` / `.down.sql` | Materialised view aggregating views/reactions/favourites/citations | — |
 | 013 | `013_grant_v2_app_reads_to_rag_owner.up.sql` / `.down.sql` | Extend `rag_owner` SELECT to new app tables it reads | — |
 
 ## Notes
 
-- Apply in order. Some scripts reference tables created earlier.
+- Apply in numeric order. Number `011` is intentionally retired because the deprecated
+  viewer exchange tables were removed from the EF model and initial migration instead of
+  being dropped by a follow-up raw SQL migration.
 - Each script is idempotent at the `IF NOT EXISTS` / `IF EXISTS` level where possible.
 - The `app_reporting_reader` role and `rag_owner` role are created by `postgres-init`
   (see `infra/compose/postgres-init/`). These scripts only add grants on new tables.

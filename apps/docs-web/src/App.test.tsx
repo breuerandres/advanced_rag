@@ -6,7 +6,7 @@ const originalLocation = window.location
 
 beforeEach(() => {
   vi.restoreAllMocks()
-  setLocation('https://docs.localhost/open?code=valid-code')
+  setLocation('https://docs.localhost/open?documentId=55555555-5555-5555-5555-555555555555')
 })
 
 afterEach(() => {
@@ -61,6 +61,30 @@ test('renders the independent document portal grouped by category', async () => 
   expect(screen.queryByRole('navigation', { name: /Navegacion del visor/i })).not.toBeInTheDocument()
 })
 
+test('shows a semantic empty state when the document portal has no visible documents', async () => {
+  setLocation('https://docs.localhost/')
+  mockFetch([
+    jsonResponse({
+      user: {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        email: 'viewer@example.com',
+        displayName: 'Viewer User',
+        roles: ['Viewer'],
+        groups: [],
+      },
+    }),
+    jsonResponse({
+      groups: [],
+      documents: [],
+    }),
+  ])
+
+  render(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Sin documentos para mostrar' })).toBeInTheDocument()
+  expect(screen.getByText('No encontramos documentos disponibles con los filtros actuales.')).toBeInTheDocument()
+})
+
 test('shows login when the docs host has no session', async () => {
   setLocation('https://docs.localhost/')
   mockFetch([
@@ -73,14 +97,11 @@ test('shows login when the docs host has no session', async () => {
 })
 
 test.each([
-  ['VIEWER_CODE_EXPIRED', 'El enlace expiro. Pedi uno nuevo desde el chat.'],
-  ['VIEWER_CODE_USED', 'Este enlace ya fue usado. Pedi uno nuevo desde el chat.'],
   ['AUTH_FORBIDDEN', 'No tenes permiso para abrir este documento.'],
-  ['AUTH_TOKEN_EXPIRED', 'La sesion del visor expiro. Volve a abrir el enlace.'],
+  ['AUTH_REQUIRED', 'Inicia sesion para abrir este documento.'],
   ['NOT_FOUND', 'No encontramos el documento solicitado.'],
 ])('shows safe error state for %s', async (code, message) => {
   mockFetch([
-    csrfResponse(),
     errorResponse(code),
   ])
 
@@ -89,13 +110,10 @@ test.each([
   expect(await screen.findByRole('alert')).toHaveTextContent(message)
 })
 
-test('renders document after successful exchange and load', async () => {
-  const replaceState = vi.spyOn(window.history, 'replaceState')
+test('renders document through the unified session and document id', async () => {
   mockFetch([
-    csrfResponse(),
-    jsonResponse({ documentId: 'doc-1', expiresAt: '2026-05-18T12:15:00Z' }),
     jsonResponse({
-      documentId: 'doc-1',
+      documentId: '55555555-5555-5555-5555-555555555555',
       documentVersionId: 'version-1',
       title: 'Procedimiento publicado',
       state: 'Published',
@@ -110,9 +128,8 @@ test('renders document after successful exchange and load', async () => {
 
   expect(await screen.findByRole('heading', { name: 'Procedimiento publicado' })).toBeInTheDocument()
   expect(screen.getByText('Usa el equipo de seguridad.')).toBeInTheDocument()
-  expect(screen.getByText('Token vigente hasta')).toBeInTheDocument()
+  expect(screen.getByText('Sesion vigente hasta')).toBeInTheDocument()
   expect(screen.getByText('Publicado')).toBeInTheDocument()
-  expect(replaceState).toHaveBeenCalledWith({}, '', '/open')
 })
 
 function setLocation(url: string) {
@@ -127,13 +144,6 @@ function mockFetch(responses: Response[]) {
   for (const response of responses) {
     fetch.mockResolvedValueOnce(response)
   }
-}
-
-function csrfResponse() {
-  return new Response('{}', {
-    status: 200,
-    headers: { 'X-CSRF-Token': 'csrf-token' },
-  })
 }
 
 function jsonResponse(body: unknown) {

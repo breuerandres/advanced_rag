@@ -176,7 +176,7 @@ test('shows a safe generic error with request id', async () => {
   expect(screen.getByText('ID de solicitud: request-503')).toBeInTheDocument()
 })
 
-test('opens citations through viewer exchange links', async () => {
+test('opens citations through session-based viewer links', async () => {
   const assign = vi.fn()
   Object.defineProperty(window, 'location', {
     configurable: true,
@@ -201,7 +201,7 @@ test('opens citations through viewer exchange links', async () => {
       ],
       ['done', {}],
     ]),
-    jsonResponse(200, { url: 'https://docs.client.com/open?code=abc' }),
+    jsonResponse(200, { url: 'https://docs.client.com/open?documentId=55555555-5555-5555-5555-555555555555' }),
   ])
   const user = userEvent.setup()
 
@@ -213,7 +213,7 @@ test('opens citations through viewer exchange links', async () => {
     '/api/viewer/links',
     expect.objectContaining({ method: 'POST' }),
   )
-  expect(assign).toHaveBeenCalledWith('https://docs.client.com/open?code=abc')
+  expect(assign).toHaveBeenCalledWith('https://docs.client.com/open?documentId=55555555-5555-5555-5555-555555555555')
 })
 
 test('shows login when the chat host has no session and opens the chat after signing in', async () => {

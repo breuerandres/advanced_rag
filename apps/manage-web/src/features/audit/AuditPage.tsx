@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ClipboardList, RefreshCw, Search } from 'lucide-react'
+import { DataTable, EmptyState } from '@helpcenter/shared-ui'
 import { listAuditEvents, type ManagementAuditEvent } from '../../api/audit'
 import { ApiError } from '../../lib/api-error'
 import { Button } from '../../components/ui/button'
@@ -65,6 +66,47 @@ export function AuditPage() {
     })
   }, [eventTypeFilter, events, searchQuery])
 
+  const columns = useMemo(
+    () => [
+      {
+        key: 'createdAt',
+        header: 'Fecha',
+        render: (event: ManagementAuditEvent) => formatDateTime(event.createdAt),
+      },
+      {
+        key: 'event',
+        header: 'Evento',
+        render: (event: ManagementAuditEvent) => (
+          <>
+            <span className="user-name">{event.eventLabel}</span>
+            <span className="user-email">{event.eventType}</span>
+          </>
+        ),
+      },
+      {
+        key: 'actor',
+        header: 'Actor',
+        render: (event: ManagementAuditEvent) => event.actorDisplayName ?? '-',
+      },
+      {
+        key: 'entity',
+        header: 'Entidad',
+        render: (event: ManagementAuditEvent) => (
+          <>
+            <span className="user-name">{displayEntityType(event.entityType)}</span>
+            <span className="user-email">{shortId(event.entityId)}</span>
+          </>
+        ),
+      },
+      {
+        key: 'requestId',
+        header: 'Request ID',
+        render: (event: ManagementAuditEvent) => event.requestId,
+      },
+    ],
+    [],
+  )
+
   return (
     <section className="workspace" id="audit">
       <header className="workspace-header">
@@ -125,17 +167,12 @@ export function AuditPage() {
       ) : null}
 
       {loadState === 'ready' && events.length === 0 ? (
-        <div className="empty-panel audit-functional-panel">
-          <ClipboardList size={22} />
-          <div>
-            <h2>Eventos funcionales</h2>
-            <p>Documentos, usuarios, grupos, presupuestos y revisiones.</p>
-            <p className="muted-copy">
-              Crea, guarda, envia a revision, archiva o restaura un documento para generar
-              eventos funcionales visibles aca.
-            </p>
-          </div>
-        </div>
+        <EmptyState
+          className="empty-panel audit-functional-panel"
+          title="Eventos funcionales"
+          description="Documentos, usuarios, grupos, presupuestos y revisiones. Crea, guarda, envia a revision, archiva o restaura un documento para generar eventos funcionales visibles aca."
+          icon={<ClipboardList size={22} aria-hidden="true" />}
+        />
       ) : null}
 
       {loadState === 'ready' && events.length > 0 && filteredEvents.length === 0 ? (
@@ -145,36 +182,12 @@ export function AuditPage() {
       {loadState === 'ready' && filteredEvents.length > 0 ? (
         <>
           <h2 className="section-heading">Eventos funcionales</h2>
-          <div className="table-frame">
-            <table className="data-table audit-table">
-              <thead>
-                <tr>
-                  <th scope="col">Fecha</th>
-                  <th scope="col">Evento</th>
-                  <th scope="col">Actor</th>
-                  <th scope="col">Entidad</th>
-                  <th scope="col">Request ID</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredEvents.map((event) => (
-                  <tr key={event.id}>
-                    <td>{formatDateTime(event.createdAt)}</td>
-                    <th scope="row">
-                      <span className="user-name">{event.eventLabel}</span>
-                      <span className="user-email">{event.eventType}</span>
-                    </th>
-                    <td>{event.actorDisplayName ?? '-'}</td>
-                    <td>
-                      <span className="user-name">{displayEntityType(event.entityType)}</span>
-                      <span className="user-email">{shortId(event.entityId)}</span>
-                    </td>
-                    <td>{event.requestId}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            className="table-frame audit-table"
+            columns={columns}
+            data={filteredEvents}
+            getRowId={(event) => event.id}
+          />
         </>
       ) : null}
     </section>

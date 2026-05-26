@@ -8,9 +8,10 @@ Mirror of `docs/v2/03-phases.md` checklists, maintained as a journal. The MVP
 - Current branch: `mvp-implementation`.
 - `feature/v2-generic` has been merged into `mvp-implementation`.
 - Merge commit at reconciliation time: `953c027 Merge branch 'feature/v2-generic' into mvp-implementation`.
-- Working tree status at reconciliation start: clean (`git status --short` returned no output).
-- This reconciliation did not run Playwright or the full verification suite. It reconciled
-  docs against Git history, manifests, source files, migrations, and current file presence.
+- Working tree status at the 2026-05-26 Phase 0 reconciliation start: broad uncommitted
+  v2 changes across unified auth, shared-ui, SPAs, docs, context, Compose, and backend tests.
+- This reconciliation is closing the dirty working tree before new v2 feature work. It has
+  not run Playwright or the full verification suite yet.
 
 ## Phase 0 - Preparation
 
@@ -24,6 +25,20 @@ Mirror of `docs/v2/03-phases.md` checklists, maintained as a journal. The MVP
   visual audit, and MVP happy path. This entry is historical evidence from that checkpoint;
   it was not re-run during the reconciliation.
 - 2026-05-25 - Commit `953c027` merged `feature/v2-generic` into `mvp-implementation`.
+- 2026-05-26 - Phase 0 reconciliation started from the dirty working tree produced by the
+  unified-auth/shared-ui work rather than from a clean checkout. Active E2E tests, .NET
+  API tests, and operational secrets documentation were updated away from browser
+  chat-token and viewer-exchange runtime flows. Remaining token-flow references are
+  historical notes, ADR context, or explicit removal statements.
+- 2026-05-26 - Phase 0 focused reconciliation verification passed:
+  - `pnpm.cmd --dir packages/shared-ui test -- --run` (`27 passed`)
+  - `pnpm.cmd --dir packages/shared-ui typecheck`
+  - `pnpm.cmd --dir apps/chat-web test -- --run App.test.tsx` (`12 passed`)
+  - `pnpm.cmd --dir apps/docs-web test -- --run App.test.tsx` (`10 passed`)
+  - `pnpm.cmd --dir apps/manage-web test -- --run App.test.tsx` (`32 passed`)
+  - `pnpm.cmd --dir apps/manage-web typecheck`
+  - `uv run pytest -q tests/test_chat_rag.py tests/test_feedback.py tests/test_rate_limit.py tests/test_session_validation.py` (`13 passed`)
+  - `dotnet test services/dotnet-api/AdvancedRag.sln --filter "Auth|Viewer|Configuration"` (`18 matching tests passed`; existing `NU1900` warnings because NuGet vulnerability metadata could not be fetched)
 
 ## Phase 1 - Foundations Generic
 
@@ -78,17 +93,77 @@ Mirror of `docs/v2/03-phases.md` checklists, maintained as a journal. The MVP
   - `chat-web` no longer calls `POST /api/auth/chat-token`; chat and feedback requests
     send the in-memory CSRF header and rely on the unified session cookie.
   - Compose wires `DOTNET_SESSION_VALIDATE_URL` and `SESSION_COOKIE_NAME` for `rag-api`.
-- Unified auth is still partial:
-  - `.NET` still exposes `POST /api/auth/chat-token`.
-  - `.NET` still exposes `/api/viewer/exchange`.
-  - `apps/docs-web/src/api/viewer.ts` still calls `/api/viewer/exchange`.
-  - FastAPI currently trusts the CSRF header sent by `chat-web`; local CSRF validation for
-    FastAPI chat/feedback mutations is still pending.
+- 2026-05-26 - Phase 1.5 unified auth runtime cleanup completed without Playwright:
+  - Removed `.NET` `POST /api/auth/chat-token`, `ChatTokenIssuer`, and the
+    `__Host-chat-token` browser cookie runtime path.
+  - Removed `.NET` `/api/viewer/exchange`, `ViewerTokenService`, and the
+    `__Host-viewer-token` runtime path.
+  - Changed viewer links to `https://docs.<domain>/open?documentId=<id>` and
+    `GET /api/viewer/document?documentId=<id>` now revalidates the authenticated
+    `.NET` session and role before returning document content.
+  - `apps/docs-web` opens document-id links with the unified session and no longer calls
+    `/api/viewer/exchange`.
+  - Added FastAPI local CSRF validation for `POST /api/chat` and
+    `POST /api/feedback/{query_audit_event_id}` before session validation.
+  - Corrected Compose wiring so `.NET` receives `Csrf__SigningKeyFile` and FastAPI
+    receives `CSRF_SIGNING_KEY_FILE`.
+  - Deprecated viewer exchange/audit tables were removed from the current EF model and
+    initial app-schema migration, and the unused raw v2 drop script was retired.
+- 2026-05-26 - FastAPI auth test seams were aligned with unified session validation:
+  - `test_chat_rag.py`, `test_feedback.py`, and `test_rate_limit.py` now inject
+    `session_validator` fakes instead of `chat_token_validator` fakes for browser
+    chat/feedback paths.
+  - `rg` no longer finds `chat_token_validator=` or `FakeChatTokenValidator` under
+    `services/rag-api/tests`.
+  - Verified with `uv run pytest -q tests/test_chat_rag.py tests/test_feedback.py
+    tests/test_rate_limit.py` (`11 passed`), `uv run ruff check .`, and
+    `uv run mypy src tests`.
+- 2026-05-26 - Shared UI primitives were completed:
+  - Added form primitives: `Input`, `Textarea`, `Select`, `Checkbox`, `RadioGroup`,
+    and `Switch`.
+  - Added overlay primitives: `Dialog`, `Drawer`, `HoverCard`, `Tooltip`, `Popover`,
+    and `DropdownMenu`.
+  - Added data, feedback, content, chat, and citation primitives: `DataTable`
+    backed by TanStack Table, `Pagination`, `Badge`, `Avatar`,
+    `ToastViewport`/`notify`, `Skeleton`, `EmptyState`, `Markdown`,
+    `ChatMessage`, `ChatComposer`, `ConversationList`, `CitationCard`, and
+    `CitationDrawer`.
+  - Added colocated Vitest/Testing Library tests for all new primitives and a
+    package-local Vitest setup.
+  - Refreshed `pnpm-lock.yaml` for the ADR-0007-approved UI dependencies used by
+    these primitives.
+  - Verified with `pnpm.cmd --dir packages/shared-ui test` (`25 passed`) and
+    `pnpm.cmd --dir packages/shared-ui typecheck`.
+- 2026-05-26 - Phase 1.5.6 first SPA primitive adoption pass completed:
+  - Extended `ChatComposer` with max-length, character-count, submit-label, and
+    pending-label support, and localized `ChatMessage` author badges.
+  - Applied shared primitives in `chat-web`: `ChatComposer`, `ChatMessage`,
+    `CitationCard`, `EmptyState`, `Input`, `Textarea`, and shared `Button`.
+  - Applied shared primitives in `docs-web`: `EmptyState`, `Input`, and shared `Button`
+    for login, search, loading/error, and empty portal states.
+  - Applied shared data primitives in `manage-web` by replacing local audit and
+    feedback tables with `DataTable`, and the audit empty state with `EmptyState`.
+  - Verified targeted red/green coverage with shared-ui, chat, docs, and management
+    Vitest suites plus package/app typechecks.
+- 2026-05-26 - Phase 1.5.6 management-heavy primitive adoption sub-batch completed:
+  - Extended `DataTable` with an explicit `rowHeader` column option so migrated
+    management tables preserve accessible row headers.
+  - Migrated management users/groups tables and document tables to the shared
+    `DataTable` primitive.
+  - Migrated users/groups budget, user, and group dialogs to the shared `Dialog`
+    primitive with action descriptions, while preserving footer-only cancel/save
+    controls.
+  - Migrated document editor text fields and access-group checkboxes to shared
+    `Input` and `Checkbox` primitives, including `aria-invalid` coverage for
+    review validation errors.
+  - Verified with focused red/green tests, `pnpm.cmd --dir apps/manage-web test --
+    --run App.test.tsx`, `pnpm.cmd --dir apps/manage-web typecheck`,
+    `pnpm.cmd --dir apps/manage-web build`, `pnpm.cmd --dir packages/shared-ui test
+    -- --run`, and `pnpm.cmd --dir packages/shared-ui typecheck`.
 - Pending:
-  - Remove or replace remaining MVP chat-token and viewer exchange flows in backend,
-    frontend, and tests.
-  - Add FastAPI CSRF validation for browser chat/feedback mutations.
-  - Finish pending shared-ui primitives listed in `packages/shared-ui/README.md`.
+  - Sweep for any remaining low-risk local duplicated form, overlay, table,
+    empty/loading, markdown, chat, and citation surfaces before starting Phase 1.7 UX
+    refactors.
 
 ## Phase 1.7 - UX Refactor Per SPA
 
@@ -156,7 +231,6 @@ open.
 
 ## Next Recommended Work
 
-Finish Phase 1.5 by removing or replacing the remaining MVP chat-token and viewer
-exchange-code flows before adding more v2 UI polish. The chat runtime now uses the
-OQ-001 internal session validation path, but docs viewing and legacy backend endpoints
-still keep the multi-token model alive.
+Use `docs/superpowers/plans/2026-05-26-v2-closure-plan.md` as the active closure plan.
+After the Phase 0 reconciliation commit, continue with Phase 1 foundations, starting
+with tenant configuration and the remaining v2 foundation gaps.

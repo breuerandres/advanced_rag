@@ -24,6 +24,7 @@ import {
 } from '../../api/users'
 import type { GroupSummary, UserSummary } from '../../api/users'
 import { Button } from '../../components/ui/button'
+import { Checkbox, DataTable, Dialog, Input } from '@helpcenter/shared-ui'
 
 type LoadState = 'loading' | 'ready' | 'error'
 type UserStatusFilter = 'all' | 'active' | 'inactive'
@@ -243,38 +244,54 @@ export function UsersBudgetPage() {
         ) : null}
 
         {loadState === 'ready' && filteredUsers.length > 0 ? (
-          <div className="table-frame">
-            <table className="data-table users-table">
-              <thead>
-                <tr>
-                  <th scope="col">Usuario</th>
-                  <th scope="col">Roles</th>
-                  <th scope="col">Grupos</th>
-                  <th scope="col">Estado</th>
-                  <th scope="col">Presupuesto mensual</th>
-                  <th scope="col">Gasto actual</th>
-                  <th scope="col">Restante</th>
-                  <th scope="col">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map((user) => (
-                  <tr key={user.id}>
-                    <th scope="row">
+          <DataTable<UserSummary>
+            className="table-frame users-table"
+            columns={[
+              {
+                key: 'user',
+                header: 'Usuario',
+                rowHeader: true,
+                render: (user) => (
+                  <>
                       <span className="user-name">{user.displayName}</span>
                       <span className="user-email">{user.email}</span>
-                    </th>
-                    <td>{joinOrDash(user.roles)}</td>
-                    <td>{joinOrDash(user.groups.map((group) => group.name))}</td>
-                    <td>
+                  </>
+                ),
+              },
+              { key: 'roles', header: 'Roles', render: (user) => joinOrDash(user.roles) },
+              {
+                key: 'groups',
+                header: 'Grupos',
+                render: (user) => joinOrDash(user.groups.map((group) => group.name)),
+              },
+              {
+                key: 'status',
+                header: 'Estado',
+                render: (user) => (
                       <span className={user.isActive ? 'badge active' : 'badge inactive'}>
                         {user.isActive ? 'Activo' : 'Inactivo'}
                       </span>
-                    </td>
-                    <td>{formatBudget(user.monthlyBudgetUsd, user.isBudgetDisabled)}</td>
-                    <td>{formatCurrency(user.currentSpendUsd)}</td>
-                    <td>{formatNullableCurrency(user.remainingBudgetUsd)}</td>
-                    <td>
+                ),
+              },
+              {
+                key: 'monthlyBudget',
+                header: 'Presupuesto mensual',
+                render: (user) => formatBudget(user.monthlyBudgetUsd, user.isBudgetDisabled),
+              },
+              {
+                key: 'currentSpend',
+                header: 'Gasto actual',
+                render: (user) => formatCurrency(user.currentSpendUsd),
+              },
+              {
+                key: 'remaining',
+                header: 'Restante',
+                render: (user) => formatNullableCurrency(user.remainingBudgetUsd),
+              },
+              {
+                key: 'actions',
+                header: 'Acciones',
+                render: (user) => (
                       <div className="row-actions">
                         <Button
                           className="icon-button"
@@ -313,12 +330,12 @@ export function UsersBudgetPage() {
                           {user.isActive ? <UserX size={16} /> : <UserCheck size={16} />}
                         </Button>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                ),
+              },
+            ]}
+            data={filteredUsers}
+            getRowId={(user) => user.id}
+          />
         ) : null}
       </section>
 
@@ -334,21 +351,25 @@ export function UsersBudgetPage() {
           {groups.length === 0 ? (
             <p className="status-message">No hay grupos para mostrar.</p>
           ) : (
-            <div className="table-frame groups-table-frame">
-              <table className="data-table groups-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Grupo</th>
-                    <th scope="col">Usuarios</th>
-                    <th scope="col">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groups.map((group) => (
-                    <tr key={group.id}>
-                      <th scope="row">{group.name}</th>
-                      <td>{users.filter((user) => user.groups.some((item) => item.id === group.id)).length}</td>
-                      <td>
+            <DataTable<GroupSummary>
+              className="table-frame groups-table-frame groups-table"
+              columns={[
+                {
+                  key: 'group',
+                  header: 'Grupo',
+                  rowHeader: true,
+                  render: (group) => group.name,
+                },
+                {
+                  key: 'users',
+                  header: 'Usuarios',
+                  render: (group) =>
+                    users.filter((user) => user.groups.some((item) => item.id === group.id)).length,
+                },
+                {
+                  key: 'actions',
+                  header: 'Acciones',
+                  render: (group) => (
                         <Button
                           className="icon-button"
                           type="button"
@@ -361,12 +382,12 @@ export function UsersBudgetPage() {
                         >
                           <Pencil size={16} />
                         </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  ),
+                },
+              ]}
+              data={groups}
+              getRowId={(group) => group.id}
+            />
           )}
         </section>
       ) : null}
@@ -483,24 +504,20 @@ function GroupEditDialog({
   }
 
   return (
-    <div className="dialog-backdrop">
-      <section
-        aria-labelledby="group-edit-dialog-title"
-        aria-modal="true"
-        className="dialog"
-        role="dialog"
-      >
-        <header className="dialog-header">
-          <div>
-            <p className="eyebrow">Acceso documental</p>
-            <h2 id="group-edit-dialog-title">Editar grupo</h2>
-          </div>
-        </header>
-
+    <Dialog
+      open
+      title="Editar grupo"
+      description="Actualizá el nombre visible del grupo usado para permisos documentales."
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose()
+        }
+      }}
+    >
         <form className="dialog-form" noValidate onSubmit={handleSubmit}>
           <label className="field">
             <span>Nombre del grupo</span>
-            <input
+            <Input
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -520,8 +537,7 @@ function GroupEditDialog({
             </Button>
           </div>
         </form>
-      </section>
-    </div>
+    </Dialog>
   )
 }
 
@@ -561,24 +577,20 @@ function GroupDialog({
   }
 
   return (
-    <div className="dialog-backdrop">
-      <section
-        aria-labelledby="group-dialog-title"
-        aria-modal="true"
-        className="dialog"
-        role="dialog"
-      >
-        <header className="dialog-header">
-          <div>
-            <p className="eyebrow">Acceso documental</p>
-            <h2 id="group-dialog-title">Crear grupo</h2>
-          </div>
-        </header>
-
+    <Dialog
+      open
+      title="Crear grupo"
+      description="Creá un grupo para asignar acceso a usuarios y documentos."
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose()
+        }
+      }}
+    >
         <form className="dialog-form" noValidate onSubmit={handleSubmit}>
           <label className="field">
             <span>Nombre del grupo</span>
-            <input
+            <Input
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -607,8 +619,7 @@ function GroupDialog({
             </Button>
           </div>
         </form>
-      </section>
-    </div>
+    </Dialog>
   )
 }
 
@@ -673,25 +684,22 @@ function UserDialog({
   }
 
   return (
-    <div className="dialog-backdrop">
-      <section
-        aria-labelledby="user-dialog-title"
-        aria-modal="true"
-        className="dialog user-dialog"
-        role="dialog"
-      >
-        <header className="dialog-header">
-          <div>
-            <p className="eyebrow">Identidad y permisos</p>
-            <h2 id="user-dialog-title">Crear usuario</h2>
-          </div>
-        </header>
-
+    <Dialog
+      open
+      className="user-dialog"
+      title="Crear usuario"
+      description="Creá una cuenta local y asignale rol y grupos de acceso."
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose()
+        }
+      }}
+    >
         <form className="dialog-form" noValidate onSubmit={handleSubmit}>
           <div className="dialog-grid">
             <label className="field">
               <span>Email</span>
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -701,7 +709,7 @@ function UserDialog({
 
             <label className="field">
               <span>Nombre visible</span>
-              <input
+              <Input
                 type="text"
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
@@ -711,7 +719,7 @@ function UserDialog({
 
             <label className="field">
               <span>Contraseña temporal</span>
-              <input
+              <Input
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -737,14 +745,14 @@ function UserDialog({
             <legend>Grupos</legend>
             {groups.length > 0 ? (
               groups.map((group) => (
-                <label className="checkbox-field" key={group.id}>
-                  <input
-                    type="checkbox"
-                    checked={selectedGroupIds.includes(group.id)}
-                    onChange={() => toggleGroup(group.id)}
-                  />
-                  <span>{group.name}</span>
-                </label>
+                <Checkbox
+                  className="checkbox-field"
+                  key={group.id}
+                  label={group.name}
+                  checked={selectedGroupIds.includes(group.id)}
+                  onCheckedChange={() => toggleGroup(group.id)}
+                  disabled={isSaving}
+                />
               ))
             ) : (
               <p className="muted-copy">No hay grupos disponibles.</p>
@@ -772,8 +780,7 @@ function UserDialog({
             </Button>
           </div>
         </form>
-      </section>
-    </div>
+    </Dialog>
   )
 }
 
@@ -830,20 +837,17 @@ function UserManagementDialog({
   }
 
   return (
-    <div className="dialog-backdrop">
-      <section
-        aria-labelledby="user-management-dialog-title"
-        aria-modal="true"
-        className="dialog user-dialog"
-        role="dialog"
-      >
-        <header className="dialog-header">
-          <div>
-            <p className="eyebrow">Identidad y permisos</p>
-            <h2 id="user-management-dialog-title">Editar usuario</h2>
-          </div>
-        </header>
-
+    <Dialog
+      open
+      className="user-dialog"
+      title="Editar usuario"
+      description="Ajustá el rol primario y los grupos de acceso del usuario."
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose()
+        }
+      }}
+    >
         <form className="dialog-form" noValidate onSubmit={handleSubmit}>
           <div className="readonly-summary">
             <strong>{user.displayName}</strong>
@@ -867,14 +871,14 @@ function UserManagementDialog({
             <legend>Grupos</legend>
             {groups.length > 0 ? (
               groups.map((group) => (
-                <label className="checkbox-field" key={group.id}>
-                  <input
-                    type="checkbox"
-                    checked={selectedGroupIds.includes(group.id)}
-                    onChange={() => toggleGroup(group.id)}
-                  />
-                  <span>{group.name}</span>
-                </label>
+                <Checkbox
+                  className="checkbox-field"
+                  key={group.id}
+                  label={group.name}
+                  checked={selectedGroupIds.includes(group.id)}
+                  onCheckedChange={() => toggleGroup(group.id)}
+                  disabled={isSaving}
+                />
               ))
             ) : (
               <p className="muted-copy">No hay grupos disponibles.</p>
@@ -896,8 +900,7 @@ function UserManagementDialog({
             </Button>
           </div>
         </form>
-      </section>
-    </div>
+    </Dialog>
   )
 }
 
@@ -945,24 +948,20 @@ function BudgetDialog({
   }
 
   return (
-    <div className="dialog-backdrop">
-      <section
-        aria-labelledby="budget-dialog-title"
-        aria-modal="true"
-        className="dialog"
-        role="dialog"
-      >
-        <header className="dialog-header">
-          <div>
-            <p className="eyebrow">Presupuesto de IA</p>
-            <h2 id="budget-dialog-title">Editar presupuesto</h2>
-          </div>
-        </header>
-
+    <Dialog
+      open
+      title="Editar presupuesto"
+      description="Ajustá el límite mensual o deshabilitá el control de gasto para este usuario."
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose()
+        }
+      }}
+    >
         <form className="budget-form" noValidate onSubmit={handleSubmit}>
           <label className="field">
             <span>Presupuesto mensual (USD)</span>
-            <input
+            <Input
               min="0"
               step="0.01"
               type="number"
@@ -972,15 +971,13 @@ function BudgetDialog({
             />
           </label>
 
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={isDisabled}
-              onChange={(event) => setIsDisabled(event.target.checked)}
-              disabled={isSaving}
-            />
-            <span>Sin límite mensual</span>
-          </label>
+          <Checkbox
+            className="checkbox-field"
+            label="Sin límite mensual"
+            checked={isDisabled}
+            onCheckedChange={setIsDisabled}
+            disabled={isSaving}
+          />
 
           {validationError ? (
             <p className="status-message error" role="alert">
@@ -1003,8 +1000,7 @@ function BudgetDialog({
             </Button>
           </div>
         </form>
-      </section>
-    </div>
+    </Dialog>
   )
 }
 

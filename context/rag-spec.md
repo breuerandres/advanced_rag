@@ -53,7 +53,7 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 - Filtering: applied **at SQL level** before similarity ranking. The retrieval query joins `rag.document_chunks` against allowed document records resolved from `.NET`-owned `app.document_permissions` through read-only database grants. FastAPI uses the session validation claims (`role`, `groups`, `corpus`, and `access_scope_hash`) as the user's scope inputs, but it does not receive or trust a precomputed document-id allow list.
 - Only chunks belonging to the latest successfully indexed version of each allowed document are eligible (a `rag.document_chunks.is_active` boolean defaulted to `true` and flipped to `false` when a newer version supersedes the prior version's chunks).
 - No reranking step in the MVP. A future cross-encoder rerank stage is the natural next optimization once retrieval quality metrics exist.
-- The retrieved chunks plus their `heading_path` and a short context window (chunk index Â±0; no neighbor expansion in MVP) are fed to the chat completion.
+- The retrieved chunks plus their `heading_path` and a short context window (chunk index ±0; no neighbor expansion in MVP) are fed to the chat completion.
 
 ## Access Claim (Effective Scope Delivery)
 
@@ -63,8 +63,8 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
   - `groups` (array of group ids, sorted alphabetically)
   - `access_scope_hash` (hex SHA-256, see below)
   - `corpus` (one of `published`, `preview`)
-- The legacy RS256 chat-token validator remains in code only as a compatibility fallback while the chat-token endpoint still exists.
-- FastAPI validates the session through `.NET`, then trusts the returned safe claims as the user's scope inputs for up to the configured 60-second cache TTL. It uses `access_scope_hash` for cache partitioning and audit, and uses `role` + `groups` + `corpus` for the SQL permission filter.
+- The legacy RS256 chat-token browser flow has been removed. FastAPI runtime should use the `.NET` internal session validation path; remaining token-validator test helpers are a cleanup target, not the production auth path.
+- FastAPI validates the CSRF cookie/header pair locally for browser mutations, validates the session through `.NET`, then trusts the returned safe claims as the user's scope inputs for up to the configured 60-second cache TTL. It uses `access_scope_hash` for cache partitioning and audit, and uses `role` + `groups` + `corpus` for the SQL permission filter.
 - The current internal validation response does not return separate attributes. `access_scope_hash` still uses the versioned role/groups/attributes canonical form below with an empty attributes object when no attributes are supplied.
 - `access_scope_hash` is not an authorization mechanism and must never be used by itself to decide whether a chunk is retrievable.
 - For the MVP, the retrieval SQL filter resolves group/attribute rules directly against `app.document_permissions` through read-only grants applied by `.NET` EF migrations after the tables exist. FastAPI may also read `app.user_ai_budget_limits` for budget enforcement through the same grant path. These are the only approved FastAPI reads from the `app` schema and are documented in `architecture.md` Operations.

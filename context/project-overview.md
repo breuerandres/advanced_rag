@@ -53,8 +53,8 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 ### Document Viewer
 
 - Token-gated document viewer at `docs.client.com`.
-- Viewer links use one-time 60-second exchange codes in URLs; the real viewer access token is set as a host-only `HttpOnly` cookie after `docs.client.com` exchanges the code with .NET.
-- Short-lived scoped viewer access tokens with 15-minute TTL and reusable access during that validity window.
+- Viewer links use document-id URL locators; the docs frontend revalidates the authenticated `.NET` session and document permissions before content is returned.
+- Credential-bearing viewer tokens are not used in browser URLs or JavaScript.
 - Viewer links from chat limited to `Published` documents; management links may allow draft/review access for authorized users.
 - Chat access uses short-lived tokens signed by .NET and validated locally by FastAPI to preserve chat latency.
 
@@ -90,7 +90,7 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 - Dedicated `Reviewer` role for the MVP.
 - Retaining original PDF/DOCX import files in the MVP.
 - OCR for scanned PDFs or images in the MVP.
-- One-time-use viewer access tokens; the MVP uses one-time exchange codes that set reusable short-lived viewer tokens.
+- One-time-use viewer access tokens; v2 browser runtime uses session-authenticated document-id links instead of viewer tokens.
 - Separate soft delete workflow beyond `Archived`.
 
 ## Success Criteria

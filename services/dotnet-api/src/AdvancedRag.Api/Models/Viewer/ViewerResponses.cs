@@ -10,14 +10,6 @@ public sealed record ViewerLinkResponse(string Url, DateTimeOffset ExpiresAt)
     }
 }
 
-public sealed record ViewerExchangeResponse(Guid DocumentId, DateTimeOffset ExpiresAt)
-{
-    public static ViewerExchangeResponse FromResult(ViewerExchangeResult result)
-    {
-        return new ViewerExchangeResponse(result.DocumentId, result.ExpiresAt);
-    }
-}
-
 public sealed record ViewerDocumentResponse(
     Guid DocumentId,
     Guid DocumentVersionId,

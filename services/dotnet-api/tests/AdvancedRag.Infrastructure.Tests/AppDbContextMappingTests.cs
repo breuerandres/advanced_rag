@@ -19,8 +19,6 @@ public sealed class AppDbContextMappingTests
         [typeof(DocumentTag)] = "document_tags",
         [typeof(ReviewComment)] = "review_comments",
         [typeof(ImportMetadata)] = "import_metadata",
-        [typeof(ViewerExchangeCode)] = "viewer_exchange_codes",
-        [typeof(ViewerTokenAudit)] = "viewer_token_audit",
         [typeof(UserAiBudgetLimit)] = "user_ai_budget_limits",
         [typeof(AuditEvent)] = "audit_events",
     };

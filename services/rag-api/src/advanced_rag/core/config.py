@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     rag_database_password_file: str = ""
     internal_service_token: str = ""
     internal_service_token_file: str = ""
+    csrf_signing_key: str = ""
+    csrf_signing_key_file: str = ""
     rag_semantic_cache_ttl_hours: int = 24
     rag_semantic_cache_similarity_threshold: float = 0.90
     customer_timezone: str = "UTC"
@@ -93,6 +95,10 @@ class Settings(BaseSettings):
     @property
     def resolved_internal_service_token(self) -> str:
         return self.internal_service_token or _read_secret_file(self.internal_service_token_file)
+
+    @property
+    def resolved_csrf_signing_key(self) -> str:
+        return self.csrf_signing_key or _read_secret_file(self.csrf_signing_key_file)
 
     @property
     def resolved_openai_api_key(self) -> str:

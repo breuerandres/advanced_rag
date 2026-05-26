@@ -104,30 +104,6 @@ public sealed class ImportMetadata
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-public sealed class ViewerExchangeCode
-{
-    public Guid Id { get; set; }
-    public required string CodeHash { get; set; }
-    public Guid DocumentId { get; set; }
-    public Guid UserId { get; set; }
-    public required string Purpose { get; set; }
-    public required string AllowedStatuses { get; set; }
-    public DateTimeOffset ExpiresAt { get; set; }
-    public DateTimeOffset? ConsumedAt { get; set; }
-    public DateTimeOffset CreatedAt { get; set; }
-}
-
-public sealed class ViewerTokenAudit
-{
-    public Guid Id { get; set; }
-    public required string ViewerTokenId { get; set; }
-    public Guid DocumentId { get; set; }
-    public Guid UserId { get; set; }
-    public required string Purpose { get; set; }
-    public DateTimeOffset IssuedAt { get; set; }
-    public DateTimeOffset ExpiresAt { get; set; }
-}
-
 public sealed class UserAiBudgetLimit
 {
     public Guid UserId { get; set; }

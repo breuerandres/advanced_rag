@@ -1,6 +1,6 @@
 # 03 - Phases & Tasks
 
-The v2 refactor is broken into six phases. This checklist was reconciled on 2026-05-25
+The v2 refactor is broken into six phases. This checklist was reconciled on 2026-05-26
 against the current repository state.
 
 Legend: `[x]` implemented in current code, `[~]` partial, `[ ]` pending.
@@ -12,7 +12,8 @@ Legend: `[x]` implemented in current code, `[~]` partial, `[ ]` pending.
 - [x] v2 docs and ADRs exist under `docs/v2/` and `docs/adr/`
 - [x] `context/v2-overview.md` and `context/v2-progress.md` exist
 - [x] `feature/v2-generic` has been merged into `mvp-implementation`
-- [x] Current reconciliation started from a clean working tree
+- [~] Current reconciliation started from a broad dirty working tree and is being closed as
+  the Phase 0 checkpoint
 
 ## Phase 1 - Foundations Generic
 
@@ -95,10 +96,10 @@ available.
 
 ### 1.5.2 Eliminate token flows
 
-- [ ] Remove `POST /api/auth/chat-token`
-- [ ] Remove `/api/viewer/exchange`
-- [ ] Remove `viewer_exchange_codes` runtime usage
-- [~] Update Caddy/FastAPI/frontend code for unified session auth
+- [x] Remove `POST /api/auth/chat-token`
+- [x] Remove `/api/viewer/exchange`
+- [x] Remove `viewer_exchange_codes` runtime usage
+- [x] Update Caddy/FastAPI/frontend code for unified session auth
 
 Current code is transitional:
 
@@ -107,15 +108,19 @@ Current code is transitional:
   `X-Internal-Service-Token`.
 - FastAPI chat and feedback read `__Host-session` through the configured session validator.
 - `chat-web` no longer calls `POST /api/auth/chat-token` before chat requests.
-- Legacy `POST /api/auth/chat-token`, `/api/viewer/exchange`, and
-  `viewer_exchange_codes` runtime usage still exist.
-- `docs-web` still calls `/api/viewer/exchange`.
+- FastAPI validates the shared CSRF cookie/header pair locally before chat/feedback
+  session validation.
+- `docs-web` opens `GET /api/viewer/document?documentId=...` with the authenticated
+  `.NET` session instead of exchanging one-time viewer codes.
+- Deprecated viewer exchange/audit tables were removed from the current EF model and
+  initial app-schema migration; no runtime path writes or reads them.
 
 ### 1.5.3 FastAPI cookie validation
 
 - [x] Resolve `OQ-001` (2026-05-25: internal .NET session validation + 60s FastAPI cache)
 - [x] Implement selected FastAPI session validation
 - [x] Tests for fail-closed invalid validation, cache behavior, and valid session resolution
+- [x] FastAPI local CSRF validation for browser chat/feedback mutations
 
 ### 1.5.4 Endpoint authorization
 
@@ -133,13 +138,13 @@ Current code is transitional:
 - [x] `LanguageSelect`
 - [x] `DarkModeToggle`
 - [x] `CommandPalette`
-- [ ] Inputs: `Input`, `Textarea`, `Select`, `Switch`, `Checkbox`, `RadioGroup`
-- [ ] Overlays: `Dialog`, `HoverCard`, `Tooltip`, `Popover`, `DropdownMenu`, `Drawer`
-- [ ] Data: `DataTable`, `Pagination`, `Badge`, `Avatar`
-- [ ] Feedback: `Toast`, `Skeleton`, `EmptyState`
-- [ ] Markdown: `Markdown`
-- [ ] Chat components: `ChatMessage`, `ChatComposer`, `ConversationList`, `CitationCard`, `CitationDrawer`
-- [ ] Colocated component tests for shared-ui primitives
+- [x] Inputs: `Input`, `Textarea`, `Select`, `Switch`, `Checkbox`, `RadioGroup`
+- [x] Overlays: `Dialog`, `HoverCard`, `Tooltip`, `Popover`, `DropdownMenu`, `Drawer`
+- [x] Data: `DataTable`, `Pagination`, `Badge`, `Avatar`
+- [x] Feedback: `Toast`, `Skeleton`, `EmptyState`
+- [x] Markdown: `Markdown`
+- [x] Chat components: `ChatMessage`, `ChatComposer`, `ConversationList`, `CitationCard`, `CitationDrawer`
+- [x] Colocated component tests for shared-ui primitives
 
 ### 1.5.6 Apply shared-ui to SPAs
 
@@ -147,7 +152,12 @@ Current code is transitional:
 - [x] `manage-web` uses `AppShell`, `Sidebar`, `DarkModeToggle`, and `LanguageSelect`
 - [x] `chat-web` uses `AppShell`, `DarkModeToggle`, and `LanguageSelect`
 - [x] `docs-web` uses `AppShell`, `DarkModeToggle`, and `LanguageSelect`
-- [ ] Full v2 shell refactor using shared UI data/overlay primitives
+- [x] First shared primitive adoption pass in SPAs:
+  `chat-web` composer/messages/citations/form controls, `docs-web` empty/form controls,
+  and `manage-web` audit/feedback data tables
+- [x] Remaining shared primitive adoption for management users/groups dialogs, document
+  list/editor forms, document tables, and higher-risk overlays
+- [~] Full v2 shell refactor using shared UI data/overlay primitives
 - [ ] Storybook
 
 ## Phase 1.7 - UX Refactor Per SPA
@@ -158,10 +168,10 @@ Current code is transitional:
 
 - [ ] Three-pane layout
 - [ ] Conversation list
-- [ ] Shared `ChatMessage`
-- [ ] Shared `ChatComposer`
+- [x] Shared `ChatMessage`
+- [x] Shared `ChatComposer`
 - [ ] Streaming cursor animation
-- [ ] Citation preview/drawer
+- [~] Citation preview/drawer
 - [ ] Command palette wiring
 - [ ] Filter chips
 
@@ -179,7 +189,7 @@ Current code is transitional:
 ### 1.7.3 manage-web
 
 - [ ] Dashboard with KPI cards/charts
-- [ ] Shared `DataTable` for documents
+- [x] Shared `DataTable` for documents
 - [ ] Editor autosave/slash-command polish
 - [ ] React Hook Form + Zod form refactor
 - [ ] Users role dropdown and bulk CSV import

@@ -79,7 +79,6 @@ test('MVP happy path works across management, chat, viewer, feedback, and budget
   const chatPage = await viewerContext.newPage()
   await chatPage.goto(chatBaseUrl)
   await loginInBrowser(chatPage, viewerEmail)
-  await browserPost(chatPage, '/api/auth/chat-token')
   await chatPage.reload()
   await expect(chatPage.getByRole('heading', { name: 'Chat de instrucciones' })).toBeVisible()
   await chatPage.getByRole('textbox', { name: 'Pregunta' }).fill('Que debe hacer el colaborador para aprobar una solicitud interna?')
@@ -92,7 +91,7 @@ test('MVP happy path works across management, chat, viewer, feedback, and budget
   await expect(chatPage.getByText('Feedback registrado.')).toBeVisible()
 
   await chatPage.getByRole('button', { name: /Abrir cita/ }).first().click()
-  await chatPage.waitForURL(/docs\.localhost\/open\?code=/)
+  await chatPage.waitForURL(/docs\.localhost\/open\?documentId=/)
   await expect(chatPage.getByRole('heading', { name: published.title })).toBeVisible()
   await expect(chatPage.getByText('validar identidad')).toBeVisible()
 
@@ -122,7 +121,6 @@ test('MVP happy path works across management, chat, viewer, feedback, and budget
   const limitedPage = await limitedContext.newPage()
   await limitedPage.goto(chatBaseUrl)
   await loginInBrowser(limitedPage, viewerEmail)
-  await browserPost(limitedPage, '/api/auth/chat-token')
   await limitedPage.reload()
   await limitedPage.getByRole('textbox', { name: 'Pregunta' }).fill('Puedo consultar otra vez?')
   await limitedPage.getByRole('button', { name: 'Enviar pregunta' }).click()
@@ -261,16 +259,6 @@ delete from rag.document_chunks where document_id in (
   select "Id" from app.documents where title like 'E2E Seguridad%'
 );
 delete from rag.indexing_jobs where document_id in (
-  select "Id" from app.documents where title like 'E2E Seguridad%'
-);
-delete from app.viewer_token_audit where user_id in (
-  select "Id" from app.users where email like 'e2e.%@example.com'
-) or document_id in (
-  select "Id" from app.documents where title like 'E2E Seguridad%'
-);
-delete from app.viewer_exchange_codes where user_id in (
-  select "Id" from app.users where email like 'e2e.%@example.com'
-) or document_id in (
   select "Id" from app.documents where title like 'E2E Seguridad%'
 );
 delete from app.review_comments where document_version_id in (

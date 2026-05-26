@@ -78,32 +78,15 @@ export async function createViewerLink(documentId: string, purpose: 'chat' | 'ma
   return response.url
 }
 
-export async function exchangeViewerCode(code: string): Promise<void> {
-  await ensureCsrfToken()
-  await requestJson('/api/viewer/exchange', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken ?? '',
-    },
-    body: JSON.stringify({ code }),
-  })
-}
-
-export async function getViewerDocument(): Promise<ViewerDocument> {
-  return requestJson<ViewerDocument>('/api/viewer/document')
+export async function getViewerDocument(documentId: string): Promise<ViewerDocument> {
+  return requestJson<ViewerDocument>(`/api/viewer/document?documentId=${encodeURIComponent(documentId)}`)
 }
 
 export function viewerErrorMessage(error: unknown): string {
   const code = error instanceof ApiError ? error.code : 'INTERNAL_ERROR'
   const messages: Record<string, string> = {
-    VIEWER_CODE_EXPIRED: 'El enlace expiro. Pedi uno nuevo desde el chat.',
-    VIEWER_CODE_USED: 'Este enlace ya fue usado. Pedi uno nuevo desde el chat.',
-    VIEWER_CODE_INVALID: 'El enlace no es valido. Pedi uno nuevo desde el chat.',
     AUTH_FORBIDDEN: 'No tenes permiso para abrir este documento.',
-    AUTH_REQUIRED: 'La sesion del visor expiro. Volve a abrir el enlace.',
-    AUTH_TOKEN_EXPIRED: 'La sesion del visor expiro. Volve a abrir el enlace.',
-    AUTH_TOKEN_INVALID: 'La sesion del visor no es valida. Volve a abrir el enlace.',
+    AUTH_REQUIRED: 'Inicia sesion para abrir este documento.',
     NOT_FOUND: 'No encontramos el documento solicitado.',
   }
   return messages[code] ?? 'No pudimos abrir el documento.'

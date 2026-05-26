@@ -27,8 +27,6 @@ public sealed class AppDbContextMigrationTests
         "user_groups",
         "user_roles",
         "users",
-        "viewer_exchange_codes",
-        "viewer_token_audit",
     ];
 
     [Fact]

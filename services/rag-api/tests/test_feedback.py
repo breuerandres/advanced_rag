@@ -15,11 +15,13 @@ from test_chat_rag import (
     CHAT_MODEL,
     EMBEDDING_DIMENSIONS,
     EMBEDDING_MODEL,
+    TEST_CSRF_SIGNING_KEY,
     USER_ID,
     ChatDatabase,
-    FakeChatTokenValidator,
     FakeEmbeddingProvider,
     FakeLlmProvider,
+    FakeSessionValidator,
+    set_csrf,
 )
 
 
@@ -92,10 +94,11 @@ def _client(database: ChatDatabase) -> TestClient:
         Settings(
             rag_database_url=database.async_url,
             customer_timezone="UTC",
+            csrf_signing_key=TEST_CSRF_SIGNING_KEY,
         ),
         embedding_provider=FakeEmbeddingProvider(),
         llm_provider=FakeLlmProvider(),
-        chat_token_validator=FakeChatTokenValidator(
+        session_validator=FakeSessionValidator(
             ChatTokenClaims(
                 user_id=str(USER_ID),
                 role="Viewer",
@@ -107,6 +110,7 @@ def _client(database: ChatDatabase) -> TestClient:
     )
     client = TestClient(app)
     client.cookies.set("__Host-session", "valid")
+    set_csrf(client)
     return client
 
 

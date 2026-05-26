@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Clock3, FileText, Search, ShieldCheck } from 'lucide-react'
-import { AppShell, DarkModeToggle, LanguageSelect } from '@helpcenter/shared-ui'
+import { AppShell, Button, DarkModeToggle, EmptyState, Input, LanguageSelect } from '@helpcenter/shared-ui'
 import {
   createViewerLink,
-  exchangeViewerCode,
   getSession,
   getViewerDocument,
   listViewerDocuments,
@@ -31,11 +30,11 @@ type PortalState =
   | { status: 'ready'; user: SessionUser; catalog: ViewerDocumentCatalog }
 
 export default function App() {
-  const code = new URLSearchParams(window.location.search).get('code')
-  return code ? <ViewerLinkApp /> : <DocumentPortalApp />
+  const documentId = new URLSearchParams(window.location.search).get('documentId')
+  return documentId ? <ViewerLinkApp documentId={documentId} /> : <DocumentPortalApp />
 }
 
-function ViewerLinkApp() {
+function ViewerLinkApp({ documentId }: { documentId: string }) {
   const { i18n } = useTranslation()
   const [state, setState] = useState<ViewerState>({
     status: 'loading',
@@ -47,13 +46,7 @@ function ViewerLinkApp() {
 
     async function loadViewer() {
       try {
-        const code = new URLSearchParams(window.location.search).get('code')
-        if (code) {
-          await exchangeViewerCode(code)
-          clearExchangeCodeFromUrl()
-        }
-
-        const document = await getViewerDocument()
+        const document = await getViewerDocument(documentId)
         if (isMounted) {
           setState({ status: 'ready', document })
         }
@@ -68,7 +61,7 @@ function ViewerLinkApp() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [documentId])
 
   return (
     <AppShell className="viewer-main">
@@ -98,23 +91,27 @@ function ViewerLinkApp() {
             </span>
             <span>
               <Clock3 size={16} />
-              Token temporal
+              Sesion activa
             </span>
           </div>
         </header>
 
         {state.status === 'loading' ? (
-          <section className="state-panel" aria-live="polite">
-            <FileText size={22} />
-            <p>{state.message}</p>
-          </section>
+          <EmptyState
+            className="state-panel"
+            title={state.message}
+            aria-live="polite"
+            icon={<FileText size={22} aria-hidden="true" />}
+          />
         ) : null}
 
         {state.status === 'error' ? (
-          <section className="state-panel error" role="alert">
-            <AlertTriangle size={22} />
-            <p>{state.message}</p>
-          </section>
+          <EmptyState
+            className="state-panel error"
+            title={state.message}
+            role="alert"
+            icon={<AlertTriangle size={22} aria-hidden="true" />}
+          />
         ) : null}
 
         {state.status === 'ready' ? <DocumentView document={state.document} /> : null}
@@ -191,17 +188,21 @@ function DocumentPortalApp() {
         </header>
 
         {state.status === 'loading' ? (
-          <section className="state-panel" aria-live="polite">
-            <FileText size={22} />
-            <p>Cargando biblioteca...</p>
-          </section>
+          <EmptyState
+            className="state-panel"
+            title="Cargando biblioteca..."
+            aria-live="polite"
+            icon={<FileText size={22} aria-hidden="true" />}
+          />
         ) : null}
 
         {state.status === 'error' ? (
-          <section className="state-panel error" role="alert">
-            <AlertTriangle size={22} />
-            <p>{state.message}</p>
-          </section>
+          <EmptyState
+            className="state-panel error"
+            title={state.message}
+            role="alert"
+            icon={<AlertTriangle size={22} aria-hidden="true" />}
+          />
         ) : null}
 
         {state.status === 'ready' ? (
@@ -244,11 +245,12 @@ function DocumentPortal({ user, catalog }: { user: SessionUser; catalog: ViewerD
         <label className="search-control">
           <Search size={16} aria-hidden="true" />
           <span className="sr-only">Buscar documentos</span>
-          <input
+          <Input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscar por titulo, tipo o grupo"
+            className="border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
         </label>
         <div className="category-strip" aria-label="Categorias">
@@ -273,10 +275,12 @@ function DocumentPortal({ user, catalog }: { user: SessionUser; catalog: ViewerD
       </section>
 
       {filteredDocuments.length === 0 ? (
-        <section className="state-panel">
-          <FileText size={22} />
-          <p>No hay documentos para mostrar.</p>
-        </section>
+        <EmptyState
+          className="state-panel"
+          title="Sin documentos para mostrar"
+          description="No encontramos documentos disponibles con los filtros actuales."
+          icon={<FileText size={22} aria-hidden="true" />}
+        />
       ) : (
         <section className="document-grid" aria-label="Documentos">
           {filteredDocuments.map((document) => (
@@ -296,9 +300,9 @@ function DocumentPortal({ user, catalog }: { user: SessionUser; catalog: ViewerD
                   <dd>{document.allowedGroups.map((group) => group.name).join(', ') || '-'}</dd>
                 </div>
               </dl>
-              <button className="primary-button" type="button" onClick={() => void openDocument(document)}>
+              <Button className="primary-button" type="button" onClick={() => void openDocument(document)}>
                 Abrir documento
-              </button>
+              </Button>
             </article>
           ))}
         </section>
@@ -341,28 +345,22 @@ function DocsLoginPage({ onAuthenticated }: { onAuthenticated: (user: SessionUse
         {error ? <p className="status-message error">{error}</p> : null}
         <label className="field">
           <span>Email</span>
-          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
         </label>
         <label className="field">
           <span>Contrasena</span>
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
-        <button className="primary-button" type="submit" disabled={isSubmitting}>
+        <Button className="primary-button" type="submit" disabled={isSubmitting}>
           Entrar
-        </button>
+        </Button>
       </form>
     </main>
   )
-}
-
-function clearExchangeCodeFromUrl() {
-  const url = new URL(window.location.href)
-  url.searchParams.delete('code')
-  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
 function DocumentView({ document }: { document: ViewerDocument }) {
@@ -391,7 +389,7 @@ function DocumentView({ document }: { document: ViewerDocument }) {
               <dd>{document.audience}</dd>
             </div>
             <div>
-              <dt>Token vigente hasta</dt>
+              <dt>Sesion vigente hasta</dt>
               <dd>{formatDateTime(document.tokenExpiresAt)}</dd>
             </div>
           </dl>

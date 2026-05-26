@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
+import hmac
 import json
 import re
 from decimal import Decimal
@@ -36,6 +39,7 @@ DENIED_GROUP_ID = UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
 EMBEDDING_DIMENSIONS = 1024
 EMBEDDING_MODEL = "text-embedding-3-large"
 CHAT_MODEL = "gpt-4.1-nano"
+TEST_CSRF_SIGNING_KEY = "test-csrf-signing-key"
 
 
 def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() -> None:
@@ -59,10 +63,11 @@ def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() 
                 openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
                 customer_timezone="UTC",
                 enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
             ),
             embedding_provider=FakeEmbeddingProvider(),
             llm_provider=FakeLlmProvider(),
-            chat_token_validator=FakeChatTokenValidator(
+            session_validator=FakeSessionValidator(
                 ChatTokenClaims(
                     user_id=str(USER_ID),
                     role="Viewer",
@@ -74,6 +79,7 @@ def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() 
         )
         client = TestClient(app)
         client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
 
         with client.stream(
             "POST",
@@ -125,10 +131,11 @@ def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated
                 rag_semantic_cache_ttl_hours=24,
                 internal_service_token="test-internal",
                 enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
             ),
             embedding_provider=embedding_provider,
             llm_provider=llm_provider,
-            chat_token_validator=FakeChatTokenValidator(
+            session_validator=FakeSessionValidator(
                 ChatTokenClaims(
                     user_id=str(USER_ID),
                     role="Viewer",
@@ -140,6 +147,7 @@ def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated
         )
         client = TestClient(app)
         client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
 
         first = client.post(
             "/api/chat",
@@ -149,14 +157,12 @@ def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated
             "/api/chat",
             json={"question": "What credential rule applies?"},
         )
-        app.state.chat_token_validator = FakeChatTokenValidator(
-            ChatTokenClaims(
-                user_id=str(USER_ID),
-                role="Viewer",
-                groups=[str(DENIED_GROUP_ID)],
-                access_scope_hash="scope-denied",
-                corpus="published",
-            )
+        app.state.session_validator.claims = ChatTokenClaims(
+            user_id=str(USER_ID),
+            role="Viewer",
+            groups=[str(DENIED_GROUP_ID)],
+            access_scope_hash="scope-denied",
+            corpus="published",
         )
         third = client.post(
             "/api/chat",
@@ -203,10 +209,11 @@ def test_chat_filters_by_dimension_partitions_cache_separately() -> None:
                 openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
                 customer_timezone="UTC",
                 enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
             ),
             embedding_provider=FakeEmbeddingProvider(),
             llm_provider=llm_provider,
-            chat_token_validator=FakeChatTokenValidator(
+            session_validator=FakeSessionValidator(
                 ChatTokenClaims(
                     user_id=str(USER_ID),
                     role="Viewer",
@@ -218,6 +225,7 @@ def test_chat_filters_by_dimension_partitions_cache_separately() -> None:
         )
         client = TestClient(app)
         client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
 
         unfiltered = client.post(
             "/api/chat",
@@ -259,10 +267,11 @@ def test_budget_exhaustion_blocks_before_paid_provider_calls() -> None:
                 openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
                 customer_timezone="UTC",
                 enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
             ),
             embedding_provider=embedding_provider,
             llm_provider=llm_provider,
-            chat_token_validator=FakeChatTokenValidator(
+            session_validator=FakeSessionValidator(
                 ChatTokenClaims(
                     user_id=str(USER_ID),
                     role="Viewer",
@@ -274,6 +283,7 @@ def test_budget_exhaustion_blocks_before_paid_provider_calls() -> None:
         )
         client = TestClient(app)
         client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
 
         response = client.post(
             "/api/chat",
@@ -700,9 +710,25 @@ class FakeLlmProvider:
         )
 
 
-class FakeChatTokenValidator:
+class FakeSessionValidator:
     def __init__(self, claims: ChatTokenClaims) -> None:
-        self._claims = claims
+        self.claims = claims
 
-    def validate(self, token: str) -> ChatTokenClaims:
-        return self._claims
+    async def validate(self, session_cookie: str, request_id: str | None = None) -> ChatTokenClaims:
+        _ = session_cookie
+        _ = request_id
+        return self.claims
+
+
+def set_csrf(client: TestClient, key: str = TEST_CSRF_SIGNING_KEY) -> str:
+    token = create_csrf_token(key)
+    client.cookies.set("__Host-CSRF", token)
+    client.headers.update({"X-CSRF-Token": token})
+    return token
+
+
+def create_csrf_token(key: str) -> str:
+    payload = "nonce.1778467200"
+    signature = hmac.new(key.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).digest()
+    encoded = base64.urlsafe_b64encode(signature).decode("ascii").rstrip("=")
+    return f"{payload}.{encoded}"

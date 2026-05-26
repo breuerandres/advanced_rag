@@ -275,7 +275,7 @@ describe("management users and budgets", () => {
       screen.queryByRole("link", { name: "Presupuestos IA" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Mi cuenta" })).toBeInTheDocument();
-    expect(screen.queryByText("Consola de gestiÃ³n")).not.toBeInTheDocument();
+    expect(screen.queryByText("Consola de gestión")).not.toBeInTheDocument();
   });
 
   test("updates the current user's email and password from the account screen", async () => {
@@ -450,6 +450,9 @@ describe("management users and budgets", () => {
       }),
     );
     const dialog = await screen.findByRole("dialog", { name: "Editar presupuesto" });
+    expect(
+      within(dialog).getByText("Ajustá el límite mensual o deshabilitá el control de gasto para este usuario."),
+    ).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Cerrar" })).not.toBeInTheDocument();
     const input = screen.getByRole("spinbutton", {
       name: "Presupuesto mensual (USD)",
@@ -950,6 +953,18 @@ describe("management documents", () => {
         "Completa titulo, tipo, audiencia, grupos y contenido antes de enviar a revision.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Titulo" })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(screen.getByRole("textbox", { name: "Tipo" })).toHaveAttribute(
+      "aria-invalid",
+      "false",
+    );
+    expect(screen.getByRole("textbox", { name: "Audiencia" })).toHaveAttribute(
+      "aria-invalid",
+      "false",
+    );
   });
 
   test("shows publish instead of send to review for admins when a document is in review", async () => {
@@ -1167,8 +1182,8 @@ describe("management documents", () => {
       jsonResponse(200, []),
       csrfResponse(),
       jsonResponse(200, {
-        url: "https://docs.client.com/open?code=manager-code",
-        expiresAt: "2026-05-18T12:01:00Z",
+        url: "https://docs.client.com/open?documentId=55555555-5555-5555-5555-555555555555",
+        expiresAt: null,
       }),
     ]);
     const user = userEvent.setup();
@@ -1187,7 +1202,7 @@ describe("management documents", () => {
       expect.objectContaining({ method: "POST" }),
     );
     expect(assign).toHaveBeenCalledWith(
-      "https://docs.client.com/open?code=manager-code",
+      "https://docs.client.com/open?documentId=55555555-5555-5555-5555-555555555555",
     );
   });
 

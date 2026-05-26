@@ -59,8 +59,7 @@ For fast reference. The authoritative location is the linked file.
 | Semantic cache threshold | 0.90 cosine similarity | `rag-spec.md` |
 | Semantic cache TTL | 24 hours | `rag-spec.md` |
 | Chat token TTL | 15 minutes | `architecture.md` |
-| Viewer access token TTL | 15 minutes | `architecture.md` |
-| Viewer exchange code TTL | 60 seconds | `architecture.md` |
+| Viewer access | Session-authenticated document links with `documentId` locator | `architecture.md` |
 | Import upload limit | 10 MB per PDF/DOCX | `architecture.md` |
 | End-user UI language | Spanish (es-AR) | `code-standards.md` |
 | Code/comments/logs language | English | `code-standards.md` |

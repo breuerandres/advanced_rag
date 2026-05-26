@@ -43,12 +43,6 @@ public partial class RenameLegacyContentStorageToDocuments : Migration
                 if exists(select 1 from information_schema.columns where table_schema = 'app' and table_name = 'import_metadata' and column_name = 'instruction_version_id') then
                     alter table app.import_metadata rename column instruction_version_id to document_version_id;
                 end if;
-                if exists(select 1 from information_schema.columns where table_schema = 'app' and table_name = 'viewer_exchange_codes' and column_name = 'instruction_id') then
-                    alter table app.viewer_exchange_codes rename column instruction_id to document_id;
-                end if;
-                if exists(select 1 from information_schema.columns where table_schema = 'app' and table_name = 'viewer_token_audit' and column_name = 'instruction_id') then
-                    alter table app.viewer_token_audit rename column instruction_id to document_id;
-                end if;
             end $$;
             """);
     }
@@ -59,12 +53,6 @@ public partial class RenameLegacyContentStorageToDocuments : Migration
             """
             do $$
             begin
-                if exists(select 1 from information_schema.columns where table_schema = 'app' and table_name = 'viewer_token_audit' and column_name = 'document_id') then
-                    alter table app.viewer_token_audit rename column document_id to instruction_id;
-                end if;
-                if exists(select 1 from information_schema.columns where table_schema = 'app' and table_name = 'viewer_exchange_codes' and column_name = 'document_id') then
-                    alter table app.viewer_exchange_codes rename column document_id to instruction_id;
-                end if;
                 if exists(select 1 from information_schema.columns where table_schema = 'app' and table_name = 'import_metadata' and column_name = 'document_version_id') then
                     alter table app.import_metadata rename column document_version_id to instruction_version_id;
                 end if;

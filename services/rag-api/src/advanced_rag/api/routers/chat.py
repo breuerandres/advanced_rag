@@ -8,6 +8,7 @@ from fastapi import APIRouter, Header, Request
 from starlette.responses import StreamingResponse
 
 from advanced_rag.auth.session_validation import SessionValidatorProtocol
+from advanced_rag.core.csrf import validate_csrf_request
 from advanced_rag.core.errors import ApiException
 from advanced_rag.core.request_id import REQUEST_ID_HEADER
 from advanced_rag.rag.chat_service import ChatAnswer, ChatService
@@ -27,6 +28,7 @@ router = APIRouter(tags=["chat"])
 @router.post("/api/chat")
 async def post_chat(body: ChatRequest, request: Request) -> StreamingResponse:
     request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
+    validate_csrf_request(request)
     session_cookie = request.cookies.get(request.app.state.settings.session_cookie_name)
     if not session_cookie:
         raise ApiException("AUTH_REQUIRED", 401, "Session required.")
@@ -72,6 +74,7 @@ async def post_feedback(
     request: Request,
 ) -> FeedbackResponse:
     request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
+    validate_csrf_request(request)
     session_cookie = request.cookies.get(request.app.state.settings.session_cookie_name)
     if not session_cookie:
         raise ApiException("AUTH_REQUIRED", 401, "Session required.")

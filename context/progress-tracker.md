@@ -394,11 +394,14 @@
 
 ## In Progress
 
-- Task 17.5 still needs the user-owned Compose startup/browser verification pass for the latest manage/chat/docs UX changes. Code-level focused tests and builds are locally verified, but the newest chat/docs session flow, docs portal, account screen, dark mode, and language selector changes still need a real browser pass against the local stack.
+- V2 Phase 1.5 unified auth cleanup and shared-ui primitive implementation are complete without Playwright. The browser runtime no longer exposes the `.NET` chat-token endpoint or viewer exchange endpoint, FastAPI validates CSRF locally before chat/feedback session validation, docs links now use session-authenticated `documentId` locators, and `packages/shared-ui` now provides the Phase 1.5.5 form, overlay, data, feedback, markdown, chat, and citation primitives with colocated tests.
 
 ## Next Up
 
-- Run the Task 17.5 user-owned local stack checkpoint and then complete Playwright/browser visual verification.
+- Continue V2 Phase 1.5.6 by applying the completed shared-ui primitives to the SPAs where local duplicated form, overlay, table, empty/loading, markdown, chat, and citation components still exist. Then proceed to Phase 1.7 UX refactors.
+  The management-heavy sub-batch for users/groups dialogs, document forms/editor, and
+  document tables is now complete; the remaining Phase 1.5.6 work should be a final
+  low-risk shared-primitive sweep before Phase 1.7.
 
 ## Next Implementation Checkpoint
 
@@ -448,6 +451,38 @@ See `context/architecture.md`, `context/code-standards.md`, `context/rag-spec.md
 ## Session Notes
 
 - Conversation can continue in Spanish, but project artifacts must stay in English.
+- 2026-05-26 v2 note: FastAPI browser-path tests were aligned with the unified
+  `session_validator` seam. Active v2 status remains in `context/v2-progress.md`; this
+  MVP tracker is historical.
+- 2026-05-26 v2 note: Deprecated viewer exchange/audit tables were removed from the
+  current EF model and initial app-schema migration after the user decided unused tables
+  should not remain in the migration. Verified with focused .NET build, viewer service,
+  EF mapping, and EF migration tests. This note was superseded by the shared-ui
+  primitive completion note below.
+- 2026-05-26 v2 note: Phase 1.5 shared-ui primitives were completed in
+  `packages/shared-ui` with colocated Vitest tests for form, overlay, data, feedback,
+  markdown, chat, and citation components. Verified with package-local shared-ui tests
+  and typecheck. Active v2 next work is applying these primitives to the SPAs.
+- 2026-05-26 v2 note: Phase 1.5.6 first SPA primitive adoption pass applied shared
+  primitives to `chat-web`, `docs-web`, and the lower-risk `manage-web` audit/feedback
+  tables. Remaining Phase 1.5.6 work is the management-heavy user/group dialogs,
+  document list/editor forms, and document tables before Phase 1.7 UX refactors.
+- 2026-05-26 v2 note: The next Phase 1.5.6 sub-batch is intentionally limited to
+  users/groups dialogs, document forms/editor, and document tables because these surfaces
+  are more stateful and should be migrated with focused tests for dialog behavior,
+  validation/submission, editor state, and table rendering.
+- 2026-05-26 v2 note: Phase 1.5.6 management-heavy primitive adoption completed:
+  users/groups budget, user, and group dialogs now use shared `Dialog`; users/groups and
+  document tables use shared `DataTable`; document editor text fields and group access
+  checkboxes use shared `Input` and `Checkbox`; `DataTable` now supports accessible
+  row-header columns. Verified with focused manage-web/shared-ui tests, typechecks, and
+  manage-web build.
+- 2026-05-26 v2 note: Phase 0 reconciliation for the active v2 closure plan removed
+  obsolete browser chat-token and viewer-exchange references from active E2E/API tests
+  and operational secrets docs, reconciled `docs/v2/03-phases.md` and
+  `context/v2-progress.md`, fixed active mojibake regressions, and passed focused
+  shared-ui, SPA, FastAPI, and .NET verification. Active v2 status remains in
+  `context/v2-progress.md`.
 - The formal design has been written to `docs/superpowers/specs/2026-05-11-base-architecture-design.md`.
 - The implementation plan has been written to `docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md`.
 - The spec and plan are not committed yet because Git was initialized after they were written.

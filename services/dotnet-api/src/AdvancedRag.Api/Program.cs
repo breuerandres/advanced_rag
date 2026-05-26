@@ -71,10 +71,9 @@ builder.Services.AddScoped<IViewerDocumentGroupSource, EfViewerDocumentGroupSour
 builder.Services.AddScoped<IViewerAccessService>(services =>
 {
     var repository = services.GetRequiredService<IViewerAccessRepository>();
-    var tokenService = services.GetRequiredService<IViewerTokenService>();
     var configuration = services.GetRequiredService<IConfiguration>();
     var docsBaseUrl = configuration["Viewer:DocsBaseUrl"] ?? "https://docs.client.com";
-    return new ViewerAccessService(repository, tokenService, docsBaseUrl);
+    return new ViewerAccessService(repository, docsBaseUrl);
 });
 builder.Services.AddScoped<IFeedbackReportingService>(services =>
 {
@@ -108,8 +107,6 @@ builder.Services.AddSingleton<IDocumentHtmlSanitizer, GanssDocumentHtmlSanitizer
 builder.Services.AddSingleton<IPasswordHashService, Pbkdf2PasswordHashService>();
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
 builder.Services.AddSingleton<JwtSigningKeyStore>();
-builder.Services.AddSingleton<IChatTokenIssuer, ChatTokenIssuer>();
-builder.Services.AddSingleton<IViewerTokenService, ViewerTokenService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

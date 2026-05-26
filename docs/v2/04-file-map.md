@@ -53,9 +53,34 @@ Existing files:
 - `packages/shared-ui/src/components/Header.tsx`
 - `packages/shared-ui/src/components/LanguageSelect.tsx`
 - `packages/shared-ui/src/components/Sidebar.tsx`
+- `packages/shared-ui/src/components/Input.tsx`
+- `packages/shared-ui/src/components/Textarea.tsx`
+- `packages/shared-ui/src/components/Select.tsx`
+- `packages/shared-ui/src/components/Checkbox.tsx`
+- `packages/shared-ui/src/components/RadioGroup.tsx`
+- `packages/shared-ui/src/components/Switch.tsx`
+- `packages/shared-ui/src/components/Dialog.tsx`
+- `packages/shared-ui/src/components/Drawer.tsx`
+- `packages/shared-ui/src/components/HoverCard.tsx`
+- `packages/shared-ui/src/components/Tooltip.tsx`
+- `packages/shared-ui/src/components/Popover.tsx`
+- `packages/shared-ui/src/components/DropdownMenu.tsx`
+- `packages/shared-ui/src/components/DataTable.tsx`
+- `packages/shared-ui/src/components/Pagination.tsx`
+- `packages/shared-ui/src/components/Badge.tsx`
+- `packages/shared-ui/src/components/Avatar.tsx`
+- `packages/shared-ui/src/components/Toast.tsx`
+- `packages/shared-ui/src/components/Skeleton.tsx`
+- `packages/shared-ui/src/components/EmptyState.tsx`
+- `packages/shared-ui/src/components/Markdown.tsx`
+- `packages/shared-ui/src/components/ChatMessage.tsx`
+- `packages/shared-ui/src/components/ChatComposer.tsx`
+- `packages/shared-ui/src/components/ConversationList.tsx`
+- `packages/shared-ui/src/components/CitationCard.tsx`
+- `packages/shared-ui/src/components/CitationDrawer.tsx`
 
-The pending shared components are listed in `packages/shared-ui/README.md` and
-`docs/v2/03-phases.md`.
+Each component added during Phase 1.5.5 has a colocated `.test.tsx`. Remaining shared-ui
+work is applying these primitives inside the SPAs and adding Storybook later if needed.
 
 ## Frontends
 
@@ -127,9 +152,11 @@ Raw scripts under `services/dotnet-api/v2-migrations-sql/`:
 - `008_add_webhooks`
 - `009_add_document_language_summary`
 - `010_add_document_versions_markdown`
-- `011_drop_viewer_exchange_codes`
 - `012_add_mv_document_metrics`
 - `013_grant_v2_app_reads_to_rag_owner`
+
+Number `011` is retired because the deprecated viewer exchange tables were removed from
+the EF model and initial migration instead of being dropped by a follow-up raw SQL script.
 
 These scripts are not all materialized as EF Core migrations. `003_add_dimensions` has a
 matching EF migration in `20260522150000_AddConfigurableDimensions.cs`.

@@ -5,12 +5,22 @@ import {
   Clock3,
   ExternalLink,
   MessageSquareText,
-  Send,
   ShieldCheck,
   ThumbsDown,
   ThumbsUp,
 } from 'lucide-react'
-import { AppShell, DarkModeToggle, LanguageSelect } from '@helpcenter/shared-ui'
+import {
+  AppShell,
+  Button,
+  ChatComposer,
+  ChatMessage,
+  CitationCard,
+  DarkModeToggle,
+  EmptyState,
+  Input,
+  LanguageSelect,
+  Textarea,
+} from '@helpcenter/shared-ui'
 import {
   createViewerLink,
   getSession,
@@ -40,7 +50,6 @@ export default function App() {
   const { t, i18n } = useTranslation()
   const [mode, setMode] = useState<AppMode>('loading')
   const [bootError, setBootError] = useState<string | null>(null)
-  const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState('')
   const [queryAuditEventId, setQueryAuditEventId] = useState<string | null>(null)
   const [citations, setCitations] = useState<ChatCitation[]>([])
@@ -53,7 +62,6 @@ export default function App() {
   const [isSendingFeedback, setIsSendingFeedback] = useState(false)
   const [error, setError] = useState<ChatErrorState | null>(null)
 
-  const normalizedQuestion = question.trim()
   const isSubmitting = status === 'submitting'
 
   useEffect(() => {
@@ -86,12 +94,7 @@ export default function App() {
     }
   }, [])
 
-  async function handleAsk(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!normalizedQuestion) {
-      return
-    }
-
+  async function handleAsk(nextQuestion: string) {
     setStatus('submitting')
     setError(null)
     setAnswer('')
@@ -102,7 +105,7 @@ export default function App() {
     setFeedbackSubmitted(false)
     setComment('')
     try {
-      const result = await submitQuestion(normalizedQuestion)
+      const result = await submitQuestion(nextQuestion)
       setAnswer(result.answer)
       setQueryAuditEventId(result.queryAuditEventId)
       setCitations(result.citations)
@@ -196,35 +199,27 @@ export default function App() {
         </header>
 
         <section className="chat-panel" aria-label="Chat de instrucciones">
-          <form className="question-form" onSubmit={handleAsk}>
-            <label className="field">
-              <span>Pregunta</span>
-              <textarea
-                maxLength={MaxQuestionChars}
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-                disabled={isSubmitting}
-                placeholder="Escribí tu consulta..."
-              />
-            </label>
-            <div className="question-form-footer">
-              <span>
-                {question.length} / {MaxQuestionChars}
-              </span>
-              <button className="primary-button" type="submit" disabled={isSubmitting || !normalizedQuestion}>
-                <Send size={16} />
-                <span>{isSubmitting ? 'Enviando' : t('chat.send_question')}</span>
-              </button>
-            </div>
-          </form>
+          <section className="question-form">
+            <ChatComposer
+              disabled={isSubmitting}
+              maxLength={MaxQuestionChars}
+              placeholder="Escribí tu consulta..."
+              submitLabel={t('chat.send_question')}
+              pendingLabel="Enviando"
+              characterCountLabel={(count, maxLength) => `${count} / ${maxLength}`}
+              onSubmit={(nextQuestion) => void handleAsk(nextQuestion)}
+            />
+          </section>
 
           {error ? <ChatErrorMessage error={error} /> : null}
 
           {!answer && !error && !isSubmitting ? (
-            <section className="empty-state" aria-label="Estado inicial">
-              <MessageSquareText size={20} />
-              <p>Las respuestas aparecen acá con sus citas cuando terminás la consulta.</p>
-            </section>
+            <EmptyState
+              className="empty-state"
+              title="Estado inicial"
+              description="Las respuestas aparecen acá con sus citas cuando terminás la consulta."
+              icon={<MessageSquareText size={20} aria-hidden="true" />}
+            />
           ) : null}
 
           {isSubmitting ? (
@@ -240,7 +235,7 @@ export default function App() {
                 <h2>Respuesta</h2>
                 {cacheHit ? <span className="cache-badge">Respuesta desde caché semántico</span> : null}
               </div>
-              <p>{answer}</p>
+              <ChatMessage author="assistant" content={answer} />
               {usage ? (
                 <dl className="usage-row" aria-label="Uso de IA">
                   <div>
@@ -262,10 +257,15 @@ export default function App() {
                       key={`${citation.documentId}-${citation.documentVersionId}`}
                       type="button"
                       className="citation-button"
+                      aria-label={`Abrir cita ${citation.headingPath[0] ?? 'documento'}`}
                       onClick={() => void openCitation(citation)}
                     >
                       <ExternalLink size={15} />
-                      <span>Abrir cita {citation.headingPath[0] ?? 'documento'}</span>
+                      <CitationCard
+                        title={`Abrir cita ${citation.headingPath[0] ?? 'documento'}`}
+                        headingPath={citation.headingPath}
+                        meta="Documento"
+                      />
                     </button>
                   ))}
                 </div>
@@ -297,7 +297,7 @@ export default function App() {
               {feedbackValue ? (
                 <label className="field">
                   <span>Comentario opcional</span>
-                  <textarea
+                  <Textarea
                     value={comment}
                     maxLength={1000}
                     onChange={(event) => setComment(event.target.value)}
@@ -307,9 +307,9 @@ export default function App() {
               ) : null}
 
               {feedbackValue ? (
-                <button className="primary-button" type="submit" disabled={isSendingFeedback}>
+                <Button className="primary-button" type="submit" disabled={isSendingFeedback}>
                   {feedbackSubmitted ? 'Actualizar feedback' : 'Enviar feedback'}
-                </button>
+                </Button>
               ) : null}
 
               {feedbackSubmitted ? (
@@ -359,7 +359,7 @@ function ChatLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
         {error ? <p className="status-message error">{error}</p> : null}
         <label className="field">
           <span>Email</span>
-          <input
+          <Input
             type="email"
             autoComplete="email"
             value={email}
@@ -368,16 +368,16 @@ function ChatLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
         </label>
         <label className="field">
           <span>Contrasena</span>
-          <input
+          <Input
             type="password"
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
-        <button className="primary-button" type="submit" disabled={isSubmitting}>
+        <Button className="primary-button" type="submit" disabled={isSubmitting}>
           Entrar al chat
-        </button>
+        </Button>
       </form>
     </main>
   )

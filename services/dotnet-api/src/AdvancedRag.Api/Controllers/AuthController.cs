@@ -73,34 +73,6 @@ public sealed class AuthController : ApiControllerBase
         return Ok(new LogoutResponse("ok"));
     }
 
-    [HttpPost("chat-token")]
-    [Authorize]
-    public async Task<IActionResult> IssueChatTokenAsync(
-        [FromServices] IChatTokenIssuer tokenIssuer,
-        CancellationToken ct)
-    {
-        AuthenticatedUser? user = await ResolveCurrentUserAsync(ct);
-        if (user is null)
-        {
-            return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.");
-        }
-
-        IssuedChatToken issuedToken = tokenIssuer.Issue(user);
-        Response.Cookies.Append(
-            ChatTokenIssuer.CookieName,
-            issuedToken.Token,
-            new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Path = "/",
-                Expires = issuedToken.ExpiresAt,
-            });
-
-        return Ok(new ChatTokenResponse(issuedToken.ExpiresAt));
-    }
-
     [HttpGet("/api/session")]
     [Authorize]
     public async Task<IActionResult> GetSessionAsync(CancellationToken ct)

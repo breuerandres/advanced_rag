@@ -80,18 +80,6 @@ public sealed class RateLimitMiddleware
             ];
         }
 
-        if (HttpMethods.IsPost(context.Request.Method) && path.Equals("/api/viewer/exchange", StringComparison.OrdinalIgnoreCase))
-        {
-            return
-            [
-                new RateLimitRule(
-                $"viewer-exchange:{ResolveUserId(context)}:{ResolveOriginIp(context)}",
-                30,
-                TimeSpan.FromMinutes(1),
-                "VIEWER_EXCHANGE_RATE_LIMITED"),
-            ];
-        }
-
         return [];
     }
 

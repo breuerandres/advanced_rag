@@ -104,7 +104,6 @@ test('setup fallback creates an admin and reaches chat and viewer product surfac
     email: viewerEmail,
     password: e2ePassword,
   })
-  await browserPostJson(chatPage, '/api/auth/chat-token')
   await chatPage.reload()
   await expect(chatPage.getByRole('heading', { name: 'Chat de instrucciones' })).toBeVisible()
   await chatPage
@@ -115,7 +114,7 @@ test('setup fallback creates an admin and reaches chat and viewer product surfac
   await expect(chatPage.getByLabel('Citas')).toContainText('Abrir cita')
 
   await chatPage.getByRole('button', { name: /Abrir cita/ }).first().click()
-  await chatPage.waitForURL(/docs\.localhost\/open\?code=/)
+  await chatPage.waitForURL(/docs\.localhost\/open\?documentId=/)
   await expect(chatPage.getByRole('heading', { name: published.title })).toBeVisible()
   await expect(chatPage.getByText('validar identidad')).toBeVisible()
 

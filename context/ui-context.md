@@ -89,18 +89,18 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 ## Chat UI
 
 - Chat runs as an independent product surface without the shared global management header.
-- Chat bootstraps by validating the .NET browser session and, while the compatibility contract exists, renewing a scoped chat token through same-origin auth routes before accepting questions.
+- Chat bootstraps by validating the `.NET` browser session and relies on the unified session cookie for chat/feedback requests. It must not renew or store a scoped chat-token cookie.
 - Each answer exposes thumbs up/down feedback controls and an optional comment entry after the user chooses a feedback value.
 - Feedback submission must show loading, success, retryable error, and already-submitted states. The same user can update their feedback on an answer in the MVP.
 - Citation links open `docs.client.com` with scoped viewer access tokens.
-- Citation links use one-time exchange-code URLs. If the exchange code has expired, was already used, or is unauthorized, the viewer shows a safe expired-link or access-denied state with navigation back to chat.
+- Citation links use document-id locator URLs. The docs app must revalidate the authenticated session and show safe login, access-denied, or not-found states without exposing credential-bearing URL values.
 
 ## Document Viewer UI
 
 - `docs.localhost` root renders an independent authenticated document portal with search, category/group filters, and visible documents determined by the current user. Admins and document managers can see management-scope documents; viewers see only published documents allowed by their groups.
-- Exchange-code URLs still render the focused viewer flow for citations and explicit document links.
-- The viewer must handle exchange-code loading, expired-code, already-used-code, unauthorized, token-expired, document-not-found, and successful document states.
-- The real viewer access token must never be visible to JavaScript or shown in the URL.
+- Document-id URLs render the focused viewer flow for citations and explicit document links.
+- The viewer must handle missing session, unauthorized, document-not-found, and successful document states.
+- Credential-bearing tokens must never be visible to JavaScript or shown in the URL.
 
 ## Management Document Editor
 

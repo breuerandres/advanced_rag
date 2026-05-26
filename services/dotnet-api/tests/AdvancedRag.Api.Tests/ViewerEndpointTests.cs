@@ -38,7 +38,7 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         ViewerLinkResponse? body = await response.Content.ReadFromJsonAsync<ViewerLinkResponse>();
-        body!.Url.Should().StartWith("https://docs.client.com/open?code=");
+        body!.Url.Should().Be($"https://docs.client.com/open?documentId={FakeViewerAccessService.PublishedDocumentId}");
         _factory.Viewer.LastCreateCommand!.Purpose.Should().Be("chat");
     }
 
@@ -82,68 +82,16 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
     }
 
     [Fact]
-    public async Task ExchangeCode_SetsSecureHostOnlyViewerTokenCookie()
+    public async Task GetDocument_WithSessionAndDocumentIdReturnsDocument()
     {
         using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        CsrfState csrf = await GetCsrfAsync(client, "docs.localhost");
+        LoginSession session = await LoginAsync(client, ViewerFakeAuthService.TargetEmail, "docs.localhost");
 
-        using HttpResponseMessage response = await SendJsonAsync(
-            client,
-            HttpMethod.Post,
-            "/api/viewer/exchange",
-            new { code = FakeViewerAccessService.ValidCode },
-            "docs.localhost",
-            csrf);
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        string viewerCookie = GetSetCookie(response, "__Host-viewer-token");
-        string normalizedCookie = viewerCookie.ToLowerInvariant();
-        normalizedCookie.Should().Contain("httponly", Exactly.Once());
-        normalizedCookie.Should().Contain("secure", Exactly.Once());
-        normalizedCookie.Should().Contain("samesite=strict", Exactly.Once());
-        normalizedCookie.Should().Contain("path=/", Exactly.Once());
-        normalizedCookie.Should().NotContain("domain=");
-    }
-
-    [Theory]
-    [InlineData(FakeViewerAccessService.ExpiredCode, HttpStatusCode.Gone, "VIEWER_CODE_EXPIRED")]
-    [InlineData(FakeViewerAccessService.UsedCode, HttpStatusCode.Gone, "VIEWER_CODE_USED")]
-    [InlineData(FakeViewerAccessService.UnauthorizedCode, HttpStatusCode.Forbidden, "AUTH_FORBIDDEN")]
-    public async Task ExchangeCode_ReturnsSafeErrors(string code, HttpStatusCode status, string errorCode)
-    {
-        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        CsrfState csrf = await GetCsrfAsync(client, "docs.localhost");
-
-        using HttpResponseMessage response = await SendJsonAsync(
-            client,
-            HttpMethod.Post,
-            "/api/viewer/exchange",
-            new { code },
-            "docs.localhost",
-            csrf);
-
-        response.StatusCode.Should().Be(status);
-        ApiErrorEnvelope? body = await response.Content.ReadFromJsonAsync<ApiErrorEnvelope>();
-        body!.Error.Code.Should().Be(errorCode);
-    }
-
-    [Fact]
-    public async Task GetDocument_WithViewerTokenReturnsDocumentWithinTokenTtl()
-    {
-        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        CsrfState csrf = await GetCsrfAsync(client, "docs.localhost");
-        using HttpResponseMessage exchange = await SendJsonAsync(
-            client,
-            HttpMethod.Post,
-            "/api/viewer/exchange",
-            new { code = FakeViewerAccessService.ValidCode },
-            "docs.localhost",
-            csrf);
-        string viewerCookie = CookiePair(GetSetCookie(exchange, "__Host-viewer-token"));
-
-        using HttpRequestMessage request = new(HttpMethod.Get, "/api/viewer/document");
+        using HttpRequestMessage request = new(
+            HttpMethod.Get,
+            $"/api/viewer/document?documentId={FakeViewerAccessService.PublishedDocumentId}");
         request.Headers.Host = "docs.localhost";
-        request.Headers.Add("Cookie", viewerCookie);
+        request.Headers.Add("Cookie", session.SessionCookie);
 
         using HttpResponseMessage response = await client.SendAsync(request);
 
@@ -151,6 +99,11 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
         ViewerDocumentResponse? body = await response.Content.ReadFromJsonAsync<ViewerDocumentResponse>();
         body!.Title.Should().Be("Published procedure");
         body.ContentHtml.Should().Contain("Contenido publicado");
+        _factory.Viewer.LastGetCommand.Should().BeEquivalentTo(new
+        {
+            DocumentId = FakeViewerAccessService.PublishedDocumentId,
+            UserId = ViewerFakeAuthService.TargetUserId,
+        });
     }
 
     private static async Task<LoginSession> LoginAsync(HttpClient client, string email, string host)
@@ -259,12 +212,8 @@ public sealed class FakeViewerAccessService : IViewerAccessService
 {
     public static readonly Guid PublishedDocumentId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     public static readonly Guid DraftDocumentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
-    public const string ValidCode = "valid-code";
-    public const string ExpiredCode = "expired-code";
-    public const string UsedCode = "used-code";
-    public const string UnauthorizedCode = "unauthorized-code";
-
     public CreateViewerLinkCommand? LastCreateCommand { get; private set; }
+    public GetViewerDocumentCommand? LastGetCommand { get; private set; }
 
     public Task<ViewerLinkResult> CreateLinkAsync(CreateViewerLinkCommand command, CancellationToken ct)
     {
@@ -283,34 +232,17 @@ public sealed class FakeViewerAccessService : IViewerAccessService
         }
 
         return Task.FromResult(new ViewerLinkResult(
-            $"https://docs.client.com/open?code={ValidCode}",
-            DateTimeOffset.UtcNow.AddSeconds(60)));
-    }
-
-    public Task<ViewerExchangeResult> ExchangeCodeAsync(ExchangeViewerCodeCommand command, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        return command.Code switch
-        {
-            ExpiredCode => throw new ViewerAccessException("VIEWER_CODE_EXPIRED", 410, "Viewer code expired."),
-            UsedCode => throw new ViewerAccessException("VIEWER_CODE_USED", 410, "Viewer code already used."),
-            UnauthorizedCode => throw new ViewerAccessException("AUTH_FORBIDDEN", 403, "Viewer code is not authorized."),
-            _ => Task.FromResult(new ViewerExchangeResult(
-                "fake-viewer-token",
-                "viewer-token-id",
-                PublishedDocumentId,
-                ViewerFakeAuthService.TargetUserId,
-                "chat",
-                DateTimeOffset.UtcNow.AddMinutes(15))),
-        };
+            $"https://docs.client.com/open?documentId={command.DocumentId}",
+            DateTimeOffset.MaxValue));
     }
 
     public Task<ViewerDocumentResult> GetDocumentAsync(GetViewerDocumentCommand command, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        if (command.Token != "fake-viewer-token")
+        LastGetCommand = command;
+        if (command.DocumentId != PublishedDocumentId || command.UserId != ViewerFakeAuthService.TargetUserId)
         {
-            throw new ViewerAccessException("AUTH_TOKEN_INVALID", 401, "Viewer token is invalid.");
+            throw new ViewerAccessException("AUTH_FORBIDDEN", 403, "Viewer access is not allowed.");
         }
 
         return Task.FromResult(new ViewerDocumentResult(

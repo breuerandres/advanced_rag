@@ -292,72 +292,6 @@ namespace AdvancedRag.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "viewer_exchange_codes",
-                schema: "app",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    code_hash = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    document_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    user_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    purpose = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    allowed_statuses = table.Column<string>(type: "character varying(160)", maxLength: 160, nullable: false),
-                    expires_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    consumed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()")
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_viewer_exchange_codes", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_viewer_exchange_codes_documents_document_id",
-                        column: x => x.document_id,
-                        principalSchema: "app",
-                        principalTable: "documents",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_viewer_exchange_codes_users_user_id",
-                        column: x => x.user_id,
-                        principalSchema: "app",
-                        principalTable: "users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "viewer_token_audit",
-                schema: "app",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    viewer_token_id = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    document_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    user_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    purpose = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    issued_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()"),
-                    expires_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_viewer_token_audit", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_viewer_token_audit_documents_document_id",
-                        column: x => x.document_id,
-                        principalSchema: "app",
-                        principalTable: "documents",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_viewer_token_audit_users_user_id",
-                        column: x => x.user_id,
-                        principalSchema: "app",
-                        principalTable: "users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "import_metadata",
                 schema: "app",
                 columns: table => new
@@ -564,49 +498,6 @@ namespace AdvancedRag.Infrastructure.Migrations
                 column: "email",
                 unique: true);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_viewer_exchange_codes_code_hash",
-                schema: "app",
-                table: "viewer_exchange_codes",
-                column: "code_hash",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_viewer_exchange_codes_expires_at",
-                schema: "app",
-                table: "viewer_exchange_codes",
-                column: "expires_at");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_viewer_exchange_codes_document_id",
-                schema: "app",
-                table: "viewer_exchange_codes",
-                column: "document_id");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_viewer_exchange_codes_user_id",
-                schema: "app",
-                table: "viewer_exchange_codes",
-                column: "user_id");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_viewer_token_audit_document_id",
-                schema: "app",
-                table: "viewer_token_audit",
-                column: "document_id");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_viewer_token_audit_user_id",
-                schema: "app",
-                table: "viewer_token_audit",
-                column: "user_id");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_viewer_token_audit_viewer_token_id",
-                schema: "app",
-                table: "viewer_token_audit",
-                column: "viewer_token_id",
-                unique: true);
         }
 
         /// <inheritdoc />
@@ -642,14 +533,6 @@ namespace AdvancedRag.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "user_roles",
-                schema: "app");
-
-            migrationBuilder.DropTable(
-                name: "viewer_exchange_codes",
-                schema: "app");
-
-            migrationBuilder.DropTable(
-                name: "viewer_token_audit",
                 schema: "app");
 
             migrationBuilder.DropTable(

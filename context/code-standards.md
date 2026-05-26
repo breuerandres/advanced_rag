@@ -23,8 +23,8 @@
 - Do not persist imported file bytes in the MVP.
 - Enforce the 10 MB PDF/DOCX import limit server-side.
 - Return stable code `IMPORT_TEXT_NOT_EXTRACTABLE` when a PDF/DOCX has no extractable text.
-- Issue viewer links using one-time short-lived exchange codes and set real viewer access tokens only as host-only `HttpOnly` cookies for `docs.client.com`.
-- Do not accept viewer access tokens from URL parameters.
+- Issue viewer links as `documentId` locators only. The docs API must revalidate the authenticated `__Host-session` and document permissions before returning content.
+- Do not place session tokens, viewer tokens, or other credential-bearing values in document viewer URLs.
 
 ## FastAPI RAG Service
 
@@ -107,7 +107,7 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | PDF extraction | `PdfPig` `0.1.14` | Assisted import only. |
 | DOCX extraction | `DocumentFormat.OpenXml` `3.5.1` | Assisted import only. |
 | HTML sanitization | `Ganss.Xss` via `HtmlSanitizer` `9.0.892` | Sanitize stored normalized document HTML and any review comment input that may render HTML. |
-| Authentication | Cookie authentication plus local users in `app.users`; hand-rolled PBKDF2-SHA256 password hashing using `Rfc2898DeriveBytes` | Session cookies are host-only `__Host-session` cookies. The legacy chat-token endpoint still exists until Phase 1.5 cleanup. |
+| Authentication | Cookie authentication plus local users in `app.users`; hand-rolled PBKDF2-SHA256 password hashing using `Rfc2898DeriveBytes` | Session cookies are host-only `__Host-session` cookies. The legacy chat-token and viewer-token browser flows are removed. |
 | CSRF | Signed double-submit token using `__Host-CSRF` cookie plus `X-CSRF-Token` header | HMAC secret is shared with FastAPI through `csrf_signing_key`; see `architecture.md`. |
 | JWT signing/validation | `System.IdentityModel.Tokens.Jwt` `8.14.0` + `Microsoft.IdentityModel.Tokens` | RS256, `kid` header, two active keys for rotation. |
 | Testing | `xUnit` + `FluentAssertions` + `Microsoft.AspNetCore.Mvc.Testing` (`WebApplicationFactory`) + `Testcontainers.PostgreSql` | Integration tests hit a real Postgres container; no DB mocking. |
@@ -126,7 +126,7 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | OpenAI | `openai` (official Python SDK, async client) | Wrap behind a thin internal adapter that the rest of the service depends on. |
 | Vector DB | `pgvector` Postgres extension + `pgvector.asyncpg` integration registered through SQLAlchemy types | Current v2 column type is `Vector(1024)` after migration `20260522_120000_v2_change_embedding_dimensions.py`. |
 | Tokenization | `tiktoken` | Chunk sizing and token-cost calculations. |
-| JWT validation crypto | `pyjwt[crypto]` `2.12.1` | Required for the legacy RS256 chat-token validator while `POST /api/auth/chat-token` remains in the codebase. |
+| JWT validation crypto | `pyjwt[crypto]` `2.12.1` | Legacy chat-token validator code may remain temporarily for test cleanup, but browser runtime must use internal `.NET` session validation. |
 | Tracing/correlation | `asgi-correlation-id` | Reads/propagates `X-Request-ID`. |
 | Testing | `pytest` + `pytest-asyncio` + `httpx.AsyncClient` + `testcontainers[postgres]` | Integration tests hit a real Postgres container with `pgvector`. |
 

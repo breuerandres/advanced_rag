@@ -39,53 +39,6 @@ public sealed class EfViewerAccessRepository : IViewerAccessRepository
             published);
     }
 
-    public async Task SaveExchangeCodeAsync(ViewerExchangeCodeRecord code, CancellationToken ct)
-    {
-        _db.ViewerExchangeCodes.Add(new ViewerExchangeCode
-        {
-            Id = code.Id,
-            CodeHash = code.CodeHash,
-            DocumentId = code.DocumentId,
-            UserId = code.UserId,
-            Purpose = code.Purpose,
-            AllowedStatuses = code.AllowedStatuses,
-            ExpiresAt = code.ExpiresAt,
-            ConsumedAt = code.ConsumedAt,
-            CreatedAt = code.CreatedAt,
-        });
-        await _db.SaveChangesAsync(ct);
-    }
-
-    public async Task<ViewerExchangeCodeRecord?> FindExchangeCodeByHashAsync(string codeHash, CancellationToken ct)
-    {
-        ViewerExchangeCode? code = await _db.ViewerExchangeCodes
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.CodeHash == codeHash, ct);
-        return code is null ? null : ToRecord(code);
-    }
-
-    public async Task MarkExchangeCodeConsumedAsync(Guid exchangeCodeId, DateTimeOffset consumedAt, CancellationToken ct)
-    {
-        ViewerExchangeCode code = await _db.ViewerExchangeCodes.SingleAsync(item => item.Id == exchangeCodeId, ct);
-        code.ConsumedAt = consumedAt;
-        await _db.SaveChangesAsync(ct);
-    }
-
-    public async Task SaveTokenAuditAsync(ViewerTokenAuditRecord audit, CancellationToken ct)
-    {
-        _db.ViewerTokenAudit.Add(new ViewerTokenAudit
-        {
-            Id = audit.Id,
-            ViewerTokenId = audit.ViewerTokenId,
-            DocumentId = audit.DocumentId,
-            UserId = audit.UserId,
-            Purpose = audit.Purpose,
-            IssuedAt = audit.IssuedAt,
-            ExpiresAt = audit.ExpiresAt,
-        });
-        await _db.SaveChangesAsync(ct);
-    }
-
     private async Task<ViewerDocumentVersion?> FindVersionAsync(Guid versionId, CancellationToken ct)
     {
         DocumentVersion? version = await _db.DocumentVersions
@@ -103,17 +56,4 @@ public sealed class EfViewerAccessRepository : IViewerAccessRepository
                 version.ContentHtml);
     }
 
-    private static ViewerExchangeCodeRecord ToRecord(ViewerExchangeCode code)
-    {
-        return new ViewerExchangeCodeRecord(
-            code.Id,
-            code.CodeHash,
-            code.DocumentId,
-            code.UserId,
-            code.Purpose,
-            code.AllowedStatuses,
-            code.ExpiresAt,
-            code.ConsumedAt,
-            code.CreatedAt);
-    }
 }
