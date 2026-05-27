@@ -35,7 +35,7 @@ import './App.css'
 type AppMode = 'loading' | 'setup' | 'login' | 'authenticated' | 'unavailable'
 
 export default function App() {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [view, setView] = useState<ManagementSection>('users')
   const [mode, setMode] = useState<AppMode>('loading')
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null)
@@ -152,26 +152,25 @@ export default function App() {
               </div>
             }
             bottom={
-              <section className="sidebar-session" aria-label="Sesion activa">
+              <section className="sidebar-session" aria-label={t('auth.active_session')}>
                 <div className="sidebar-controls">
                   <LanguageSelect
-                    label="Idioma"
+                    label={t('common.language')}
                     value={i18n.resolvedLanguage ?? i18n.language}
                     onChange={(value) => void i18n.changeLanguage(value)}
                     options={[
                       { value: 'es-AR', label: 'ES' },
                       { value: 'en-US', label: 'EN' },
-                      { value: 'pt-BR', label: 'PT' },
                     ]}
                   />
-                  <DarkModeToggle label="Cambiar tema" />
+                  <DarkModeToggle label={t('common.toggle_theme')} />
                 </div>
-                <span className="session-label">Sesión activa</span>
+                <span className="session-label">{t('auth.active_session')}</span>
                 <strong>{sessionUser.email}</strong>
                 <span>{sessionUser.roles.join(', ')}</span>
                 <Button className="sidebar-logout" type="button" onClick={() => void handleLogout()}>
                   <LogOut size={16} aria-hidden="true" />
-                  Cerrar sesión
+                  {t('auth.logout')}
                 </Button>
               </section>
             }

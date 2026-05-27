@@ -451,6 +451,12 @@ See `context/architecture.md`, `context/code-standards.md`, `context/rag-spec.md
 ## Session Notes
 
 - Conversation can continue in Spanish, but project artifacts must stay in English.
+- 2026-05-27 v2 note: Runtime locale support was narrowed to `es-AR` and `en-US`
+  only. Portuguese frontend resources, selector options, and RAG prompt files were
+  removed; unsupported Portuguese locale requests now fall back to English prompts
+  and English no-results text. Focused SPA tests verify ES/EN switching plus the
+  absence of PT. Remaining feature-level hardcoded literals should be migrated
+  into `src/i18n/` as each surface is touched.
 - 2026-05-26 v2 note: FastAPI browser-path tests were aligned with the unified
   `session_validator` seam. Active v2 status remains in `context/v2-progress.md`; this
   MVP tracker is historical.

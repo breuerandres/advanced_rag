@@ -739,8 +739,6 @@ def _compute_filters_hash(filters: list[UUID] | None) -> str | None:
 def _no_results_message(locale: str) -> str:
     if locale.startswith("es"):
         return "No encontré información publicada suficiente para responder esa consulta."
-    if locale.startswith("pt"):
-        return "Não encontrei informação publicada suficiente para responder a essa consulta."
     return "I couldn't find enough published information to answer that question."
 
 

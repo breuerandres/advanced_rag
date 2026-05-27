@@ -1,6 +1,8 @@
 import { expect, test, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import App from './App'
+import i18n from './i18n'
 
 const originalLocation = window.location
 
@@ -11,6 +13,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  void i18n.changeLanguage('es-AR')
   Object.defineProperty(window, 'location', {
     configurable: true,
     value: originalLocation,
@@ -59,6 +62,33 @@ test('renders the independent document portal grouped by category', async () => 
   expect(screen.getByRole('button', { name: 'Legales' })).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Manual legal' })).toBeInTheDocument()
   expect(screen.queryByRole('navigation', { name: /Navegacion del visor/i })).not.toBeInTheDocument()
+})
+
+test('changes the document portal language and hides Portuguese', async () => {
+  setLocation('https://docs.localhost/')
+  mockFetch([
+    jsonResponse({
+      user: {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        email: 'viewer@example.com',
+        displayName: 'Viewer User',
+        roles: ['Viewer'],
+        groups: [],
+      },
+    }),
+    jsonResponse({
+      groups: [],
+      documents: [],
+    }),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.selectOptions(await screen.findByLabelText('Idioma'), 'en-US')
+
+  expect(screen.queryByRole('option', { name: 'PT' })).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Document library' })).toBeInTheDocument()
 })
 
 test('shows a semantic empty state when the document portal has no visible documents', async () => {

@@ -5,8 +5,12 @@
     "error_generic": "Ocurrió un error inesperado.",
     "error_with_id": "Ocurrió un error inesperado. (ID {{requestId}})"
   },
+  "common": {
+    "language": "Idioma"
+  },
   "chat": {
-    "page_title": "Chat",
+    "page_title": "Chat de instrucciones",
+    "header_copy": "Hacé una pregunta sobre las instrucciones publicadas.",
     "composer_placeholder": "Escribí tu pregunta…",
     "send": "Enviar",
     "send_question": "Enviar pregunta",

@@ -50,7 +50,7 @@ pluggable.
 ### 1.4 i18n frontends
 
 - [x] `i18next`, `react-i18next`, and `i18next-browser-languagedetector` are declared in all three SPA package manifests
-- [x] `es-AR`, `en-US`, and `pt-BR` catalogs exist for all three SPAs
+- [x] `es-AR` and `en-US` catalogs exist for all three SPAs
 - [x] Visible language selectors exist in manage/chat/docs through `LanguageSelect`
 - [~] Some screen strings use `t(...)`
 - [ ] Full literal extraction from TSX is incomplete
@@ -58,9 +58,9 @@ pluggable.
 
 ### 1.5 Multi-language prompts
 
-- [x] `system_{es-AR,en-US,pt-BR}.md` exists
-- [x] `condenser_{es-AR,en-US,pt-BR}.md` exists
-- [x] `rewriter_{es-AR,en-US,pt-BR}.md` exists
+- [x] `system_{es-AR,en-US}.md` exists
+- [x] `condenser_{es-AR,en-US}.md` exists
+- [x] `rewriter_{es-AR,en-US}.md` exists
 - [x] Answer generation loads `system_<locale>.md` with `en-US` fallback
 - [ ] Audit records `prompt_locale`
 

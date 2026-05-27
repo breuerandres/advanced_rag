@@ -1811,3 +1811,17 @@ in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
 **Consequences:** Future viewer work must not add exchange-code or viewer-token persistence unless a new architecture decision reopens that model. Fresh app-schema migrations create only currently owned app tables.
 
 **Evidence:** Verified on 2026-05-26 with `dotnet build services\dotnet-api\AdvancedRag.sln --no-restore`, `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --filter ViewerAccessServiceTests --no-build` (`4 passed`), `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter "AppDbContextMappingTests" --no-build` (`2 passed`), and `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter "EfMigration_CreatesOnlyAppSchemaTables" --no-build` (`1 passed`). Initial parallel test runs failed with a transient file-lock on `AdvancedRag.App.dll`; the sequential reruns passed.
+
+## 2026-05-27 - Frontend Runtime Locales Limited To Spanish And English
+
+**Context:** User review found that the visible language selectors did not make the UI meaningfully switch languages and that Portuguese should not be part of the product surface.
+
+**Decision:** Support only `es-AR` and `en-US` in runtime UI and RAG prompt loading. Spanish remains the frontend fallback/default locale. Portuguese resources, selector options, and prompt files are removed.
+
+**Rationale:** The current MVP only needs Spanish and English. Keeping Portuguese in the selector creates a false product promise and adds translation maintenance without a requirement.
+
+**Tradeoffs:** Some deeper feature screens still contain hardcoded Spanish literals from earlier MVP work. The locale infrastructure and shell-level behavior are now corrected; remaining literals should move into `src/i18n/` incrementally as each surface is touched.
+
+**Consequences:** New frontend UI text must be added to both `es-AR` and `en-US` resources. RAG prompts must have Spanish and English variants. Visible language selectors expose only ES and EN. Portuguese must not be reintroduced without a new product decision.
+
+**Evidence:** Verified on 2026-05-27 with focused App tests for manage, chat, and docs, focused RAG locale-support tests, app typechecks for all three SPAs, and app builds for all three SPAs.

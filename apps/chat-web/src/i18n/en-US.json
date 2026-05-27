@@ -5,8 +5,12 @@
     "error_generic": "An unexpected error occurred.",
     "error_with_id": "An unexpected error occurred. (ID {{requestId}})"
   },
+  "common": {
+    "language": "Language"
+  },
   "chat": {
-    "page_title": "Chat",
+    "page_title": "Instruction chat",
+    "header_copy": "Ask a question about the published instructions.",
     "composer_placeholder": "Ask a question…",
     "send": "Send",
     "send_question": "Send question",

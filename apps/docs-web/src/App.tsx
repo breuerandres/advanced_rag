@@ -44,7 +44,7 @@ export default function App() {
 }
 
 function ViewerLinkApp({ documentId }: { documentId: string }) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [state, setState] = useState<ViewerState>({
     status: 'loading',
     message: 'Validando enlace...',
@@ -78,20 +78,19 @@ function ViewerLinkApp({ documentId }: { documentId: string }) {
         <header className="viewer-header">
           <div>
             <p className="eyebrow">Advanced RAG</p>
-            <h1>Visor de instrucciones</h1>
+            <h1>{t('viewer.instruction_viewer_title')}</h1>
           </div>
           <div className="viewer-toolbar">
             <LanguageSelect
-              label="Idioma"
+              label={t('common.language')}
               value={i18n.resolvedLanguage ?? i18n.language}
               onChange={(value) => void i18n.changeLanguage(value)}
               options={[
                 { value: 'es-AR', label: 'ES' },
                 { value: 'en-US', label: 'EN' },
-                { value: 'pt-BR', label: 'PT' },
               ]}
             />
-            <DarkModeToggle label="Cambiar tema" />
+            <DarkModeToggle label={t('common.toggle_theme')} />
           </div>
           <div className="trust-strip" aria-label="Estado de acceso">
             <span>
@@ -130,7 +129,7 @@ function ViewerLinkApp({ documentId }: { documentId: string }) {
 }
 
 function DocumentPortalApp() {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [state, setState] = useState<PortalState>({ status: 'loading' })
 
   useEffect(() => {
@@ -178,21 +177,20 @@ function DocumentPortalApp() {
         <header className="portal-header">
           <div>
             <p className="eyebrow">Advanced RAG</p>
-            <h1>Biblioteca de documentos</h1>
-            <p className="header-copy">Documentos disponibles segun tus grupos y permisos.</p>
+            <h1>{t('portal.title')}</h1>
+            <p className="header-copy">{t('portal.header_copy')}</p>
           </div>
           <div className="viewer-toolbar">
             <LanguageSelect
-              label="Idioma"
+              label={t('common.language')}
               value={i18n.resolvedLanguage ?? i18n.language}
               onChange={(value) => void i18n.changeLanguage(value)}
               options={[
                 { value: 'es-AR', label: 'ES' },
                 { value: 'en-US', label: 'EN' },
-                { value: 'pt-BR', label: 'PT' },
               ]}
             />
-            <DarkModeToggle label="Cambiar tema" />
+            <DarkModeToggle label={t('common.toggle_theme')} />
           </div>
         </header>
 

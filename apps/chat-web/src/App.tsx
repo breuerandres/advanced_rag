@@ -248,18 +248,17 @@ export default function App() {
         <header className="chat-header">
           <div>
             <p className="eyebrow">Advanced RAG</p>
-            <h1>Chat de instrucciones</h1>
-            <p className="header-copy">Hacé una pregunta sobre las instrucciones publicadas.</p>
+            <h1>{t('chat.page_title')}</h1>
+            <p className="header-copy">{t('chat.header_copy')}</p>
           </div>
           <div className="chat-toolbar">
             <LanguageSelect
-              label="Idioma"
+              label={t('common.language')}
               value={i18n.resolvedLanguage ?? i18n.language}
               onChange={(value) => void i18n.changeLanguage(value)}
               options={[
                 { value: 'es-AR', label: 'ES' },
                 { value: 'en-US', label: 'EN' },
-                { value: 'pt-BR', label: 'PT' },
               ]}
             />
             <DarkModeToggle label="Cambiar tema" />

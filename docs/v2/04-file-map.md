@@ -89,7 +89,6 @@ All three SPAs currently have:
 - `src/i18n/index.ts`
 - `src/i18n/es-AR.json`
 - `src/i18n/en-US.json`
-- `src/i18n/pt-BR.json`
 - Shared UI style imports in `src/main.tsx`
 - Shared shell controls in `src/App.tsx`
 
@@ -193,13 +192,10 @@ Existing files:
 - `services/rag-api/src/advanced_rag/rag/conversation_memory.py`
 - `services/rag-api/src/advanced_rag/rag/prompts/system_es-AR.md`
 - `services/rag-api/src/advanced_rag/rag/prompts/system_en-US.md`
-- `services/rag-api/src/advanced_rag/rag/prompts/system_pt-BR.md`
 - `services/rag-api/src/advanced_rag/rag/prompts/condenser_es-AR.md`
 - `services/rag-api/src/advanced_rag/rag/prompts/condenser_en-US.md`
-- `services/rag-api/src/advanced_rag/rag/prompts/condenser_pt-BR.md`
 - `services/rag-api/src/advanced_rag/rag/prompts/rewriter_es-AR.md`
 - `services/rag-api/src/advanced_rag/rag/prompts/rewriter_en-US.md`
-- `services/rag-api/src/advanced_rag/rag/prompts/rewriter_pt-BR.md`
 
 `query_rewrite.py` and `conversation_memory.py` exist but are not called from
 `ChatService.answer`.

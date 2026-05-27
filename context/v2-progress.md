@@ -226,6 +226,15 @@ Mirror of `docs/v2/03-phases.md` checklists, maintained as a journal. The MVP
     `pnpm.cmd --dir apps\chat-web test -- --run App.test.tsx`, and
     `pnpm.cmd --dir apps\chat-web typecheck`, and
     `pnpm.cmd --dir apps\chat-web build`.
+- 2026-05-27 - Frontend locale correction completed:
+  - Runtime locale support is now `es-AR` and `en-US` only across manage, chat, docs,
+    and RAG prompt loading.
+  - Removed Portuguese locale resources, PT selector options, and Portuguese RAG prompt
+    files.
+  - Moved shell-level language labels, primary headings, and core session controls through
+    i18n resources so the visible selector produces a meaningful ES/EN change.
+  - Added focused regression coverage for ES/EN switching and absence of PT in manage,
+    chat, and docs, plus RAG prompt fallback behavior.
 
 ## Phase 2 - Hybrid Retrieval + Dimensions
 

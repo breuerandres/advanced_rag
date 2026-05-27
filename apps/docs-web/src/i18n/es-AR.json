@@ -4,8 +4,17 @@
     "loading": "Cargando…",
     "error_generic": "Ocurrió un error inesperado."
   },
+  "common": {
+    "language": "Idioma",
+    "toggle_theme": "Cambiar tema"
+  },
+  "portal": {
+    "title": "Biblioteca de documentos",
+    "header_copy": "Documentos disponibles segun tus grupos y permisos."
+  },
   "viewer": {
     "title": "Documento",
+    "instruction_viewer_title": "Visor de instrucciones",
     "table_of_contents": "Contenido",
     "breadcrumb_home": "Inicio",
     "previous": "Anterior",

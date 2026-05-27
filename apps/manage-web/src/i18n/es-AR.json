@@ -4,6 +4,14 @@
     "loading": "Cargando…",
     "error_generic": "Ocurrió un error inesperado."
   },
+  "common": {
+    "language": "Idioma",
+    "toggle_theme": "Cambiar tema"
+  },
+  "auth": {
+    "active_session": "Sesión activa",
+    "logout": "Cerrar sesión"
+  },
   "nav": {
     "dashboard": "Inicio",
     "documents": "Documentos",
@@ -14,6 +22,7 @@
     "analytics": "Analíticas",
     "api_keys": "API keys",
     "configuration": "Configuración",
+    "account": "Mi cuenta",
     "logout": "Cerrar sesión"
   },
   "documents": {

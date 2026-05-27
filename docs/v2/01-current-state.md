@@ -101,7 +101,7 @@ For the full original spec, read `context/architecture.md`, `context/rag-spec.md
 | No dark mode | Theme system in `shared-ui` | 1.5 |
 | No command palette | Cmd+K via `cmdk` | 1.5 |
 | Images stored as base64 inline | MinIO S3-compat with signed URLs | 3 |
-| Single-language UI | `react-i18next` with ES/EN/PT | 1 |
+| Single-language UI | `react-i18next` with ES/EN | 1 |
 | No favourites, reactions, view tracking | Ported from CentroDeAyuda | 4 |
 | No tags/dimensions | Configurable dimensions | 2 |
 | No API keys (server-to-server) | API keys + rate-limit-per-key | 4 |

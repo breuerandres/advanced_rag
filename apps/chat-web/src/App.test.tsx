@@ -2,9 +2,11 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
+import i18n from './i18n'
 
 afterEach(() => {
   cleanup()
+  void i18n.changeLanguage('es-AR')
   vi.unstubAllGlobals()
 })
 
@@ -318,6 +320,8 @@ test('changes language from the visible language selector', async () => {
 
   await user.selectOptions(await screen.findByLabelText('Idioma'), 'en-US')
 
+  expect(screen.queryByRole('option', { name: 'PT' })).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Instruction chat' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Send question' })).toBeDisabled()
 })
 

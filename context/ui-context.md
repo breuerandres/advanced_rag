@@ -17,7 +17,7 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - `dompurify` to sanitize HTML before rendering in the viewer.
 - `react-router-dom` v6 for routing.
 - See `context/code-standards.md` for library versions and complete list.
-- End-user UI is in **Spanish (es-AR)**. See the Language Policy section of `context/code-standards.md` for the full rules.
+- End-user UI supports **Spanish (es-AR)** and **English (en-US)**. Spanish remains the default. See the Language Policy section of `context/code-standards.md` for the full rules.
 - Keep shared UI conventions consistent across the three frontends, but each frontend can have workflow-specific layouts.
 
 ## Product UI Direction
@@ -32,7 +32,7 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - Icon-only action buttons in management surfaces must expose the same text as accessible name and hover/focus tooltip.
 - Do not force one global product header onto all three SPAs. Shared UI should provide tokens and primitives; manage, chat, and docs own their workflow-local navigation.
 - Dark mode must use the shared token palette across page backgrounds, local headers, sidebars, cards, panels, forms, tables, dialogs, badges, and document/chat content areas.
-- Each SPA must expose a visible language selector. Spanish remains the default unless the user explicitly chooses and persists another supported language.
+- Each SPA must expose a visible language selector with ES and EN only. Spanish remains the default unless the user explicitly chooses and persists English.
 
 ## Task 17.5 UI Polish Quality Gate
 

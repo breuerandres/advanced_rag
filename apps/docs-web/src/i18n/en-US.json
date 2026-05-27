@@ -4,8 +4,17 @@
     "loading": "Loading…",
     "error_generic": "An unexpected error occurred."
   },
+  "common": {
+    "language": "Language",
+    "toggle_theme": "Change theme"
+  },
+  "portal": {
+    "title": "Document library",
+    "header_copy": "Documents available for your groups and permissions."
+  },
   "viewer": {
     "title": "Document",
+    "instruction_viewer_title": "Instruction viewer",
     "table_of_contents": "Contents",
     "breadcrumb_home": "Home",
     "previous": "Previous",

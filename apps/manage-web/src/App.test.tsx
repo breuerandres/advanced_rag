@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
+import i18n from "./i18n";
 
 const usersResponse = [
   {
@@ -141,10 +142,32 @@ const auditEventsResponse = [
 ];
 
 afterEach(() => {
+  void i18n.changeLanguage("es-AR");
   vi.unstubAllGlobals();
 });
 
 describe("management users and budgets", () => {
+  test("changes the authenticated shell language and hides Portuguese", async () => {
+    stubFetch(
+      [
+        jsonResponse(200, usersResponse),
+        jsonResponse(200, [
+          { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+        ]),
+      ],
+      { session: sessionUser },
+    );
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.selectOptions(await screen.findByLabelText("Idioma"), "en-US");
+
+    expect(screen.queryByRole("option", { name: "PT" })).not.toBeInTheDocument();
+    expect(screen.getByText("Active session")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sign out/i })).toBeInTheDocument();
+  });
+
   test("shows first-run setup and creates the first administrator", async () => {
     const fetchMock = stubFetch(
       [
@@ -266,10 +289,10 @@ describe("management users and budgets", () => {
     expect(
       screen.getByRole("link", { name: "Usuarios y grupos" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Auditoria" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Auditoría" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Feedback" })).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Configuracion" }),
+      screen.getByRole("link", { name: "Configuración" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Presupuestos IA" }),
@@ -1261,7 +1284,7 @@ describe("management configuration", () => {
     render(<App />);
 
     await user.click(
-      await screen.findByRole("link", { name: "Configuracion" }),
+      await screen.findByRole("link", { name: "Configuración" }),
     );
 
     expect(
@@ -1300,7 +1323,7 @@ describe("management configuration", () => {
     render(<App />);
 
     await user.click(
-      await screen.findByRole("link", { name: "Configuracion" }),
+      await screen.findByRole("link", { name: "Configuración" }),
     );
 
     expect(
@@ -1324,7 +1347,7 @@ describe("management feedback reporting", () => {
 
     render(<App />);
 
-    await user.click(await screen.findByRole("link", { name: "Auditoria" }));
+    await user.click(await screen.findByRole("link", { name: "Auditoría" }));
 
     expect(
       await screen.findByRole("heading", { name: "Auditoria" }),

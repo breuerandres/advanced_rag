@@ -4,6 +4,14 @@
     "loading": "Loading…",
     "error_generic": "An unexpected error occurred."
   },
+  "common": {
+    "language": "Language",
+    "toggle_theme": "Change theme"
+  },
+  "auth": {
+    "active_session": "Active session",
+    "logout": "Sign out"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "documents": "Documents",
@@ -14,6 +22,7 @@
     "analytics": "Analytics",
     "api_keys": "API keys",
     "configuration": "Configuration",
+    "account": "My account",
     "logout": "Sign out"
   },
   "documents": {

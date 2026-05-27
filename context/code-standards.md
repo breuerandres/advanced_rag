@@ -170,13 +170,13 @@ All three React frontends share the same stack. Each app has its own `package.js
 
 ## Language Policy
 
-The product UI for end users (chat, viewer, management) is **Spanish (Argentine Spanish)**. The rest of the project is in **English**.
+The product UI for end users (chat, viewer, management) supports **Spanish (Argentine Spanish)** and **English (United States)**. Spanish remains the default. The rest of the project is in **English**.
 
 | Surface | Language | Notes |
 | --- | --- | --- |
-| End-user UI strings | Spanish (es-AR) | All visible labels, buttons, errors, empty states, toasts. |
-| Validation messages shown to end users | Spanish | Translated from stable error codes in a per-app `errorMessages.ts` map. |
-| Email/notification copy if added later | Spanish | Out of scope for MVP. |
+| End-user UI strings | Spanish (es-AR) and English (en-US) | All visible labels, buttons, errors, empty states, toasts. Do not add Portuguese unless a later product decision reopens it. |
+| Validation messages shown to end users | Spanish and English | Translated from stable error codes in a per-app `errorMessages.ts` map. |
+| Email/notification copy if added later | Spanish and English | Out of scope for MVP. |
 | Code identifiers (variables, functions, types, files, branches) | English | No exceptions. |
 | Code comments | English | No exceptions. |
 | Commit messages | English | No exceptions. |
@@ -189,6 +189,6 @@ The product UI for end users (chat, viewer, management) is **Spanish (Argentine 
 
 ### i18n Approach
 
-The MVP does not include a full i18n framework. Instead, each frontend app keeps user-facing strings in a single `src/strings.ts` (or `src/i18n/es.ts`) module so that a future locale addition is a mechanical refactor. Do not scatter user-facing literals through components.
+Each frontend app uses `i18next` and `react-i18next` with locale resources under `src/i18n/`. Supported runtime locales are `es-AR` and `en-US`; `es-AR` is the fallback. Visible language selectors must expose only ES and EN. Do not scatter new user-facing literals through components.
 
-Stable error codes coming from the shared error envelope are mapped to Spanish messages in a per-app `src/errorMessages.ts`. A missing code falls back to a generic "Ocurrió un error inesperado." message and is logged with the unmapped code for operators.
+Stable error codes coming from the shared error envelope are mapped to localized user-facing messages in a per-app `src/errorMessages.ts` or i18n resource. A missing code falls back to a generic localized unexpected-error message and is logged with the unmapped code for operators.

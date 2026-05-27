@@ -24,7 +24,7 @@ That file is outside the repo. Treat as the authoritative source of intent.
 |---|---|---|
 | Tenancy | Single-tenant per customer | Same (single-tenant Compose), but **generic for any company** |
 | Customer | Mymtec / DUX3 | Any |
-| End-user UI | Spanish only | Spanish + English + Portuguese (Brazilian) |
+| End-user UI | Spanish only | Spanish + English |
 | Login flow | Three tokens (session + chat-token + viewer-exchange) | One session cookie + roles |
 | Pricing model | N/A in MVP | Self-hosted product, customer installs |
 | Embedding | OpenAI text-embedding-3-small @ 1536 dims (ES-only) | Multilingual (text-embedding-3-large @ 1024d **or** BGE-M3) |
@@ -111,7 +111,7 @@ locked.
 - Keep `context/v2-progress.md` and `docs/v2/03-phases.md` synchronized when v2 status
   changes.
 - All new docs and code comments are **English**. UI strings remain in i18n JSON files
-  with `es-AR`, `en-US`, `pt-BR` keys.
+  with `es-AR` and `en-US` keys.
 - All new tests live in their service's existing test directory and should use the
   existing verification entry points: `pnpm`, `uv run pytest`, and `dotnet test`.
 - Do not document planned behavior as implemented behavior. Mark work partial when files

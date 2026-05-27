@@ -7,6 +7,7 @@ import {
   UserRound,
   Users,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 export type ManagementSection =
   | 'documents'
@@ -22,19 +23,21 @@ interface ManagementNavProps {
 }
 
 const links = [
-  { id: 'documents', label: 'Documentos', icon: FileText },
-  { id: 'users', label: 'Usuarios y grupos', icon: Users },
-  { id: 'audit', label: 'Auditoria', icon: ClipboardList },
-  { id: 'feedback', label: 'Feedback', icon: MessageSquareWarning },
-  { id: 'configuration', label: 'Configuracion', icon: Settings },
-  { id: 'account', label: 'Mi cuenta', icon: UserRound },
+  { id: 'documents', labelKey: 'nav.documents', icon: FileText },
+  { id: 'users', labelKey: 'nav.users', icon: Users },
+  { id: 'audit', labelKey: 'nav.audit', icon: ClipboardList },
+  { id: 'feedback', labelKey: 'nav.feedback', icon: MessageSquareWarning },
+  { id: 'configuration', labelKey: 'nav.configuration', icon: Settings },
+  { id: 'account', labelKey: 'nav.account', icon: UserRound },
 ] satisfies Array<{
   id: ManagementSection
-  label: string
+  labelKey: string
   icon: typeof ShieldCheck
 }>
 
 export function ManagementNav({ active, onNavigate }: ManagementNavProps) {
+  const { t } = useTranslation()
+
   return (
     <nav className="sidebar-nav">
       {links.map((link) => {
@@ -50,7 +53,7 @@ export function ManagementNav({ active, onNavigate }: ManagementNavProps) {
             }}
           >
             <Icon size={18} />
-            <span>{link.label}</span>
+            <span>{t(link.labelKey)}</span>
           </a>
         )
       })}

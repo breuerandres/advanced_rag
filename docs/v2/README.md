@@ -27,7 +27,7 @@ Tags = none                             →   Configurable dimensions (M:N, hier
 3 cookies (session/chat-token/viewer)   →   1 cookie (__Host-session) + roles
 3 SPAs with own UX                      →   3 SPAs sharing packages/shared-ui (Linear/Vercel-style)
 HTML editor base64 images                →   MinIO S3-compat with signed URLs
-No multilingual                         →   ES-AR / EN-US / PT-BR (i18n)
+No multilingual                         →   ES-AR / EN-US (i18n)
 No API keys                             →   API keys with scopes + rate limits
 Per-doc views/likes/favorites: NO       →   Yes (ported from CentroDeAyuda)
 No deep-link filters                    →   Chat accepts ?dim_x=val pre-loaded filters
