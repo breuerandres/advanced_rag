@@ -203,25 +203,6 @@
   font: inherit;
 }
 
-.docs-auth-shell {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  background: var(--bg);
-  color: var(--fg);
-  padding: 24px;
-}
-
-.docs-auth-card {
-  display: grid;
-  gap: 14px;
-  width: min(420px, 100%);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-elevated);
-  padding: 22px;
-}
-
 h1,
 h2 {
   margin: 0;

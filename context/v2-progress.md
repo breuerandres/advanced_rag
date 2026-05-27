@@ -198,6 +198,34 @@ Mirror of `docs/v2/03-phases.md` checklists, maintained as a journal. The MVP
   - Phase 1.5.6 shared primitive adoption is complete enough to begin Phase 1.7.
   - The target v2 UX items such as three-pane chat, docs TOC, analytics
     dashboard, and dimensions editor are still pending.
+- 2026-05-27 - Phase 1.7 login consistency pass completed:
+  - Added shared `AuthShell` and `AuthCardHeader` primitives to `packages/shared-ui`
+    using the management login frame as the source of truth.
+  - Reused the shared auth frame in `manage-web`, `chat-web`, and `docs-web` so all
+    login/loading/error auth surfaces share the same product panel, card structure,
+    responsive layout, and dark-mode styling.
+  - Removed the unused local `chat-auth-*` and `docs-auth-*` CSS rules to prevent
+    future visual drift.
+  - Added app regression coverage that asserts chat/docs login pages render the shared
+    `auth-shell` and `auth-card` structure.
+  - Verified with focused app/shared-ui tests, package/app typechecks, and builds for
+    all three SPAs.
+- 2026-05-27 - Phase 1.7 chat UX pass completed:
+  - Converted `chat-web` from a single-column chat surface to a three-pane workspace
+    with a local conversation rail, central question/answer panel, and right context
+    rail for citations.
+  - Wired shared `ConversationList`, `CitationDrawer`, and `CommandPalette` primitives.
+  - Added the shared `ChatMessage` pending cursor and rendered it in `chat-web` while
+    a response is being prepared.
+  - Conversation history remains local to the browser session; no persistence or new API
+    contract was introduced.
+  - Dimension filter chips remain pending until the dimensions API/UI work is available.
+  - Verified the cursor addition with
+    `pnpm.cmd --dir packages/shared-ui test -- --run ChatMessage.test.tsx`,
+    `pnpm.cmd --dir packages/shared-ui typecheck`,
+    `pnpm.cmd --dir apps\chat-web test -- --run App.test.tsx`, and
+    `pnpm.cmd --dir apps\chat-web typecheck`, and
+    `pnpm.cmd --dir apps\chat-web build`.
 
 ## Phase 2 - Hybrid Retrieval + Dimensions
 

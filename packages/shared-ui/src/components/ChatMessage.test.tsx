@@ -10,4 +10,12 @@ describe('ChatMessage', () => {
     expect(screen.getByText('Asistente')).toBeInTheDocument();
     expect(screen.queryByText('assistant')).not.toBeInTheDocument();
   });
+
+  it('renders an animated streaming cursor while pending', () => {
+    render(<ChatMessage author="assistant" content="Respuesta parcial" pending />);
+
+    expect(screen.getByLabelText('Mensaje del asistente')).toHaveTextContent('Respuesta parcial');
+    expect(screen.getByText('Escribiendo...')).toBeInTheDocument();
+    expect(screen.getByTestId('streaming-cursor')).toHaveAttribute('aria-hidden', 'true');
+  });
 });

@@ -8,11 +8,14 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-test('shows the empty initial chat state without the shared global sidebar', async () => {
+test('shows the three-pane chat workspace with local conversations and citation rail', async () => {
   renderAuthenticatedChat([])
 
   expect(await screen.findByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
-  expect(screen.queryByRole('navigation', { name: /Navegacion del chat/i })).not.toBeInTheDocument()
+  expect(screen.getByRole('navigation', { name: 'Conversaciones' })).toBeInTheDocument()
+  expect(screen.getByRole('complementary', { name: 'Contexto de respuesta' })).toBeInTheDocument()
+  expect(screen.getByText('Nueva conversación')).toBeInTheDocument()
+  expect(screen.getByText('Sin citas todavía')).toBeInTheDocument()
   expect(screen.getByText('Sesion unificada')).toBeInTheDocument()
   expect(screen.getByText('Hacé una pregunta sobre las instrucciones publicadas.')).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeEnabled()
@@ -30,6 +33,8 @@ test('disables the question input while submitting', async () => {
 
   expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeDisabled()
   expect(screen.getByRole('button', { name: /Enviando/ })).toBeDisabled()
+  expect(screen.getByLabelText('Respuesta en curso')).toBeInTheDocument()
+  expect(screen.getByTestId('streaming-cursor')).toHaveAttribute('aria-hidden', 'true')
 
   pendingChat.resolve(
     sseResponse([
@@ -126,6 +131,65 @@ test('shows a successful answer with citations and cache hit indicator', async (
   expect(screen.getByText('Costo estimado: USD 0.000001')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Abrir cita Seguridad' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Me sirvió' })).toBeInTheDocument()
+})
+
+test('adds the latest question to the local conversation list', async () => {
+  renderAuthenticatedChat([
+    csrfResponse(),
+    sseResponse([
+      ['answer-token', { delta: 'ConsultÃ¡ el procedimiento de seguridad.' }],
+      ['citations', { query_audit_event_id: '33333333-3333-3333-3333-333333333333', citations: [] }],
+      ['done', {}],
+    ]),
+  ])
+  const user = userEvent.setup()
+
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+
+  const conversations = screen.getByRole('navigation', { name: 'Conversaciones' })
+  expect(await screen.findByText('ConsultÃ¡ el procedimiento de seguridad.')).toBeInTheDocument()
+  expect(conversations).toHaveTextContent('Que regla aplica?')
+})
+
+test('opens citation drawer from the citation rail', async () => {
+  renderAuthenticatedChat([
+    csrfResponse(),
+    sseResponse([
+      ['answer-token', { delta: 'ConsultÃ¡ el procedimiento de seguridad.' }],
+      [
+        'citations',
+        {
+          query_audit_event_id: '33333333-3333-3333-3333-333333333333',
+          citations: [
+            {
+              document_id: '55555555-5555-5555-5555-555555555555',
+              document_version_id: '66666666-6666-6666-6666-666666666666',
+              heading_path: ['Seguridad'],
+            },
+          ],
+        },
+      ],
+      ['done', {}],
+    ]),
+  ])
+  const user = userEvent.setup()
+
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+  await user.click(await screen.findByRole('button', { name: 'Ver citas' }))
+
+  expect(screen.getByRole('dialog', { name: 'Citas' })).toHaveTextContent('Seguridad')
+})
+
+test('opens the command palette with the chat command', async () => {
+  renderAuthenticatedChat([])
+
+  expect(await screen.findByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
+
+  expect(await screen.findByLabelText('Command palette')).toBeInTheDocument()
+  expect(screen.getByText('Nueva pregunta')).toBeInTheDocument()
 })
 
 test('shows the monthly budget exhausted state', async () => {
@@ -234,7 +298,9 @@ test('shows login when the chat host has no session and opens the chat after sig
 
   render(<App />)
 
-  expect(await screen.findByRole('heading', { name: 'Iniciar sesion' })).toBeInTheDocument()
+  const heading = await screen.findByRole('heading', { name: 'Iniciar sesion' })
+  expect(heading.closest('main')).toHaveClass('auth-shell')
+  expect(heading.closest('form')).toHaveClass('auth-card')
   await user.type(screen.getByRole('textbox', { name: 'Email' }), 'viewer@example.com')
   await user.type(screen.getByLabelText('Contrasena'), 'password')
   await user.click(screen.getByRole('button', { name: 'Entrar al chat' }))

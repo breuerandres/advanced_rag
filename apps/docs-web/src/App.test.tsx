@@ -93,7 +93,9 @@ test('shows login when the docs host has no session', async () => {
 
   render(<App />)
 
-  expect(await screen.findByRole('heading', { name: 'Iniciar sesion' })).toBeInTheDocument()
+  const heading = await screen.findByRole('heading', { name: 'Iniciar sesion' })
+  expect(heading.closest('main')).toHaveClass('auth-shell')
+  expect(heading.closest('form')).toHaveClass('auth-card')
 })
 
 test.each([

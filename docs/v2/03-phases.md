@@ -170,13 +170,13 @@ Current code is transitional:
 
 ### 1.7.1 chat-web
 
-- [ ] Three-pane layout
-- [ ] Conversation list
+- [x] Three-pane layout
+- [x] Conversation list
 - [x] Shared `ChatMessage`
 - [x] Shared `ChatComposer`
-- [ ] Streaming cursor animation
-- [~] Citation preview/drawer
-- [ ] Command palette wiring
+- [x] Streaming cursor animation
+- [x] Citation preview/drawer
+- [x] Command palette wiring
 - [ ] Filter chips
 
 ### 1.7.2 docs-web

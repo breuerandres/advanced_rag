@@ -1,20 +1,27 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   AlertCircle,
   Clock3,
   ExternalLink,
+  FileText,
   MessageSquareText,
+  Plus,
   ShieldCheck,
   ThumbsDown,
   ThumbsUp,
 } from 'lucide-react'
 import {
   AppShell,
+  AuthCardHeader,
+  AuthShell,
   Button,
   ChatComposer,
   ChatMessage,
   CitationCard,
+  CitationDrawer,
+  CommandPalette,
+  ConversationList,
   DarkModeToggle,
   EmptyState,
   Input,
@@ -38,6 +45,7 @@ import './App.css'
 type AppMode = 'loading' | 'login' | 'ready' | 'unavailable'
 type ChatStatus = 'idle' | 'submitting'
 const MaxQuestionChars = 4000
+const WelcomeConversationId = 'welcome'
 
 interface ChatErrorState {
   title: string
@@ -61,8 +69,47 @@ export default function App() {
   const [status, setStatus] = useState<ChatStatus>('idle')
   const [isSendingFeedback, setIsSendingFeedback] = useState(false)
   const [error, setError] = useState<ChatErrorState | null>(null)
+  const [conversations, setConversations] = useState<LocalConversation[]>([
+    { id: WelcomeConversationId, title: 'Nueva conversación' },
+  ])
+  const [activeConversationId, setActiveConversationId] = useState(WelcomeConversationId)
+  const [isCitationDrawerOpen, setIsCitationDrawerOpen] = useState(false)
 
   const isSubmitting = status === 'submitting'
+  const drawerCitations = useMemo(
+    () =>
+      citations.map((citation) => ({
+        id: `${citation.documentId}-${citation.documentVersionId}`,
+        title: citation.headingPath[0] ?? 'Documento citado',
+        headingPath: citation.headingPath,
+      })),
+    [citations],
+  )
+  const commandGroups = useMemo(
+    () => [
+      {
+        heading: 'Chat',
+        items: [
+          {
+            id: 'new-question',
+            label: 'Nueva pregunta',
+            hint: 'Limpia la respuesta actual',
+            icon: <Plus size={16} aria-hidden="true" />,
+            onSelect: resetCurrentAnswer,
+            shortcut: 'Ctrl K',
+          },
+          {
+            id: 'show-citations',
+            label: 'Ver citas',
+            hint: citations.length > 0 ? `${citations.length} disponibles` : 'Sin citas',
+            icon: <FileText size={16} aria-hidden="true" />,
+            onSelect: () => setIsCitationDrawerOpen(true),
+          },
+        ],
+      },
+    ],
+    [citations.length],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -111,11 +158,36 @@ export default function App() {
       setCitations(result.citations)
       setCacheHit(result.cacheHit)
       setUsage(result.usage)
+      const conversationId = result.queryAuditEventId ?? `local-${Date.now()}`
+      setActiveConversationId(conversationId)
+      setConversations((current) => [
+        { id: conversationId, title: summarizeQuestion(nextQuestion) },
+        ...current.filter((conversation) => conversation.id !== WelcomeConversationId),
+      ])
     } catch (caught) {
       setError(toChatError(caught))
     } finally {
       setStatus('idle')
     }
+  }
+
+  function resetCurrentAnswer() {
+    setAnswer('')
+    setQueryAuditEventId(null)
+    setCitations([])
+    setUsage(null)
+    setCacheHit(false)
+    setFeedbackValue(null)
+    setFeedbackSubmitted(false)
+    setComment('')
+    setError(null)
+    setIsCitationDrawerOpen(false)
+    setActiveConversationId(WelcomeConversationId)
+    setConversations((current) =>
+      current.some((conversation) => conversation.id === WelcomeConversationId)
+        ? current
+        : [{ id: WelcomeConversationId, title: 'Nueva conversación' }, ...current],
+    )
   }
 
   async function openCitation(citation: ChatCitation) {
@@ -166,6 +238,12 @@ export default function App() {
 
   return (
     <AppShell className="chat-main">
+      <CommandPalette groups={commandGroups} placeholder="Buscar acción..." />
+      <CitationDrawer
+        open={isCitationDrawerOpen}
+        onOpenChange={setIsCitationDrawerOpen}
+        citations={drawerCitations}
+      />
       <section className="chat-shell" id="chat">
         <header className="chat-header">
           <div>
@@ -198,7 +276,25 @@ export default function App() {
           </div>
         </header>
 
-        <section className="chat-panel" aria-label="Chat de instrucciones">
+        <section className="chat-workspace" aria-label="Workspace de chat">
+          <aside className="chat-left-rail" aria-label="Historial de conversaciones">
+            <div className="rail-header">
+              <p className="eyebrow">Conversaciones</p>
+              <Button type="button" variant="secondary" size="sm" onClick={resetCurrentAnswer}>
+                <Plus size={15} aria-hidden="true" />
+                Nueva
+              </Button>
+            </div>
+            <ConversationList
+              items={conversations.map((conversation) => ({
+                ...conversation,
+                active: conversation.id === activeConversationId,
+              }))}
+              onSelect={setActiveConversationId}
+            />
+          </aside>
+
+          <section className="chat-panel" aria-label="Chat de instrucciones">
           <section className="question-form">
             <ChatComposer
               disabled={isSubmitting}
@@ -223,12 +319,19 @@ export default function App() {
           ) : null}
 
           {isSubmitting ? (
-            <p className="status-message" role="status">
-              Buscando instrucciones y preparando la respuesta...
-            </p>
+            <article className="answer-panel streaming-answer" aria-label="Respuesta en curso">
+              <div className="answer-heading">
+                <MessageSquareText size={18} />
+                <h2>Respuesta</h2>
+              </div>
+              <ChatMessage author="assistant" content={answer || ' '} pending />
+              <p className="status-message" role="status">
+                Buscando instrucciones y preparando la respuesta...
+              </p>
+            </article>
           ) : null}
 
-          {answer ? (
+          {answer && !isSubmitting ? (
             <article className="answer-panel">
               <div className="answer-heading">
                 <MessageSquareText size={18} />
@@ -257,7 +360,7 @@ export default function App() {
                       key={`${citation.documentId}-${citation.documentVersionId}`}
                       type="button"
                       className="citation-button"
-                      aria-label={`Abrir cita ${citation.headingPath[0] ?? 'documento'}`}
+                      aria-label={`Abrir cita ${citation.headingPath[0] ?? 'documento'} en respuesta`}
                       onClick={() => void openCitation(citation)}
                     >
                       <ExternalLink size={15} />
@@ -319,6 +422,46 @@ export default function App() {
               ) : null}
             </form>
           ) : null}
+          </section>
+
+          <aside className="chat-context-rail" aria-label="Contexto de respuesta">
+            <section className="context-card">
+              <div className="context-card-header">
+                <h2>Citas</h2>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={citations.length === 0}
+                  onClick={() => setIsCitationDrawerOpen(true)}
+                >
+                  Ver citas
+                </Button>
+              </div>
+              {citations.length > 0 ? (
+                <div className="citation-list" aria-label="Citas">
+                  {citations.map((citation) => (
+                    <button
+                      key={`${citation.documentId}-${citation.documentVersionId}`}
+                      type="button"
+                      className="citation-button"
+                      aria-label={`Abrir cita ${citation.headingPath[0] ?? 'documento'}`}
+                      onClick={() => void openCitation(citation)}
+                    >
+                      <ExternalLink size={15} />
+                      <CitationCard
+                        title={`Abrir cita ${citation.headingPath[0] ?? 'documento'}`}
+                        headingPath={citation.headingPath}
+                        meta="Documento"
+                      />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted-context">Sin citas todavía</p>
+              )}
+            </section>
+          </aside>
         </section>
       </section>
     </AppShell>
@@ -346,16 +489,9 @@ function ChatLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
   }
 
   return (
-    <main className="chat-auth-shell">
-      <form className="chat-auth-card" onSubmit={submit}>
-        <div className="auth-brand">
-          <span className="brand-mark">AR</span>
-          <span>Advanced RAG</span>
-        </div>
-        <header>
-          <p className="eyebrow">Chat</p>
-          <h1>Iniciar sesion</h1>
-        </header>
+    <AuthShell>
+      <form className="auth-card" onSubmit={submit}>
+        <AuthCardHeader eyebrow="Chat" title="Iniciar sesion" />
         {error ? <p className="status-message error">{error}</p> : null}
         <label className="field">
           <span>Email</span>
@@ -379,8 +515,13 @@ function ChatLoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
           Entrar al chat
         </Button>
       </form>
-    </main>
+    </AuthShell>
   )
+}
+
+interface LocalConversation {
+  id: string
+  title: string
 }
 
 function ChatAuthFrame({
@@ -393,16 +534,12 @@ function ChatAuthFrame({
   tone?: 'neutral' | 'error'
 }) {
   return (
-    <main className="chat-auth-shell">
-      <section className={`chat-auth-card ${tone}`}>
-        <div className="auth-brand">
-          <span className="brand-mark">AR</span>
-          <span>Advanced RAG</span>
-        </div>
+    <AuthShell>
+      <section className={`auth-card status-panel ${tone}`}>
         <h1>{title}</h1>
         <p>{detail}</p>
       </section>
-    </main>
+    </AuthShell>
   )
 }
 
@@ -421,6 +558,11 @@ function ChatErrorMessage({ error }: { error: ChatErrorState }) {
 
 function formatUsageCost(value: number): string {
   return `Costo estimado: USD ${value.toFixed(6)}`
+}
+
+function summarizeQuestion(question: string): string {
+  const normalized = question.trim().replace(/\s+/g, ' ')
+  return normalized.length > 48 ? `${normalized.slice(0, 45)}...` : normalized
 }
 
 function toChatError(caught: unknown): ChatErrorState {

@@ -94,29 +94,6 @@
   gap: 10px;
 }
 
-.chat-auth-shell {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  background: var(--bg);
-  color: var(--fg);
-  padding: 24px;
-}
-
-.chat-auth-card {
-  display: grid;
-  gap: 14px;
-  width: min(420px, 100%);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-elevated);
-  padding: 22px;
-}
-
-.chat-auth-card.error {
-  border-color: color-mix(in oklab, var(--danger) 45%, var(--border));
-}
-
 h1,
 h2 {
   margin: 0;
@@ -165,8 +142,51 @@ h2 {
 .chat-panel {
   display: grid;
   gap: 16px;
-  max-width: 920px;
+  min-width: 0;
+}
+
+.chat-workspace {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.72fr) minmax(360px, 1.8fr) minmax(240px, 0.92fr);
+  gap: 16px;
+  max-width: 1240px;
   margin: 0 auto;
+  align-items: start;
+}
+
+.chat-left-rail,
+.chat-context-rail {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.chat-left-rail,
+.context-card {
+  border: 1px solid #e2d8d2;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.rail-header,
+.context-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.context-card h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.muted-context {
+  margin: 0;
+  color: #3d4947;
+  font-size: 13px;
 }
 
 .question-form,
@@ -379,6 +399,7 @@ textarea:disabled {
   }
 
   .chat-header,
+  .chat-workspace,
   .question-form-footer,
   .usage-row {
     grid-template-columns: 1fr;
@@ -406,6 +427,7 @@ textarea:disabled {
 [data-theme='dark'] .field,
 [data-theme='dark'] .question-form-footer,
 [data-theme='dark'] .empty-state,
+[data-theme='dark'] .muted-context,
 [data-theme='dark'] .usage-row dt,
 [data-theme='dark'] .status-message,
 [data-theme='dark'] .feedback-button {
@@ -423,6 +445,8 @@ textarea:disabled {
 [data-theme='dark'] .answer-panel,
 [data-theme='dark'] .feedback-panel,
 [data-theme='dark'] .empty-state,
+[data-theme='dark'] .chat-left-rail,
+[data-theme='dark'] .context-card,
 [data-theme='dark'] .status-message,
 [data-theme='dark'] textarea,
 [data-theme='dark'] .citation-button,

@@ -201,10 +201,10 @@ Expected: commit succeeds with only reconciliation/auth/shared-ui/status cleanup
 
 ### Task 2.2: Chat UX
 
-- [ ] Add three-pane layout.
-- [ ] Wire `ConversationList`.
-- [ ] Add citation drawer/preview.
-- [ ] Add command palette.
+- [x] Add three-pane layout.
+- [x] Wire `ConversationList`.
+- [x] Add citation drawer/preview.
+- [x] Add command palette.
 - [ ] Add dimension filter chips and URL deep-link parsing after dimensions API exists.
 - [ ] Commit with `feat: add v2 chat workspace`.
 

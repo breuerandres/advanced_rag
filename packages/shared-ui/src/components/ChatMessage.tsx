@@ -38,6 +38,13 @@ export function ChatMessage({ author, content, pending, className }: ChatMessage
         {pending && <span className="text-xs text-[var(--fg-muted)]">Escribiendo...</span>}
       </div>
       <Markdown content={content} />
+      {pending && (
+        <span
+          aria-hidden="true"
+          data-testid="streaming-cursor"
+          className="mt-2 inline-block h-4 w-1 animate-pulse rounded-full bg-[var(--accent)] align-text-bottom"
+        />
+      )}
     </article>
   );
 }

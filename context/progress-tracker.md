@@ -483,6 +483,16 @@ See `context/architecture.md`, `context/code-standards.md`, `context/rag-spec.md
   `context/v2-progress.md`, fixed active mojibake regressions, and passed focused
   shared-ui, SPA, FastAPI, and .NET verification. Active v2 status remains in
   `context/v2-progress.md`.
+- 2026-05-27 v2 note: Phase 1.7 login consistency pass extracted the management login
+  frame into shared `AuthShell`/`AuthCardHeader` primitives and reused it in
+  manage/chat/docs auth surfaces. Active v2 status remains in `context/v2-progress.md`.
+- 2026-05-27 v2 note: Phase 1.7 chat UX pass added the three-pane chat workspace with
+  local conversations, citation rail/drawer, and command palette. Dimension filter chips
+  remain pending until dimensions API/UI work is available. Active v2 status remains in
+  `context/v2-progress.md`.
+- 2026-05-27 v2 note: Chat streaming cursor animation is complete in the shared
+  `ChatMessage` pending state and is rendered by `chat-web` while a response is being
+  prepared. Dimension filter chips remain blocked on dimensions API/UI.
 - The formal design has been written to `docs/superpowers/specs/2026-05-11-base-architecture-design.md`.
 - The implementation plan has been written to `docs/superpowers/plans/2026-05-11-mvp-implementation-plan.md`.
 - The spec and plan are not committed yet because Git was initialized after they were written.

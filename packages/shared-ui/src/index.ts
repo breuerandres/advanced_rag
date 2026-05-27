@@ -13,6 +13,8 @@ export { cn } from './lib/cn';
 export { Button } from './components/Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './components/Button';
 export { AppShell } from './components/AppShell';
+export { AuthCardHeader, AuthShell } from './components/AuthShell';
+export type { AuthCardHeaderProps, AuthShellProps } from './components/AuthShell';
 export { Header } from './components/Header';
 export { Sidebar } from './components/Sidebar';
 export { DarkModeToggle } from './components/DarkModeToggle';

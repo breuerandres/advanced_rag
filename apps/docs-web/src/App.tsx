@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Clock3, FileText, Search, ShieldCheck } from 'lucide-react'
-import { AppShell, Button, DarkModeToggle, EmptyState, Input, LanguageSelect } from '@helpcenter/shared-ui'
+import {
+  AppShell,
+  AuthCardHeader,
+  AuthShell,
+  Button,
+  DarkModeToggle,
+  EmptyState,
+  Input,
+  LanguageSelect,
+} from '@helpcenter/shared-ui'
 import {
   createViewerLink,
   getSession,
@@ -332,16 +341,9 @@ function DocsLoginPage({ onAuthenticated }: { onAuthenticated: (user: SessionUse
   }
 
   return (
-    <main className="docs-auth-shell">
-      <form className="docs-auth-card" onSubmit={submit}>
-        <div className="auth-brand">
-          <span className="brand-mark">AR</span>
-          <span>Advanced RAG</span>
-        </div>
-        <header>
-          <p className="eyebrow">Documentos</p>
-          <h1>Iniciar sesion</h1>
-        </header>
+    <AuthShell>
+      <form className="auth-card" onSubmit={submit}>
+        <AuthCardHeader eyebrow="Documentos" title="Iniciar sesion" />
         {error ? <p className="status-message error">{error}</p> : null}
         <label className="field">
           <span>Email</span>
@@ -359,7 +361,7 @@ function DocsLoginPage({ onAuthenticated }: { onAuthenticated: (user: SessionUse
           Entrar
         </Button>
       </form>
-    </main>
+    </AuthShell>
   )
 }
 

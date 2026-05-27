@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertCircle, CheckCircle2, LogOut, ShieldCheck } from 'lucide-react'
-import { AppShell, Button, DarkModeToggle, Input, LanguageSelect, Sidebar } from '@helpcenter/shared-ui'
+import { AlertCircle, CheckCircle2, LogOut } from 'lucide-react'
+import {
+  AppShell,
+  AuthCardHeader,
+  AuthShell,
+  Button,
+  DarkModeToggle,
+  Input,
+  LanguageSelect,
+  Sidebar,
+} from '@helpcenter/shared-ui'
 import {
   createFirstAdmin,
   getSession,
@@ -332,39 +341,7 @@ function LoginPage({
 }
 
 function AuthFrame({ children }: { children: ReactNode }) {
-  return (
-    <main className="auth-shell">
-      <section className="auth-product-panel" aria-label="Advanced RAG">
-        <div className="auth-brand">
-          <span className="brand-mark">AR</span>
-          <span>Advanced RAG</span>
-        </div>
-        <div className="auth-proof">
-          <ShieldCheck size={18} aria-hidden="true" />
-          <span>Sesiones seguras con cookies HttpOnly y control CSRF.</span>
-        </div>
-      </section>
-      {children}
-    </main>
-  )
-}
-
-function AuthCardHeader({
-  eyebrow,
-  title,
-  detail,
-}: {
-  eyebrow: string
-  title: string
-  detail: string
-}) {
-  return (
-    <header className="auth-card-header">
-      <p className="eyebrow">{eyebrow}</p>
-      <h1>{title}</h1>
-      <p>{detail}</p>
-    </header>
-  )
+  return <AuthShell>{children}</AuthShell>
 }
 
 function StatusPanel({
