@@ -23,8 +23,7 @@ import {
   updateUserStatus,
 } from '../../api/users'
 import type { GroupSummary, UserSummary } from '../../api/users'
-import { Button } from '../../components/ui/button'
-import { Checkbox, DataTable, Dialog, Input } from '@helpcenter/shared-ui'
+import { Button, Checkbox, DataTable, Dialog, Input } from '@helpcenter/shared-ui'
 
 type LoadState = 'loading' | 'ready' | 'error'
 type UserStatusFilter = 'all' | 'active' | 'inactive'
@@ -190,7 +189,7 @@ export function UsersBudgetPage() {
               <span>Buscar usuarios</span>
               <span className="search-control">
                 <Search size={16} />
-                <input
+                <Input
                   type="search"
                   placeholder="Nombre, email, rol o grupo"
                   value={searchQuery}

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { Button } from '@helpcenter/shared-ui'
 import { getOperationalConfiguration } from '../../api/configuration'
 import type { OperationalConfiguration } from '../../api/configuration'
-import { Button } from '../../components/ui/button'
 import { ApiError } from '../../lib/api-error'
 
 export function ConfigurationPage() {

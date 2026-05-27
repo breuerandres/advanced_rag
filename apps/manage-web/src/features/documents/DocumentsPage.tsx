@@ -24,9 +24,8 @@ import {
 } from "../../api/documents";
 import type { DocumentDetail, DocumentSummary } from "../../api/documents";
 import { listGroups, type GroupSummary } from "../../api/users";
-import { Button } from "../../components/ui/button";
 import { RichTextEditor } from "./RichTextEditor";
-import { Checkbox, DataTable, Input } from "@helpcenter/shared-ui";
+import { Button, Checkbox, DataTable, Input } from "@helpcenter/shared-ui";
 
 type DocumentStateFilter =
   | "all"
@@ -307,7 +306,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                 <span>Buscar documentos</span>
                 <span className="search-control">
                   <Search size={16} />
-                  <input
+                  <Input
                     type="search"
                     placeholder="Titulo, tipo, audiencia, grupo o fecha"
                     value={searchQuery}

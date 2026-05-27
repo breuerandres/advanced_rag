@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { KeyRound, Mail } from 'lucide-react'
+import { Button, Input } from '@helpcenter/shared-ui'
 import type { SessionUser } from '../../api/auth'
 import { changeCurrentUserPassword, updateCurrentUserEmail } from '../../api/account'
 import { ApiError } from '../../lib/api-error'
@@ -81,16 +82,16 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
           </header>
           <label className="field">
             <span>Email</span>
-            <input
+            <Input
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               disabled={isSavingEmail}
             />
           </label>
-          <button className="ui-button primary-button" type="submit" disabled={isSavingEmail}>
+          <Button className="ui-button primary-button" type="submit" disabled={isSavingEmail}>
             Guardar email
-          </button>
+          </Button>
           {emailStatus ? (
             <p className="status-message success" role="status">
               {emailStatus}
@@ -105,7 +106,7 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
           </header>
           <label className="field">
             <span>Contraseña actual</span>
-            <input
+            <Input
               type="password"
               autoComplete="current-password"
               value={currentPassword}
@@ -115,7 +116,7 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
           </label>
           <label className="field">
             <span>Nueva contraseña</span>
-            <input
+            <Input
               type="password"
               autoComplete="new-password"
               value={newPassword}
@@ -123,9 +124,9 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
               disabled={isSavingPassword}
             />
           </label>
-          <button className="ui-button primary-button" type="submit" disabled={isSavingPassword}>
+          <Button className="ui-button primary-button" type="submit" disabled={isSavingPassword}>
             Cambiar contraseña
-          </button>
+          </Button>
           {passwordStatus ? (
             <p className="status-message success" role="status">
               {passwordStatus}

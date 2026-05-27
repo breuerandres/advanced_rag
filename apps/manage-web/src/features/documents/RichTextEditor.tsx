@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef } from 'react'
-import { Button } from '../../components/ui/button'
+import { Button } from '@helpcenter/shared-ui'
 
 interface RichTextEditorProps {
   value: string

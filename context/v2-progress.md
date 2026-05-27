@@ -170,16 +170,33 @@ Mirror of `docs/v2/03-phases.md` checklists, maintained as a journal. The MVP
     --run App.test.tsx`, `pnpm.cmd --dir apps/manage-web typecheck`,
     `pnpm.cmd --dir apps/manage-web build`, `pnpm.cmd --dir packages/shared-ui test
     -- --run`, and `pnpm.cmd --dir packages/shared-ui typecheck`.
-- Pending:
-  - Sweep for any remaining low-risk local duplicated form, overlay, table,
-    empty/loading, markdown, chat, and citation surfaces before starting Phase 1.7 UX
-    refactors.
+- 2026-05-27 - Phase 1.5.6 final shared primitive sweep completed:
+  - Replaced the remaining local `components/ui/button` copies with
+    `@helpcenter/shared-ui` `Button` in management setup/login, account, audit,
+    configuration, documents, rich-text toolbar, feedback, and users/groups surfaces.
+  - Removed the unused local button component copies from `manage-web`, `chat-web`, and
+    `docs-web`.
+  - Extended shared `Button` so icon buttons preserve the existing accessible
+    `data-tooltip` convention without duplicating the browser `title` attribute.
+  - Migrated remaining low-risk management text/search/date inputs to shared `Input`.
+    Native file upload, raw HTML source textarea, and native selects remain intentionally
+    custom until their UX refactors justify replacing browser semantics.
+  - Added regression coverage for shared Button tooltip metadata and management shared UI
+    adoption.
+  - Verified with `pnpm.cmd --dir apps/manage-web test -- --run App.test.tsx
+    sharedUiAdoption.test.ts`, `pnpm.cmd --dir apps/manage-web typecheck`,
+    `pnpm.cmd --dir apps/manage-web build`, `pnpm.cmd --dir packages/shared-ui test
+    -- --run`, `pnpm.cmd --dir packages/shared-ui typecheck`,
+    `pnpm.cmd --dir apps/chat-web typecheck`, `pnpm.cmd --dir apps/chat-web build`,
+    `pnpm.cmd --dir apps/docs-web typecheck`, `pnpm.cmd --dir apps/docs-web build`,
+    and `git diff --check`.
 
 ## Phase 1.7 - UX Refactor Per SPA
 
 - Current state is partial, not complete:
   - All three SPAs use shared shell controls and visible language/theme controls.
-  - The target v2 UX items such as three-pane chat, docs TOC, shared DataTable, analytics
+  - Phase 1.5.6 shared primitive adoption is complete enough to begin Phase 1.7.
+  - The target v2 UX items such as three-pane chat, docs TOC, analytics
     dashboard, and dimensions editor are still pending.
 
 ## Phase 2 - Hybrid Retrieval + Dimensions

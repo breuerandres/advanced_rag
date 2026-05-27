@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
-import { DataTable } from '@helpcenter/shared-ui'
+import { Button, DataTable, Input } from '@helpcenter/shared-ui'
 import { listFeedbackReport, type FeedbackReportItem } from '../../api/reporting'
-import { Button } from '../../components/ui/button'
 
 type PolarityFilter = 'all' | 'negative'
 
@@ -164,7 +163,7 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
           </label>
           <label className="field">
             <span>Documento citado</span>
-            <input
+            <Input
               type="text"
               placeholder="ID de documento"
               value={citedDocumentId}
@@ -173,7 +172,7 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
           </label>
           <label className="field">
             <span>Usuario</span>
-            <input
+            <Input
               type="text"
               placeholder="ID de usuario"
               value={userId}
@@ -182,7 +181,7 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
           </label>
           <label className="field">
             <span>Desde</span>
-            <input
+            <Input
               type="date"
               value={from}
               onChange={(event) => setFrom(event.target.value)}
@@ -190,7 +189,7 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
           </label>
           <label className="field">
             <span>Hasta</span>
-            <input
+            <Input
               type="date"
               value={to}
               onChange={(event) => setTo(event.target.value)}

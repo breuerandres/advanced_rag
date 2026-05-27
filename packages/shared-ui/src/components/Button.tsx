@@ -65,13 +65,19 @@ export interface ButtonProps
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, loading, disabled, children, ...rest }, ref) => {
+  ({ className, variant, size, loading, disabled, children, title, ...rest }, ref) => {
+    const ariaLabel = typeof rest['aria-label'] === 'string' ? rest['aria-label'] : undefined;
+    const isIconButton = className?.split(/\s+/).includes('icon-button') ?? false;
+    const tooltip = isIconButton ? ariaLabel : undefined;
+
     return (
       <button
         ref={ref}
         className={cn(buttonVariants({ variant, size }), className)}
         disabled={disabled || loading}
         aria-busy={loading || undefined}
+        data-tooltip={tooltip}
+        title={isIconButton ? undefined : title}
         {...rest}
       >
         {loading && (

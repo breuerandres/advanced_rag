@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ClipboardList, RefreshCw, Search } from 'lucide-react'
-import { DataTable, EmptyState } from '@helpcenter/shared-ui'
+import { Button, DataTable, EmptyState, Input } from '@helpcenter/shared-ui'
 import { listAuditEvents, type ManagementAuditEvent } from '../../api/audit'
 import { ApiError } from '../../lib/api-error'
-import { Button } from '../../components/ui/button'
 
 type LoadState = 'loading' | 'ready' | 'error'
 
@@ -132,7 +131,7 @@ export function AuditPage() {
           <span>Buscar eventos</span>
           <span className="search-control">
             <Search size={16} />
-            <input
+            <Input
               type="search"
               placeholder="Documento, usuario o request ID"
               value={searchQuery}

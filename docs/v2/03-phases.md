@@ -157,6 +157,10 @@ Current code is transitional:
   and `manage-web` audit/feedback data tables
 - [x] Remaining shared primitive adoption for management users/groups dialogs, document
   list/editor forms, document tables, and higher-risk overlays
+- [x] Final low-risk shared primitive sweep:
+  local button copies removed, management setup/login/account/filter inputs use shared
+  primitives where safe, and native file/select/HTML editor controls are deferred to
+  dedicated UX refactors
 - [~] Full v2 shell refactor using shared UI data/overlay primitives
 - [ ] Storybook
 

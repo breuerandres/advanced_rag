@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, CheckCircle2, LogOut, ShieldCheck } from 'lucide-react'
-import { AppShell, DarkModeToggle, LanguageSelect, Sidebar } from '@helpcenter/shared-ui'
+import { AppShell, Button, DarkModeToggle, Input, LanguageSelect, Sidebar } from '@helpcenter/shared-ui'
 import {
   createFirstAdmin,
   getSession,
@@ -160,10 +160,10 @@ export default function App() {
                 <span className="session-label">Sesión activa</span>
                 <strong>{sessionUser.email}</strong>
                 <span>{sessionUser.roles.join(', ')}</span>
-                <button className="sidebar-logout" type="button" onClick={() => void handleLogout()}>
+                <Button className="sidebar-logout" type="button" onClick={() => void handleLogout()}>
                   <LogOut size={16} aria-hidden="true" />
                   Cerrar sesión
-                </button>
+                </Button>
               </section>
             }
           >
@@ -231,7 +231,7 @@ function SetupPage({
         {error ? <p className="status-message error">{error}</p> : null}
         <label className="field">
           <span>Email</span>
-          <input
+          <Input
             autoComplete="email"
             type="email"
             value={email}
@@ -240,7 +240,7 @@ function SetupPage({
         </label>
         <label className="field">
           <span>Nombre visible</span>
-          <input
+          <Input
             autoComplete="name"
             type="text"
             value={displayName}
@@ -249,16 +249,16 @@ function SetupPage({
         </label>
         <label className="field">
           <span>Contraseña</span>
-          <input
+          <Input
             autoComplete="new-password"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
-        <button className="ui-button primary-button auth-submit" disabled={isSubmitting} type="submit">
+        <Button className="ui-button primary-button auth-submit" disabled={isSubmitting} type="submit">
           Crear administrador
-        </button>
+        </Button>
       </form>
     </AuthFrame>
   )
@@ -307,7 +307,7 @@ function LoginPage({
         {error ? <p className="status-message error">{error}</p> : null}
         <label className="field">
           <span>Email</span>
-          <input
+          <Input
             autoComplete="email"
             type="email"
             value={email}
@@ -316,16 +316,16 @@ function LoginPage({
         </label>
         <label className="field">
           <span>Contraseña</span>
-          <input
+          <Input
             autoComplete="current-password"
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
-        <button className="ui-button primary-button auth-submit" disabled={isSubmitting} type="submit">
+        <Button className="ui-button primary-button auth-submit" disabled={isSubmitting} type="submit">
           Ingresar
-        </button>
+        </Button>
       </form>
     </AuthFrame>
   )

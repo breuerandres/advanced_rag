@@ -194,10 +194,10 @@ Expected: commit succeeds with only reconciliation/auth/shared-ui/status cleanup
 
 ### Task 2.1: Final Shared-UI Adoption Sweep
 
-- [ ] Replace remaining low-risk local duplicated inputs, selects, textareas, empty/loading states, overlays, markdown rendering, chat, and citation surfaces.
-- [ ] Keep file-upload inputs custom where browser semantics require it.
-- [ ] Run app-local tests and typechecks.
-- [ ] Commit with `refactor: complete shared ui adoption sweep`.
+- [x] Audit remaining low-risk local duplicated inputs, selects, textareas, empty/loading states, overlays, markdown rendering, chat, and citation surfaces; replace the safe cases and defer native controls whose browser semantics belong to Phase 1.7 UX work.
+- [x] Keep file-upload inputs custom where browser semantics require it.
+- [x] Run app-local tests and typechecks.
+- [x] Commit with `refactor: complete shared ui adoption sweep`.
 
 ### Task 2.2: Chat UX
 
