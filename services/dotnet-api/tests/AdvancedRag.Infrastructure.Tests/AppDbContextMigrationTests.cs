@@ -15,6 +15,7 @@ public sealed class AppDbContextMigrationTests
         "dimension_values",
         "dimensions",
         "document_dimension_values",
+        "document_images",
         "groups",
         "import_metadata",
         "document_permissions",

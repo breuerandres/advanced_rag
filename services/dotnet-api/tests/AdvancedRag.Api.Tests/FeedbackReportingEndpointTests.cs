@@ -45,6 +45,7 @@ public sealed class FeedbackReportingEndpointTests
         body.Should().NotBeNull();
         body!.Should().ContainSingle();
         body![0].FeedbackValue.Should().Be("down");
+        body![0].FeedbackUpdatedAt.Should().Be(DateTimeOffset.Parse("2026-05-18T12:00:00Z"));
         _factory.Reporting.LastQuery.Should().Be(
             new FeedbackReportQuery(
                 NegativeOnly: true,

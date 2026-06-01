@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
 import { Button, DataTable, Input } from '@helpcenter/shared-ui'
-import { listFeedbackReport, type FeedbackReportItem } from '../../api/reporting'
+import {
+  listFeedbackReport,
+  type FeedbackReportFilters,
+  type FeedbackReportItem,
+} from '../../api/reporting'
 
 type PolarityFilter = 'all' | 'negative'
 
 export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean }) {
+  const { t } = useTranslation()
   const [items, setItems] = useState<FeedbackReportItem[]>([])
   const [polarity, setPolarity] = useState<PolarityFilter>('all')
   const [citedDocumentId, setCitedDocumentId] = useState('')
@@ -16,21 +22,11 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
 
-  useEffect(() => {
-    void loadFeedback(false)
-  }, [])
-
-  async function loadFeedback(withFilters: boolean) {
+  const loadFeedback = useCallback(async (filters: FeedbackReportFilters) => {
     setIsLoading(true)
     setLoadError(false)
     try {
-      const rows = await listFeedbackReport({
-        negativeOnly: withFilters && polarity === 'negative',
-        citedDocumentId: withFilters ? citedDocumentId.trim() : '',
-        userId: withFilters ? userId.trim() : '',
-        from: withFilters && from ? `${from}T00:00:00Z` : '',
-        to: withFilters && to ? `${to}T23:59:59Z` : '',
-      })
+      const rows = await listFeedbackReport(filters)
       setItems(rows)
       setHasLoadedOnce(true)
     } catch {
@@ -38,7 +34,12 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial report load synchronizes remote data on mount.
+    void loadFeedback({})
+  }, [loadFeedback])
 
   function exportToExcelCsv() {
     const rows = [
@@ -62,9 +63,9 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
         item.userDisplayName,
         item.question,
         item.answerSummary,
-        item.feedbackValue,
+        item.feedbackValue ?? '',
         item.feedbackComment ?? '',
-        item.feedbackUpdatedAt,
+        item.feedbackUpdatedAt ?? '',
         item.createdAt,
         item.cacheHit ? 'true' : 'false',
         item.requestId,
@@ -92,7 +93,7 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
   const columns = [
     {
       key: 'question',
-      header: 'Pregunta',
+      header: t('feedback.question_column'),
       className: 'feedback-question-column',
       render: (item: FeedbackReportItem) => (
         <>
@@ -103,33 +104,34 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
     },
     {
       key: 'user',
-      header: 'Usuario',
+      header: t('feedback.user'),
       className: 'feedback-user-column',
       render: (item: FeedbackReportItem) => item.userDisplayName,
     },
     {
       key: 'feedback',
-      header: 'Feedback',
+      header: t('feedback.title'),
       className: 'feedback-value-column feedback-value-cell',
-      render: (item: FeedbackReportItem) => (item.feedbackValue === 'down' ? 'No sirvio' : 'Sirvio'),
+      render: (item: FeedbackReportItem) => feedbackLabel(item.feedbackValue, t),
     },
     {
       key: 'comment',
-      header: 'Comentario',
+      header: t('feedback.comment_column'),
       className: 'feedback-comment-column',
       render: (item: FeedbackReportItem) => item.feedbackComment ?? '-',
     },
     {
       key: 'cache',
-      header: 'Cache',
+      header: t('feedback.cache_column'),
       className: 'feedback-cache-column',
-      render: (item: FeedbackReportItem) => (item.cacheHit ? 'Si' : 'No'),
+      render: (item: FeedbackReportItem) =>
+        item.cacheHit ? t('feedback.cache_yes') : t('feedback.cache_no'),
     },
     {
       key: 'date',
-      header: 'Fecha',
+      header: t('feedback.date_column'),
       className: 'feedback-date-column',
-      render: (item: FeedbackReportItem) => formatDateTime(item.feedbackUpdatedAt),
+      render: (item: FeedbackReportItem) => formatDateTime(item.feedbackUpdatedAt ?? item.createdAt),
     },
   ]
 
@@ -137,50 +139,50 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
     <section className={embedded ? 'audit-feedback-panel' : 'workspace'} id="feedback">
         <header className="workspace-header">
           <div>
-            <p className="eyebrow">Revision de chat</p>
-            {embedded ? <h2>Feedback auditado</h2> : <h1>Feedback auditado</h1>}
+            <p className="eyebrow">{t('feedback.eyebrow')}</p>
+            {embedded ? <h2>{t('feedback.title')}</h2> : <h1>{t('feedback.title')}</h1>}
           </div>
           {items.length > 0 ? (
             <div className="workspace-actions">
               <Button className="text-button" type="button" onClick={exportToExcelCsv}>
                 <Download size={16} />
-                Exportar a Excel
+                {t('feedback.export')}
               </Button>
             </div>
           ) : null}
         </header>
 
-        <section className="feedback-filter-grid" aria-label="Filtros de feedback">
+        <section className="feedback-filter-grid" aria-label={t('feedback.filters_label')}>
           <label className="field filter-status">
-            <span>Polaridad</span>
+            <span>{t('feedback.polarity')}</span>
             <select
               value={polarity}
               onChange={(event) => setPolarity(event.target.value as PolarityFilter)}
             >
-              <option value="all">Todas</option>
-              <option value="negative">Negativo</option>
+              <option value="all">{t('feedback.all')}</option>
+              <option value="negative">{t('feedback.negative')}</option>
             </select>
           </label>
           <label className="field">
-            <span>Documento citado</span>
+            <span>{t('feedback.cited_document')}</span>
             <Input
               type="text"
-              placeholder="ID de documento"
+              placeholder={t('feedback.document_id')}
               value={citedDocumentId}
               onChange={(event) => setCitedDocumentId(event.target.value)}
             />
           </label>
           <label className="field">
-            <span>Usuario</span>
+            <span>{t('feedback.user')}</span>
             <Input
               type="text"
-              placeholder="ID de usuario"
+              placeholder={t('feedback.user_id')}
               value={userId}
               onChange={(event) => setUserId(event.target.value)}
             />
           </label>
           <label className="field">
-            <span>Desde</span>
+            <span>{t('feedback.from')}</span>
             <Input
               type="date"
               value={from}
@@ -188,7 +190,7 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
             />
           </label>
           <label className="field">
-            <span>Hasta</span>
+            <span>{t('feedback.to')}</span>
             <Input
               type="date"
               value={to}
@@ -199,20 +201,28 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
             className="primary-button"
             type="button"
             disabled={isLoading}
-            onClick={() => void loadFeedback(true)}
+            onClick={() =>
+              void loadFeedback({
+                negativeOnly: polarity === 'negative',
+                citedDocumentId: citedDocumentId.trim(),
+                userId: userId.trim(),
+                from: from ? `${from}T00:00:00Z` : '',
+                to: to ? `${to}T23:59:59Z` : '',
+              })
+            }
           >
-            Aplicar filtros
+            {t('feedback.apply_filters')}
           </Button>
         </section>
 
-        {isLoading ? <p className="status-message">Cargando feedback...</p> : null}
+        {isLoading ? <p className="status-message">{t('feedback.loading')}</p> : null}
         {loadError ? (
           <p className="status-message error" role="alert">
-            No se pudo cargar el feedback.
+            {t('feedback.load_error')}
           </p>
         ) : null}
         {hasLoadedOnce && !isLoading && items.length === 0 ? (
-          <p className="status-message">Todavia no hay feedback registrado.</p>
+          <p className="status-message">{t('feedback.empty')}</p>
         ) : null}
 
         {items.length > 0 ? (
@@ -229,6 +239,18 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
 
 function csvCell(value: string) {
   return `"${value.replaceAll('"', '""')}"`
+}
+
+function feedbackLabel(value: FeedbackReportItem['feedbackValue'], t: (key: string) => string) {
+  if (value === 'down') {
+    return t('feedback.negative_label')
+  }
+
+  if (value === 'up') {
+    return t('feedback.positive_label')
+  }
+
+  return t('feedback.no_feedback')
 }
 
 function formatDateTime(value: string) {

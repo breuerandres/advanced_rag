@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@helpcenter/shared-ui'
 import { getOperationalConfiguration } from '../../api/configuration'
@@ -6,6 +7,7 @@ import type { OperationalConfiguration } from '../../api/configuration'
 import { ApiError } from '../../lib/api-error'
 
 export function ConfigurationPage() {
+  const { t } = useTranslation()
   const [configuration, setConfiguration] = useState<OperationalConfiguration | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -21,7 +23,7 @@ export function ConfigurationPage() {
       setConfiguration(await getOperationalConfiguration())
     } catch (error) {
       const reference = error instanceof ApiError ? error.requestId : 'unknown'
-      setErrorMessage(`No se pudo cargar la configuracion. Referencia: ${reference}.`)
+      setErrorMessage(t('configuration.load_error', { reference }))
     } finally {
       setIsLoading(false)
     }
@@ -31,13 +33,13 @@ export function ConfigurationPage() {
     <section className="workspace" id="configuration">
       <header className="workspace-header">
         <div>
-          <p className="eyebrow">Operaciones</p>
-          <h1>Configuracion operativa</h1>
+          <p className="eyebrow">{t('configuration.eyebrow')}</p>
+          <h1>{t('configuration.title')}</h1>
         </div>
         <Button
           className="icon-button"
           type="button"
-          aria-label="Actualizar configuracion"
+          aria-label={t('configuration.refresh')}
           disabled={isLoading}
           onClick={() => void loadConfiguration()}
         >
@@ -45,7 +47,7 @@ export function ConfigurationPage() {
         </Button>
       </header>
 
-      {isLoading ? <p className="status-message">Cargando configuracion...</p> : null}
+      {isLoading ? <p className="status-message">{t('configuration.loading')}</p> : null}
       {errorMessage ? (
         <p className="status-message error" role="alert">
           {errorMessage}
@@ -54,24 +56,24 @@ export function ConfigurationPage() {
 
       {configuration ? (
         <>
-          <section className="metrics-row config-summary" aria-label="Configuracion principal">
+          <section className="metrics-row config-summary" aria-label={t('configuration.summary_label')}>
             <div>
-              <span className="metric-label">Zona horaria</span>
+              <span className="metric-label">{t('configuration.timezone')}</span>
               <strong>{configuration.customerTimezone}</strong>
             </div>
             <div>
-              <span className="metric-label">Presupuesto mensual base</span>
+              <span className="metric-label">{t('configuration.base_budget')}</span>
               <strong>{formatCurrency(configuration.defaultMonthlyAiBudgetUsd)}</strong>
             </div>
             <div>
-              <span className="metric-label">Limite de importacion</span>
+              <span className="metric-label">{t('configuration.import_limit')}</span>
               <strong>{configuration.importMaxFileSizeMb} MB</strong>
             </div>
           </section>
 
           <div className="settings-grid">
-            <section className="settings-panel" aria-label="Modelos de IA">
-              <h2>Modelos de IA</h2>
+            <section className="settings-panel" aria-label={t('configuration.ai_models')}>
+              <h2>{t('configuration.ai_models')}</h2>
               <dl>
                 <div>
                   <dt>Chat</dt>
@@ -82,34 +84,34 @@ export function ConfigurationPage() {
                   <dd>{configuration.embeddingModel}</dd>
                 </div>
                 <div>
-                  <dt>Dimension</dt>
-                  <dd>{configuration.embeddingDimensions} dimensiones</dd>
+                  <dt>{t('configuration.dimension')}</dt>
+                  <dd>{t('configuration.dimensions_value', { count: configuration.embeddingDimensions })}</dd>
                 </div>
               </dl>
             </section>
 
-            <section className="settings-panel" aria-label="Cache y limites">
-              <h2>Cache y limites</h2>
+            <section className="settings-panel" aria-label={t('configuration.cache_limits')}>
+              <h2>{t('configuration.cache_limits')}</h2>
               <dl>
                 <div>
-                  <dt>TTL de cache semantica</dt>
-                  <dd>{configuration.semanticCacheTtlHours} horas</dd>
+                  <dt>{t('configuration.cache_ttl')}</dt>
+                  <dd>{t('configuration.hours_value', { count: configuration.semanticCacheTtlHours })}</dd>
                 </div>
                 <div>
-                  <dt>Umbral de similitud</dt>
+                  <dt>{t('configuration.similarity_threshold')}</dt>
                   <dd>{configuration.semanticCacheSimilarityThreshold.toFixed(2)}</dd>
                 </div>
                 <div>
-                  <dt>Pregunta de chat</dt>
-                  <dd>{configuration.chatMaxQuestionChars} caracteres</dd>
+                  <dt>{t('configuration.chat_question')}</dt>
+                  <dd>{t('configuration.characters_value', { count: configuration.chatMaxQuestionChars })}</dd>
                 </div>
               </dl>
             </section>
 
-            <section className="settings-panel" aria-label="Valores secretos">
-              <h2>Valores protegidos por secretos</h2>
+            <section className="settings-panel" aria-label={t('configuration.secret_values')}>
+              <h2>{t('configuration.secret_values')}</h2>
               <p className="muted-copy">
-                La consola muestra estado operativo, no valores sensibles.
+                {t('configuration.secret_copy')}
               </p>
               <dl>
                 {configuration.secrets.map((secret) => (

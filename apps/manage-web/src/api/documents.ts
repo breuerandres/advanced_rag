@@ -53,6 +53,12 @@ export interface ImportExtractionResult {
   }
 }
 
+export interface DocumentImageUploadResult {
+  imageId: string
+  url: string
+  altText: string
+}
+
 export interface ViewerLinkResult {
   url: string
   expiresAt: string
@@ -114,6 +120,22 @@ export async function importDocumentText(file: File): Promise<ImportExtractionRe
   const form = new FormData()
   form.append('file', file)
   return requestJson<ImportExtractionResult>('/api/documents/imports/extract', {
+    method: 'POST',
+    headers: csrfHeaders(),
+    body: form,
+  })
+}
+
+export async function uploadDocumentImage(
+  documentId: string,
+  file: File,
+  altText: string,
+): Promise<DocumentImageUploadResult> {
+  await ensureCsrfToken()
+  const form = new FormData()
+  form.append('file', file)
+  form.append('altText', altText)
+  return requestJson<DocumentImageUploadResult>(`/api/documents/${documentId}/images`, {
     method: 'POST',
     headers: csrfHeaders(),
     body: form,

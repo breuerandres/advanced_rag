@@ -223,6 +223,11 @@
   opacity: 0.5;
 }
 
+.tab-panel-header {
+  margin-top: 4px;
+  margin-bottom: 16px;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   text-transform: uppercase;
@@ -941,6 +946,11 @@ select {
 .settings-panel dd {
   margin: 3px 0 0;
   font-weight: 700;
+}
+
+.account-save-button {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 
 .muted-copy {

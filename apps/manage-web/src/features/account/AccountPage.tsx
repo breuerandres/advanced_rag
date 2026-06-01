@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { KeyRound, Mail } from 'lucide-react'
 import { Button, Input } from '@helpcenter/shared-ui'
 import type { SessionUser } from '../../api/auth'
@@ -11,6 +12,7 @@ interface AccountPageProps {
 }
 
 export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
+  const { t } = useTranslation()
   const [email, setEmail] = useState(user.email)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -19,10 +21,6 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
   const [error, setError] = useState<string | null>(null)
   const [isSavingEmail, setIsSavingEmail] = useState(false)
   const [isSavingPassword, setIsSavingPassword] = useState(false)
-
-  useEffect(() => {
-    setEmail(user.email)
-  }, [user.email])
 
   async function submitEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -33,9 +31,9 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
     try {
       const session = await updateCurrentUserEmail({ email })
       onUserUpdated(session.user)
-      setEmailStatus('Email actualizado.')
+      setEmailStatus(t('account.email_updated'))
     } catch (caught) {
-      setError(formatApiError(caught, 'No se pudo actualizar el email.'))
+      setError(formatApiError(caught, t('account.email_error')))
     } finally {
       setIsSavingEmail(false)
     }
@@ -51,9 +49,9 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
       await changeCurrentUserPassword({ currentPassword, newPassword })
       setCurrentPassword('')
       setNewPassword('')
-      setPasswordStatus('Contraseña actualizada.')
+      setPasswordStatus(t('account.password_updated'))
     } catch (caught) {
-      setError(formatApiError(caught, 'No se pudo cambiar la contraseña.'))
+      setError(formatApiError(caught, t('account.password_error')))
     } finally {
       setIsSavingPassword(false)
     }
@@ -63,8 +61,8 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
     <section className="workspace account-workspace" id="account">
       <header className="workspace-header">
         <div>
-          <p className="eyebrow">Sesion</p>
-          <h1>Mi cuenta</h1>
+          <p className="eyebrow">{t('account.eyebrow')}</p>
+          <h1>{t('account.title')}</h1>
         </div>
       </header>
 
@@ -89,8 +87,12 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
               disabled={isSavingEmail}
             />
           </label>
-          <Button className="ui-button primary-button" type="submit" disabled={isSavingEmail}>
-            Guardar email
+          <Button
+            className="ui-button primary-button account-save-button"
+            type="submit"
+            disabled={isSavingEmail}
+          >
+            {t('account.save_email')}
           </Button>
           {emailStatus ? (
             <p className="status-message success" role="status">
@@ -102,10 +104,10 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
         <form className="settings-panel" onSubmit={submitPassword}>
           <header className="settings-panel-header">
             <KeyRound size={18} aria-hidden="true" />
-            <h2>Contraseña</h2>
+            <h2>{t('account.password')}</h2>
           </header>
           <label className="field">
-            <span>Contraseña actual</span>
+            <span>{t('account.current_password')}</span>
             <Input
               type="password"
               autoComplete="current-password"
@@ -115,7 +117,7 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
             />
           </label>
           <label className="field">
-            <span>Nueva contraseña</span>
+            <span>{t('account.new_password')}</span>
             <Input
               type="password"
               autoComplete="new-password"
@@ -124,8 +126,12 @@ export function AccountPage({ user, onUserUpdated }: AccountPageProps) {
               disabled={isSavingPassword}
             />
           </label>
-          <Button className="ui-button primary-button" type="submit" disabled={isSavingPassword}>
-            Cambiar contraseña
+          <Button
+            className="ui-button primary-button account-save-button"
+            type="submit"
+            disabled={isSavingPassword}
+          >
+            {t('account.change_password')}
           </Button>
           {passwordStatus ? (
             <p className="status-message success" role="status">

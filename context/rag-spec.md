@@ -7,13 +7,14 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 ## Models And Provider
 
 - Chat: OpenAI `gpt-4.1-nano` via `/v1/chat/completions`. Configured by `OPENAI_CHAT_MODEL`.
-- Embeddings: `Settings` currently default to OpenAI `text-embedding-3-large` with `dimensions=1024`; `infra/compose/.env.example` still sets `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`. The shipped default remains blocked by `OQ-002`.
+- Embeddings: `Settings` currently default to OpenAI `text-embedding-3-large` with `dimensions=1024`; `infra/compose/.env.example` sets `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`.
 - SDK: official `openai` Python SDK, async client, with `max_retries=2` and `timeout=30` seconds at the SDK level. Service-level retry/circuit-breaker is added with `tenacity` only for transient errors (`APIConnectionError`, `RateLimitError`, `APIStatusError` with 5xx).
 - Every paid call (`embeddings.create`, `chat.completions.create`) records the actual model id, usage tokens, latency, and pricing snapshot in `rag.query_audit_events`.
 
 ## Chunking
 
 - Input is the normalized HTML stored in `app.document_versions.content_html`.
+- The first MinIO-backed document image slice remains text-first. The chunker may include image `alt` text and nearby captions as ordinary text if they are present in `content_html`, but it must not fetch image bytes or call a multimodal OpenAI endpoint during indexing.
 - The chunker is HTML-structure-aware: it splits along block boundaries (`<h1>`, `<h2>`, `<h3>`, `<p>`, `<li>`, `<pre>`) before falling back to length-based splits.
 - Target chunk size: **500 tokens** measured with `tiktoken` using the model's encoding.
 - Hard upper bound: **800 tokens** per chunk (a chunk may exceed 500 if a single block does, up to 800; otherwise it splits).
@@ -57,7 +58,7 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 
 ## Access Claim (Effective Scope Delivery)
 
-- FastAPI receives the following RAG-relevant claims from the OQ-001 `.NET` internal session validation endpoint:
+- FastAPI receives the following RAG-relevant claims from the `.NET` internal session validation endpoint:
   - `userId` (user id)
   - `role` (one of `Admin`, `DocumentManager`, `Viewer`)
   - `groups` (array of group ids, sorted alphabetically)
@@ -199,7 +200,7 @@ Rules:
 - Reranking (cross-encoder or third-party rerank API).
 - Hybrid lexical + vector search.
 - Query rewriting / HyDE / step-back prompting.
-- Multi-modal retrieval (images, tables as images, OCR).
+- Query-time multimodal retrieval and OpenAI image inputs. The next image slice may attach a capped set of authorized images from retrieved chunks by reading object bytes from S3-compatible storage at request time, without persisting base64 payloads.
 - Multi-embedding per chunk (e.g., title embedding + body embedding).
 - Conversation memory across user sessions; each chat question is independent in the MVP.
 - Tool/function calling beyond the structured-output schema.

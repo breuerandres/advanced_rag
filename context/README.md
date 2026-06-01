@@ -15,6 +15,7 @@ Read these in order. Each builds on the previous.
 7. **`progress-tracker.md`** â€” current status, open questions, handoff for the next session.
 8. **`design-decisions.md`** â€” chronological log of decisions with rationale. Read when you need to know *why* a rule exists.
 9. **`ai-workflow-rules.md`** â€” process rules for working on this project with an AI assistant.
+10. **`../pruebas.md`** â€” user-owned acceptance matrix for role-based functional testing. When it changes role behavior, update the authoritative context files above in the same session.
 
 For deeper formal artifacts:
 
@@ -62,4 +63,5 @@ For fast reference. The authoritative location is the linked file.
 | Viewer access | Session-authenticated document links with `documentId` locator | `architecture.md` |
 | Import upload limit | 10 MB per PDF/DOCX | `architecture.md` |
 | End-user UI language | Spanish (es-AR) | `code-standards.md` |
+| Role acceptance matrix | `pruebas.md` is the functional testing source for role behavior | `project-overview.md` + `architecture.md` |
 | Code/comments/logs language | English | `code-standards.md` |

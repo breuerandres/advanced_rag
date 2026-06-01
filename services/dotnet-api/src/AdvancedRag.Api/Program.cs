@@ -1,3 +1,5 @@
+using Amazon.Runtime;
+using Amazon.S3;
 using AdvancedRag.Api.Controllers;
 using AdvancedRag.Api.Health;
 using AdvancedRag.Api.Middleware;
@@ -5,6 +7,7 @@ using AdvancedRag.Api.Security;
 using AdvancedRag.App.Audit;
 using AdvancedRag.App.Auth;
 using AdvancedRag.App.Configuration;
+using AdvancedRag.App.DocumentImages;
 using AdvancedRag.App.Documents;
 using AdvancedRag.App.Reporting;
 using AdvancedRag.App.Setup;
@@ -13,6 +16,7 @@ using AdvancedRag.App.Viewer;
 using AdvancedRag.Infrastructure.Audit;
 using AdvancedRag.Infrastructure.Auth;
 using AdvancedRag.Infrastructure.Configuration;
+using AdvancedRag.Infrastructure.DocumentImages;
 using AdvancedRag.Infrastructure.Documents;
 using AdvancedRag.Infrastructure.Persistence;
 using AdvancedRag.Infrastructure.Reporting;
@@ -67,6 +71,33 @@ builder.Services.AddScoped<IUserAdministrationService, UserAdministrationService
 builder.Services.AddScoped<IUserAdministrationRepository, EfUserAdministrationRepository>();
 builder.Services.AddScoped<IDocumentLifecycleService, DocumentLifecycleService>();
 builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
+builder.Services.AddScoped<IDocumentImageService, DocumentImageService>();
+builder.Services.AddScoped<IDocumentImageRepository, EfDocumentImageRepository>();
+builder.Services.AddScoped<IDocumentImageObjectStorage>(services =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var accessKey = SecretConfiguration.Read(configuration, "S3:AccessKey", "S3:AccessKeyFile");
+    var secretKey = SecretConfiguration.Read(configuration, "S3:SecretKey", "S3:SecretKeyFile");
+    var bucket = configuration["S3:Bucket"] ?? "advanced-rag-document-images";
+    var region = configuration["S3:Region"] ?? "us-east-1";
+    var endpoint = configuration["S3:Endpoint"];
+
+    AmazonS3Config s3Config = new()
+    {
+        ForcePathStyle = true,
+    };
+    if (!string.IsNullOrWhiteSpace(endpoint))
+    {
+        s3Config.ServiceURL = endpoint;
+        s3Config.AuthenticationRegion = region;
+    }
+    else
+    {
+        s3Config.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(region);
+    }
+
+    return new S3DocumentImageObjectStorage(new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey), s3Config), bucket);
+});
 builder.Services.AddScoped<IDocumentImportExtractionService, DocumentImportExtractionService>();
 builder.Services.AddScoped<IManagementAuditService, EfManagementAuditService>();
 builder.Services.AddScoped<IViewerAccessRepository, EfViewerAccessRepository>();

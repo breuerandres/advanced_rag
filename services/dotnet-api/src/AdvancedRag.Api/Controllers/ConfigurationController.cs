@@ -9,7 +9,7 @@ using System.Globalization;
 namespace AdvancedRag.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin,DocumentManager")]
+[Authorize]
 [Route("api/configuration")]
 public sealed class ConfigurationController : ControllerBase
 {
@@ -68,6 +68,14 @@ public sealed class ConfigurationController : ControllerBase
                     "Internal service token",
                     ["INTERNAL_SERVICE_TOKEN", "InternalService:Token"],
                     ["INTERNAL_SERVICE_TOKEN_FILE", "InternalService:TokenFile", "InternalServiceTokenFile"]),
+                SecretStatus(
+                    "S3 access key",
+                    ["S3_ACCESS_KEY", "S3:AccessKey"],
+                    ["S3_ACCESS_KEY_FILE", "S3:AccessKeyFile"]),
+                SecretStatus(
+                    "S3 secret key",
+                    ["S3_SECRET_KEY", "S3:SecretKey"],
+                    ["S3_SECRET_KEY_FILE", "S3:SecretKeyFile"]),
             ]);
 
         return Ok(response);

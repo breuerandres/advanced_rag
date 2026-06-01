@@ -180,6 +180,56 @@ public sealed class DocumentLifecycleServiceTests
         document.CurrentDraftVersion!.ContentHtml.Should().Be("<p>Safe content</p>");
     }
 
+    [Theory]
+    [InlineData("<p>Unsafe</p><img src=\"https://cdn.example.com/image.png\" alt=\"external\">")]
+    [InlineData("<p>Unsafe</p><img src=\"data:image/png;base64,AAAA\" alt=\"inline\">")]
+    public async Task UpdateDraftAsync_RejectsNonAppImageSources(string contentHtml)
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = ValidDraft();
+        var service = new DocumentLifecycleService(repository, new StubHtmlSanitizer());
+
+        var act = () => service.UpdateDraftAsync(
+            new UpdateDraftCommand(
+                DocumentId,
+                "Safety policy",
+                "Policy",
+                "All staff",
+                contentHtml,
+                [OperationsGroupId],
+                ActorId,
+                "request-invalid-image"),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<DocumentLifecycleException>()
+            .Where(error => error.Code == "DOCUMENT_IMAGE_SOURCE_INVALID");
+    }
+
+    [Fact]
+    public async Task UpdateDraftAsync_AllowsStableDocumentImageSources()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = ValidDraft();
+        var service = new DocumentLifecycleService(repository, new StubHtmlSanitizer());
+        var imageId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+
+        var document = await service.UpdateDraftAsync(
+            new UpdateDraftCommand(
+                DocumentId,
+                "Safety policy",
+                "Policy",
+                "All staff",
+                $"<p>Safe content</p><img src=\"/api/document-images/{imageId}/content\" alt=\"diagram\">",
+                [OperationsGroupId],
+                ActorId,
+                "request-valid-image"),
+            CancellationToken.None);
+
+        document.CurrentDraftVersion!.ContentHtml.Should()
+            .Contain($"/api/document-images/{imageId}/content");
+    }
+
     [Fact]
     public async Task ArchiveAsync_DocumentManagerCannotArchiveActivePublishedDocument()
     {

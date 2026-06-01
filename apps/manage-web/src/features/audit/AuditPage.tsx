@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ClipboardList, RefreshCw, Search } from 'lucide-react'
 import { Button, DataTable, EmptyState, Input } from '@helpcenter/shared-ui'
 import { listAuditEvents, type ManagementAuditEvent } from '../../api/audit'
@@ -7,6 +8,7 @@ import { ApiError } from '../../lib/api-error'
 type LoadState = 'loading' | 'ready' | 'error'
 
 export function AuditPage() {
+  const { t } = useTranslation()
   const [events, setEvents] = useState<ManagementAuditEvent[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [searchQuery, setSearchQuery] = useState('')
@@ -25,7 +27,7 @@ export function AuditPage() {
       setLoadState('ready')
     } catch (error) {
       const reference = error instanceof ApiError ? error.requestId : 'unknown'
-      setErrorMessage(`No se pudo cargar la auditoria. Referencia: ${reference}.`)
+      setErrorMessage(t('audit.load_error', { reference }))
       setLoadState('error')
     }
   }
@@ -69,12 +71,12 @@ export function AuditPage() {
     () => [
       {
         key: 'createdAt',
-        header: 'Fecha',
+        header: t('audit.date_column'),
         render: (event: ManagementAuditEvent) => formatDateTime(event.createdAt),
       },
       {
         key: 'event',
-        header: 'Evento',
+        header: t('audit.event_column'),
         render: (event: ManagementAuditEvent) => (
           <>
             <span className="user-name">{event.eventLabel}</span>
@@ -84,12 +86,12 @@ export function AuditPage() {
       },
       {
         key: 'actor',
-        header: 'Actor',
+        header: t('audit.actor_column'),
         render: (event: ManagementAuditEvent) => event.actorDisplayName ?? '-',
       },
       {
         key: 'entity',
-        header: 'Entidad',
+        header: t('audit.entity_column'),
         render: (event: ManagementAuditEvent) => (
           <>
             <span className="user-name">{displayEntityType(event.entityType)}</span>
@@ -103,21 +105,21 @@ export function AuditPage() {
         render: (event: ManagementAuditEvent) => event.requestId,
       },
     ],
-    [],
+    [t],
   )
 
   return (
     <section className="workspace" id="audit">
       <header className="workspace-header">
         <div>
-          <p className="eyebrow">Control</p>
-          <h1>Auditoria</h1>
+          <p className="eyebrow">{t('audit.eyebrow')}</p>
+          <h1>{t('audit.title')}</h1>
         </div>
         <div className="workspace-actions">
           <Button
             className="icon-button"
             type="button"
-            aria-label="Actualizar auditoria"
+            aria-label={t('audit.refresh')}
             disabled={loadState === 'loading'}
             onClick={() => void loadEvents()}
           >
@@ -126,26 +128,26 @@ export function AuditPage() {
         </div>
       </header>
 
-      <section className="filter-bar" aria-label="Filtros de auditoria">
+      <section className="filter-bar" aria-label={t('audit.filters_label')}>
         <label className="field filter-search">
-          <span>Buscar eventos</span>
+          <span>{t('audit.search_events')}</span>
           <span className="search-control">
             <Search size={16} />
             <Input
               type="search"
-              placeholder="Documento, usuario o request ID"
+              placeholder={t('audit.search_placeholder')}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
             />
           </span>
         </label>
         <label className="field filter-status">
-          <span>Tipo</span>
+          <span>{t('audit.type')}</span>
           <select
             value={eventTypeFilter}
             onChange={(event) => setEventTypeFilter(event.target.value)}
           >
-            <option value="all">Todos</option>
+            <option value="all">{t('audit.all')}</option>
             {eventTypes.map(([eventType, eventLabel]) => (
               <option key={eventType} value={eventType}>
                 {eventLabel}
@@ -156,7 +158,7 @@ export function AuditPage() {
       </section>
 
       {loadState === 'loading' ? (
-        <p className="status-message">Cargando eventos de auditoria...</p>
+        <p className="status-message">{t('audit.loading')}</p>
       ) : null}
 
       {loadState === 'error' && errorMessage ? (
@@ -168,19 +170,19 @@ export function AuditPage() {
       {loadState === 'ready' && events.length === 0 ? (
         <EmptyState
           className="empty-panel audit-functional-panel"
-          title="Eventos funcionales"
-          description="Documentos, usuarios, grupos, presupuestos y revisiones. Crea, guarda, envia a revision, archiva o restaura un documento para generar eventos funcionales visibles aca."
+          title={t('audit.functional_events')}
+          description={t('audit.empty_description')}
           icon={<ClipboardList size={22} aria-hidden="true" />}
         />
       ) : null}
 
       {loadState === 'ready' && events.length > 0 && filteredEvents.length === 0 ? (
-        <p className="status-message">No hay eventos que coincidan con los filtros.</p>
+        <p className="status-message">{t('audit.empty_filtered')}</p>
       ) : null}
 
       {loadState === 'ready' && filteredEvents.length > 0 ? (
         <>
-          <h2 className="section-heading">Eventos funcionales</h2>
+          <h2 className="section-heading">{t('audit.functional_events')}</h2>
           <DataTable
             className="table-frame audit-table"
             columns={columns}

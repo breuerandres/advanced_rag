@@ -12,9 +12,9 @@ export interface FeedbackReportItem {
   userDisplayName: string
   question: string
   answerSummary: string
-  feedbackValue: 'up' | 'down'
+  feedbackValue: 'up' | 'down' | null
   feedbackComment: string | null
-  feedbackUpdatedAt: string
+  feedbackUpdatedAt: string | null
   createdAt: string
   cacheHit: boolean
   requestId: string

@@ -20,6 +20,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<DocumentVersion> DocumentVersions => Set<DocumentVersion>();
     public DbSet<DocumentPermission> DocumentPermissions => Set<DocumentPermission>();
     public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
+    public DbSet<DocumentImage> DocumentImages => Set<DocumentImage>();
     public DbSet<ReviewComment> ReviewComments => Set<ReviewComment>();
     public DbSet<ImportMetadata> ImportMetadata => Set<ImportMetadata>();
     public DbSet<UserAiBudgetLimit> UserAiBudgetLimits => Set<UserAiBudgetLimit>();
@@ -142,6 +143,25 @@ public sealed class AppDbContext : DbContext
             entity.Property(item => item.Name).HasColumnName("name").HasMaxLength(80).IsRequired();
             entity.HasOne<Document>().WithMany().HasForeignKey(item => item.DocumentId).OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(item => new { item.DocumentId, item.Name }).IsUnique();
+        });
+
+        modelBuilder.Entity<DocumentImage>(entity =>
+        {
+            entity.ToTable("document_images", Schema);
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.DocumentId).HasColumnName("document_id");
+            entity.Property(item => item.ObjectKey).HasColumnName("object_key").HasMaxLength(512).IsRequired();
+            entity.Property(item => item.OriginalFilename).HasColumnName("original_filename").HasMaxLength(260).IsRequired();
+            entity.Property(item => item.ContentType).HasColumnName("content_type").HasMaxLength(120).IsRequired();
+            entity.Property(item => item.SizeBytes).HasColumnName("size_bytes");
+            entity.Property(item => item.Sha256Hash).HasColumnName("sha256_hash").HasMaxLength(64).IsRequired();
+            entity.Property(item => item.AltText).HasColumnName("alt_text").HasMaxLength(500).IsRequired();
+            entity.Property(item => item.UploadedByUserId).HasColumnName("uploaded_by_user_id");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+            entity.HasOne<Document>().WithMany().HasForeignKey(item => item.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<User>().WithMany().HasForeignKey(item => item.UploadedByUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(item => item.DocumentId);
+            entity.HasIndex(item => item.ObjectKey).IsUnique();
         });
 
         modelBuilder.Entity<ReviewComment>(entity =>

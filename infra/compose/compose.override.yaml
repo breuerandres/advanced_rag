@@ -3,6 +3,10 @@ services:
     ports:
       - "5432:5432"
 
+  minio:
+    ports:
+      - "127.0.0.1:9001:9001"
+
   dotnet-api:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
@@ -14,4 +18,3 @@ services:
   caddy:
     environment:
       PUBLIC_DOMAIN: localhost
-

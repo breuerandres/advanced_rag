@@ -20,16 +20,25 @@ import {
   Underline as UnderlineIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@helpcenter/shared-ui'
 
 interface RichTextEditorProps {
+  documentId?: string
   value: string
   onChange: (value: string) => void
+  onUploadImage?: (file: File, altText: string) => Promise<{ url: string; altText: string }>
 }
 
-export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
+const MaxDocumentImageSizeBytes = 5 * 1024 * 1024
+
+export function RichTextEditor({ documentId, value, onChange, onUploadImage }: RichTextEditorProps) {
+  const { t } = useTranslation()
   const lastEditorHtml = useRef(value)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -58,7 +67,7 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
     content: value || '<p></p>',
     editorProps: {
       attributes: {
-        'aria-label': 'Contenido del documento',
+        'aria-label': t('documents.content_field'),
         class: 'tiptap-editor-surface',
         role: 'textbox',
       },
@@ -88,7 +97,7 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
     }
 
     const previousHref = editor.getAttributes('link').href as string | undefined
-    const href = window.prompt('URL del enlace', previousHref ?? 'https://')
+    const href = window.prompt(t('documents.link_url_prompt'), previousHref ?? 'https://')
     if (href === null) {
       return
     }
@@ -107,20 +116,43 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
       return
     }
 
-    const src = window.prompt('URL de la imagen', 'https://')
-    if (src === null || src.trim().length === 0) {
+    setImageError(null)
+    if (!documentId || !onUploadImage) {
+      setImageError(t('documents.image_save_before_upload'))
       return
     }
 
-    const alt = window.prompt('Texto alternativo', '') ?? ''
-    editor.chain().focus().setImage({ src: src.trim(), alt: alt.trim() }).run()
+    imageInputRef.current?.click()
+  }
+
+  async function uploadSelectedImage(file: File) {
+    if (!editor || !onUploadImage) {
+      return
+    }
+
+    setImageError(null)
+    if (file.size > MaxDocumentImageSizeBytes) {
+      setImageError(t('documents.image_too_large'))
+      return
+    }
+
+    const alt = window.prompt(t('documents.image_alt_prompt'), '') ?? ''
+    setIsUploadingImage(true)
+    try {
+      const result = await onUploadImage(file, alt.trim())
+      editor.chain().focus().setImage({ src: result.url, alt: result.altText }).run()
+    } catch {
+      setImageError(t('documents.image_upload_error'))
+    } finally {
+      setIsUploadingImage(false)
+    }
   }
 
   return (
-    <section className="html-editor" aria-label="Editor TipTap">
-      <div className="editor-toolbar" aria-label="Herramientas del editor">
+    <section className="html-editor" aria-label={t('documents.rich_editor_label')}>
+      <div className="editor-toolbar" aria-label={t('documents.editor_toolbar')}>
         <ToolbarButton
-          label="Negrita"
+          label={t('documents.toolbar_bold')}
           active={editor?.isActive('bold') ?? false}
           disabled={!editor}
           onClick={() => editor?.chain().focus().toggleBold().run()}
@@ -128,7 +160,7 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           <Bold size={16} />
         </ToolbarButton>
         <ToolbarButton
-          label="Cursiva"
+          label={t('documents.toolbar_italic')}
           active={editor?.isActive('italic') ?? false}
           disabled={!editor}
           onClick={() => editor?.chain().focus().toggleItalic().run()}
@@ -136,7 +168,7 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           <Italic size={16} />
         </ToolbarButton>
         <ToolbarButton
-          label="Subrayado"
+          label={t('documents.toolbar_underline')}
           active={editor?.isActive('underline') ?? false}
           disabled={!editor}
           onClick={() => editor?.chain().focus().toggleUnderline().run()}
@@ -144,7 +176,7 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           <UnderlineIcon size={16} />
         </ToolbarButton>
         <ToolbarButton
-          label="Titulo 2"
+          label={t('documents.toolbar_heading_2')}
           active={editor?.isActive('heading', { level: 2 }) ?? false}
           disabled={!editor}
           onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
@@ -152,7 +184,7 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           <Heading2 size={16} />
         </ToolbarButton>
         <ToolbarButton
-          label="Lista con vinetas"
+          label={t('documents.toolbar_bullet_list')}
           active={editor?.isActive('bulletList') ?? false}
           disabled={!editor}
           onClick={() => editor?.chain().focus().toggleBulletList().run()}
@@ -160,7 +192,7 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           <List size={16} />
         </ToolbarButton>
         <ToolbarButton
-          label="Lista numerada"
+          label={t('documents.toolbar_ordered_list')}
           active={editor?.isActive('orderedList') ?? false}
           disabled={!editor}
           onClick={() => editor?.chain().focus().toggleOrderedList().run()}
@@ -168,32 +200,54 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
           <ListOrdered size={16} />
         </ToolbarButton>
         <ToolbarButton
-          label="Codigo"
+          label={t('documents.toolbar_code')}
           active={editor?.isActive('codeBlock') ?? false}
           disabled={!editor}
           onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
         >
           <Code2 size={16} />
         </ToolbarButton>
-        <ToolbarButton label="Enlace" disabled={!editor} onClick={runLinkCommand}>
+        <ToolbarButton label={t('documents.toolbar_link')} disabled={!editor} onClick={runLinkCommand}>
           <LinkIcon size={16} />
         </ToolbarButton>
         <ToolbarButton
-          label="Insertar tabla"
+          label={t('documents.toolbar_insert_table')}
           disabled={!editor}
           onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
         >
           <Table2 size={16} />
         </ToolbarButton>
-        <ToolbarButton label="Insertar imagen" disabled={!editor} onClick={runImageCommand}>
+        <ToolbarButton
+          label={t('documents.toolbar_insert_image')}
+          disabled={!editor || isUploadingImage}
+          onClick={runImageCommand}
+        >
           <ImageIcon size={16} />
         </ToolbarButton>
       </div>
+      <input
+        ref={imageInputRef}
+        className="file-input-native"
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) {
+            void uploadSelectedImage(file)
+          }
+        }}
+      />
+      {imageError ? (
+        <p className="status-message error" role="alert">
+          {imageError}
+        </p>
+      ) : null}
       <EditorContent editor={editor} />
       <details className="html-source">
-        <summary>HTML generado</summary>
+        <summary>{t('documents.generated_html')}</summary>
         <textarea
-          aria-label="HTML generado"
+          aria-label={t('documents.generated_html')}
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />

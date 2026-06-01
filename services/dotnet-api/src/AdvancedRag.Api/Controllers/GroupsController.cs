@@ -25,7 +25,7 @@ public sealed class GroupsController : ApiControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,DocumentManager")]
     public async Task<IActionResult> CreateGroupAsync([FromBody] CreateGroupRequest request, CancellationToken ct)
     {
         try
@@ -42,7 +42,7 @@ public sealed class GroupsController : ApiControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,DocumentManager")]
     public async Task<IActionResult> UpdateGroupAsync(
         Guid id,
         [FromBody] UpdateGroupRequest request,

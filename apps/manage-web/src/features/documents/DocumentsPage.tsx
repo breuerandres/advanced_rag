@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Archive,
   ExternalLink,
@@ -21,6 +22,7 @@ import {
   restoreDocument,
   saveDocumentDraft,
   sendDocumentToReview,
+  uploadDocumentImage,
 } from "../../api/documents";
 import type { DocumentDetail, DocumentSummary } from "../../api/documents";
 import { listGroups, type GroupSummary } from "../../api/users";
@@ -47,6 +49,7 @@ interface DocumentsPageProps {
 }
 
 export function DocumentsPage({ userRoles }: DocumentsPageProps) {
+  const { t, i18n } = useTranslation();
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
@@ -176,7 +179,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
           : item,
       ),
     );
-    setMessage("Documento archivado.");
+    setMessage(t("documents.archived_message"));
   }
 
   async function runRestore(document: DocumentSummary) {
@@ -188,7 +191,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
           : item,
       ),
     );
-    setMessage("Documento restaurado.");
+    setMessage(t("documents.restored_message"));
   }
 
   async function retryIndexing(document: DocumentSummary) {
@@ -204,7 +207,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
           : item,
       ),
     );
-    setMessage("Indexacion reintentada.");
+    setMessage(t("documents.retry_message"));
   }
 
   async function openViewer(document: DocumentSummary) {
@@ -214,7 +217,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
       window.location.assign(link.url);
     } catch (error) {
       const reference = error instanceof ApiError ? error.requestId : "unknown";
-      setMessage(`No se pudo abrir el visor. Referencia: ${reference}.`);
+      setMessage(t("documents.viewer_error", { reference }));
     }
   }
 
@@ -236,8 +239,8 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
       <section className="workspace" id="documentos">
         <header className="workspace-header">
           <div>
-            <p className="eyebrow">Instrucciones</p>
-            <h1>Documentos</h1>
+            <p className="eyebrow">{t("documents.eyebrow")}</p>
+            <h1>{t("documents.title")}</h1>
           </div>
           <div className="workspace-actions">
             <Button
@@ -246,12 +249,12 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
               onClick={openCreate}
             >
               <Plus size={16} />
-              Crear documento
+              {t("documents.create")}
             </Button>
             <Button
               className="icon-button"
               type="button"
-              aria-label="Actualizar documentos"
+              aria-label={t("documents.refresh")}
               disabled={loadState === "loading"}
               onClick={() => void loadDocuments()}
             >
@@ -263,7 +266,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
         <div
           className="workspace-tabs"
           role="tablist"
-          aria-label="Secciones de documentos"
+          aria-label={t("documents.sections_label")}
         >
           <button
             aria-selected={activeTab === "list"}
@@ -272,7 +275,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
             type="button"
             onClick={() => setActiveTab("list")}
           >
-            Listado
+            {t("documents.list")}
           </button>
           <button
             aria-selected={activeTab === "editor"}
@@ -286,7 +289,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
               }
             }}
           >
-            Editor
+            {t("documents.editor")}
           </button>
         </div>
 
@@ -300,57 +303,57 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
           <>
             <section
               className="document-filter-grid"
-              aria-label="Filtros de documentos"
+              aria-label={t("documents.filters_label")}
             >
               <label className="field filter-search">
-                <span>Buscar documentos</span>
+                <span>{t("documents.search_documents")}</span>
                 <span className="search-control">
                   <Search size={16} />
                   <Input
                     type="search"
-                    placeholder="Titulo, tipo, audiencia, grupo o fecha"
+                    placeholder={t("documents.search_placeholder")}
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                   />
                 </span>
               </label>
               <label className="field">
-                <span>Estado del documento</span>
+                  <span>{t("documents.state_filter")}</span>
                 <select
                   value={stateFilter}
                   onChange={(event) =>
                     setStateFilter(event.target.value as DocumentStateFilter)
                   }
                 >
-                  <option value="all">Todos</option>
-                  <option value="Draft">Borrador</option>
-                  <option value="In Review">En revision</option>
-                  <option value="Published">Publicado</option>
-                  <option value="Archived">Archivado</option>
+                  <option value="all">{t("documents.all")}</option>
+                  <option value="Draft">{t("documents.state_draft")}</option>
+                  <option value="In Review">{t("documents.state_in_review")}</option>
+                  <option value="Published">{t("documents.state_published")}</option>
+                  <option value="Archived">{t("documents.state_archived")}</option>
                 </select>
               </label>
               <label className="field">
-                <span>Indexacion</span>
+                <span>{t("documents.indexing")}</span>
                 <select
                   value={indexingFilter}
                   onChange={(event) =>
                     setIndexingFilter(event.target.value as IndexingFilter)
                   }
                 >
-                  <option value="all">Todas</option>
-                  <option value="None">Sin indexacion</option>
-                  <option value="Pending">Pendiente</option>
-                  <option value="Succeeded">Correcta</option>
-                  <option value="Failed">Fallida</option>
+                  <option value="all">{t("documents.all_feminine")}</option>
+                  <option value="None">{t("documents.indexing_none")}</option>
+                  <option value="Pending">{t("documents.indexing_pending_short")}</option>
+                  <option value="Succeeded">{t("documents.indexing_succeeded_short")}</option>
+                  <option value="Failed">{t("documents.indexing_failed_short")}</option>
                 </select>
               </label>
               <label className="field">
-                <span>Tipo</span>
+                  <span>{t("documents.type_column")}</span>
                 <select
                   value={typeFilter}
                   onChange={(event) => setTypeFilter(event.target.value)}
                 >
-                  <option value="all">Todos</option>
+                  <option value="all">{t("documents.all")}</option>
                   {documentTypes.map((type) => (
                     <option key={type} value={type}>
                       {type}
@@ -359,12 +362,12 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                 </select>
               </label>
               <label className="field">
-                <span>Audiencia</span>
+                <span>{t("documents.audience")}</span>
                 <select
                   value={audienceFilter}
                   onChange={(event) => setAudienceFilter(event.target.value)}
                 >
-                  <option value="all">Todas</option>
+                  <option value="all">{t("documents.all_feminine")}</option>
                   {audiences.map((audience) => (
                     <option key={audience} value={audience}>
                       {audience}
@@ -373,38 +376,38 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                 </select>
               </label>
               <label className="field">
-                <span>Acceso</span>
+                <span>{t("documents.access")}</span>
                 <select
                   value={accessFilter}
                   onChange={(event) =>
                     setAccessFilter(event.target.value as AccessFilter)
                   }
                 >
-                  <option value="all">Todos</option>
-                  <option value="with-groups">Con grupos</option>
-                  <option value="without-groups">Sin grupos</option>
+                  <option value="all">{t("documents.all")}</option>
+                  <option value="with-groups">{t("documents.with_groups")}</option>
+                  <option value="without-groups">{t("documents.without_groups")}</option>
                 </select>
               </label>
             </section>
 
             {loadState === "loading" ? (
-              <p className="status-message">Cargando documentos...</p>
+              <p className="status-message">{t("documents.loading")}</p>
             ) : null}
             {loadState === "error" ? (
               <p className="status-message error" role="alert">
-                No se pudo cargar la lista de documentos.
+                {t("documents.load_error")}
               </p>
             ) : null}
             {loadState === "ready" && documents.length === 0 ? (
               <p className="status-message">
-                Todavia no hay documentos creados.
+                {t("documents.empty")}
               </p>
             ) : null}
             {loadState === "ready" &&
             documents.length > 0 &&
             filteredDocuments.length === 0 ? (
               <p className="status-message">
-                No hay documentos que coincidan con los filtros.
+                {t("documents.empty_filtered")}
               </p>
             ) : null}
 
@@ -414,61 +417,62 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                 columns={[
                   {
                     key: "document",
-                    header: "Documento",
+                    header: t("documents.document_column"),
                     rowHeader: true,
                     render: (document) => document.title,
                   },
                   {
                     key: "state",
-                    header: "Estado",
+                    header: t("documents.state_column"),
                     render: (document) => (
                           <span className={`badge document-state ${stateClass(document.state)}`}>
-                            {displayState(document.state)}
+                            {displayState(document.state, t)}
                           </span>
                     ),
                   },
                   {
                     key: "type",
-                    header: "Tipo",
+                    header: t("documents.type_column"),
                     render: (document) => document.documentType || "-",
                   },
                   {
                     key: "audience",
-                    header: "Audiencia",
+                    header: t("documents.audience"),
                     render: (document) => document.audience || "-",
                   },
                   {
                     key: "access",
-                    header: "Acceso",
+                    header: t("documents.access"),
                     render: (document) => displayGroups(groups, document.allowedGroupIds),
                   },
                   {
                     key: "indexing",
-                    header: "Indexacion",
-                    render: (document) => displayIndexing(document.indexingStatus),
+                    header: t("documents.indexing"),
+                    render: (document) => displayIndexing(document.indexingStatus, t),
                   },
                   {
                     key: "versions",
-                    header: "Versiones",
+                    header: t("documents.versions_column"),
                     render: (document) =>
-                      `Borrador ${document.draftVersionNumber ?? "-"} / Publicada ${
-                        document.publishedVersionNumber ?? "-"
-                      }`,
+                      t("documents.versions_value", {
+                        draft: document.draftVersionNumber ?? "-",
+                        published: document.publishedVersionNumber ?? "-",
+                      }),
                   },
                   {
                     key: "updated",
-                    header: "Actualizado",
-                    render: (document) => formatDate(document.updatedAt),
+                    header: t("documents.updated_column"),
+                    render: (document) => formatDate(document.updatedAt, i18n.language),
                   },
                   {
                     key: "actions",
-                    header: "Acciones",
+                    header: t("documents.actions_column"),
                     render: (document) => (
                           <div className="row-actions">
                             <Button
                               className="icon-button"
                               type="button"
-                              aria-label={`Editar ${document.title}`}
+                              aria-label={t("documents.edit_document_for", { title: document.title })}
                               onClick={() => void openDocument(document.id)}
                             >
                               <Pencil size={16} />
@@ -477,7 +481,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                               <Button
                                 className="icon-button"
                                 type="button"
-                                aria-label={`Abrir visor de ${document.title}`}
+                                aria-label={t("documents.open_viewer_for", { title: document.title })}
                                 onClick={() => void openViewer(document)}
                               >
                                 <ExternalLink size={16} />
@@ -487,7 +491,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                               <Button
                                 className="icon-button"
                                 type="button"
-                                aria-label={`Restaurar ${document.title}`}
+                                aria-label={t("documents.restore_document_for", { title: document.title })}
                                 onClick={() => void runRestore(document)}
                               >
                                 <RotateCcw size={16} />
@@ -497,7 +501,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                               <Button
                                 className="icon-button"
                                 type="button"
-                                aria-label={`Archivar ${document.title}`}
+                                aria-label={t("documents.archive_document_for", { title: document.title })}
                                 onClick={() => void runArchive(document)}
                               >
                                 <Archive size={16} />
@@ -507,7 +511,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                               <Button
                                 className="icon-button"
                                 type="button"
-                                aria-label={`Reintentar indexacion de ${document.title}`}
+                                aria-label={t("documents.retry_indexing_for", { title: document.title })}
                                 onClick={() => void retryIndexing(document)}
                               >
                                 <RefreshCw size={16} />
@@ -534,8 +538,8 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
         ) : (
           <div className="empty-panel">
             <div>
-              <h2>Editor</h2>
-              <p>Abrí un documento o creá uno nuevo para editarlo.</p>
+              <h2>{t("documents.editor")}</h2>
+              <p>{t("documents.editor_empty")}</p>
             </div>
           </div>
         )}
@@ -559,6 +563,7 @@ function DocumentEditor({
   onClose: () => void;
   onSaved: (document: DocumentDetail, message: string) => void;
 }) {
+  const { t } = useTranslation();
   const draft = documentDetail.currentDraftVersion;
   const [title, setTitle] = useState(draft?.title ?? documentDetail.title);
   const [documentType, setDocumentType] = useState(draft?.documentType ?? "");
@@ -580,9 +585,9 @@ function DocumentEditor({
     documentDetail,
     userRoles,
   );
+  const reviewValidationMessage = t("documents.review_validation_error");
   const hasReviewValidationError =
-    validationError ===
-    "Completa titulo, tipo, audiencia, grupos y contenido antes de enviar a revision.";
+    validationError === reviewValidationMessage;
 
   async function saveDraft() {
     setValidationError(null);
@@ -602,7 +607,7 @@ function DocumentEditor({
       setIsDirty(false);
       onSaved(
         updated,
-        mode === "create" ? "Documento creado." : "Borrador guardado.",
+        mode === "create" ? t("documents.created_message") : t("documents.draft_saved_message"),
       );
     } finally {
       setIsSaving(false);
@@ -618,18 +623,18 @@ function DocumentEditor({
       allowedGroupIds.length === 0
     ) {
       setValidationError(
-        "Completa titulo, tipo, audiencia, grupos y contenido antes de enviar a revision.",
+        reviewValidationMessage,
       );
       return;
     }
 
     if (mode === "create") {
-      setValidationError("Guarda el borrador antes de enviarlo a revision.");
+      setValidationError(t("documents.save_before_review_error"));
       return;
     }
 
     const updated = await sendDocumentToReview(documentDetail.id);
-    onSaved(updated, "Documento enviado a revision.");
+    onSaved(updated, t("documents.sent_to_review_message"));
   }
 
   async function publishDocument() {
@@ -637,10 +642,10 @@ function DocumentEditor({
     setIsSaving(true);
     try {
       const updated = await requestPublish(documentDetail.id);
-      onSaved(updated, "Documento publicado.");
+      onSaved(updated, t("documents.published_message"));
     } catch (error) {
       const reference = error instanceof ApiError ? error.requestId : "unknown";
-      setValidationError(`No se pudo publicar. Referencia: ${reference}.`);
+      setValidationError(t("documents.publish_error", { reference }));
     } finally {
       setIsSaving(false);
     }
@@ -651,7 +656,7 @@ function DocumentEditor({
     setImportError(null);
     setImportFileName(file.name);
     if (file.size > MaxImportFileSizeBytes) {
-      setImportError("El archivo supera el maximo de 10 MB.");
+      setImportError(t("documents.import_too_large"));
       return;
     }
 
@@ -659,14 +664,10 @@ function DocumentEditor({
       const result = await importDocumentText(file);
       setContentHtml(plainTextToParagraphHtml(result.text));
       setIsDirty(true);
-      setImportMessage(
-        `Texto importado desde ${result.metadata.originalFilename}.`,
-      );
+      setImportMessage(t("documents.import_success", { filename: result.metadata.originalFilename }));
     } catch (error) {
       const reference = error instanceof ApiError ? error.requestId : "unknown";
-      setImportError(
-        `No se pudo extraer texto del archivo. Referencia: ${reference}.`,
-      );
+      setImportError(t("documents.import_error", { reference }));
     }
   }
 
@@ -686,20 +687,20 @@ function DocumentEditor({
     >
       <header className="document-editor-header">
         <div>
-          <p className="eyebrow">Editor HTML</p>
+          <p className="eyebrow">{t("documents.editor_eyebrow")}</p>
           <h2 id="document-editor-title">
-            {mode === "create" ? "Crear documento" : "Editar documento"}
+            {mode === "create" ? t("documents.editor_create_title") : t("documents.editor_edit_title")}
           </h2>
         </div>
         <Button className="text-button" type="button" onClick={onClose}>
-          Volver al listado
+          {t("documents.back_to_list")}
         </Button>
       </header>
 
       <form className="document-form">
         <div className="dialog-grid">
           <label className="field">
-            <span>Titulo</span>
+            <span>{t("documents.title_field")}</span>
             <Input
               invalid={hasReviewValidationError && title.trim().length === 0}
               type="text"
@@ -711,7 +712,7 @@ function DocumentEditor({
             />
           </label>
           <label className="field">
-            <span>Tipo</span>
+            <span>{t("documents.type_column")}</span>
             <Input
               invalid={hasReviewValidationError && documentType.trim().length === 0}
               type="text"
@@ -723,7 +724,7 @@ function DocumentEditor({
             />
           </label>
           <label className="field">
-            <span>Audiencia</span>
+            <span>{t("documents.audience")}</span>
             <Input
               invalid={hasReviewValidationError && audience.trim().length === 0}
               type="text"
@@ -735,7 +736,7 @@ function DocumentEditor({
             />
           </label>
           <div className="field import-field">
-            <span id={`${importInputId}-label`}>Importar PDF o DOCX</span>
+            <span id={`${importInputId}-label`}>{t("documents.import_file")}</span>
             <div className="file-upload-control">
               <input
                 aria-describedby={importHelpId}
@@ -753,17 +754,17 @@ function DocumentEditor({
               />
               <label className="file-upload-button" htmlFor={importInputId}>
                 <Upload size={16} aria-hidden="true" />
-                Seleccionar archivo
+                {t("documents.select_file")}
               </label>
               <span className="file-upload-filename">
-                {importFileName ?? "Ningun archivo seleccionado"}
+                {importFileName ?? t("documents.no_file_selected")}
               </span>
             </div>
           </div>
         </div>
 
         <fieldset className="checkbox-list">
-          <legend>Grupos con acceso</legend>
+          <legend>{t("documents.access_groups")}</legend>
           {groups.length > 0 ? (
             groups.map((group) => (
               <Checkbox
@@ -775,19 +776,25 @@ function DocumentEditor({
               />
             ))
           ) : (
-            <p className="muted-copy">No hay grupos disponibles.</p>
+            <p className="muted-copy">{t("documents.no_groups")}</p>
           )}
         </fieldset>
 
         <RichTextEditor
+          documentId={mode === "edit" ? documentDetail.id : undefined}
           value={contentHtml}
           onChange={(value) => {
             setContentHtml(value);
             setIsDirty(true);
           }}
+          onUploadImage={
+            mode === "edit"
+              ? (file, altText) => uploadDocumentImage(documentDetail.id, file, altText)
+              : undefined
+          }
         />
 
-        {isDirty ? <p className="status-message">Cambios sin guardar</p> : null}
+        {isDirty ? <p className="status-message">{t("documents.unsaved_changes")}</p> : null}
         {validationError ? (
           <p className="status-message error" role="alert">
             {validationError}
@@ -810,7 +817,7 @@ function DocumentEditor({
               disabled={isSaving}
               onClick={() => void sendToReview()}
             >
-              Enviar a revision
+              {t("documents.send_to_review")}
             </Button>
           ) : null}
           {permissions.canPublish ? (
@@ -820,7 +827,7 @@ function DocumentEditor({
               disabled={isSaving}
               onClick={() => void publishDocument()}
             >
-              {isSaving ? "Publicando..." : "Publicar"}
+              {isSaving ? t("documents.publishing") : t("documents.publish")}
             </Button>
           ) : null}
           {permissions.canSaveDraft ? (
@@ -830,7 +837,7 @@ function DocumentEditor({
               disabled={isSaving}
               onClick={() => void saveDraft()}
             >
-              {isSaving ? "Guardando..." : "Guardar borrador"}
+              {isSaving ? t("documents.saving") : t("documents.save_draft")}
             </Button>
           ) : null}
         </div>
@@ -946,12 +953,12 @@ function emptyDocument(): DocumentDetail {
   };
 }
 
-function displayState(state: string) {
+function displayState(state: string, t: (key: string) => string) {
   const labels: Record<string, string> = {
-    Draft: "Borrador",
-    "In Review": "En revision",
-    Published: "Publicado",
-    Archived: "Archivado",
+    Draft: t("documents.state_draft"),
+    "In Review": t("documents.state_in_review"),
+    Published: t("documents.state_published"),
+    Archived: t("documents.state_archived"),
   };
   return labels[state] ?? state;
 }
@@ -967,12 +974,12 @@ function stateClass(state: string) {
   return classes[state] ?? "inactive";
 }
 
-function displayIndexing(status: string) {
+function displayIndexing(status: string, t: (key: string) => string) {
   const labels: Record<string, string> = {
     None: "-",
-    Pending: "Indexacion pendiente",
-    Succeeded: "Indexacion correcta",
-    Failed: "Indexacion fallida",
+    Pending: t("documents.indexing_pending"),
+    Succeeded: t("documents.indexing_succeeded"),
+    Failed: t("documents.indexing_failed"),
   };
   return labels[status] ?? status;
 }
@@ -997,8 +1004,8 @@ function uniqueValues(values: string[]) {
   );
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("es-AR", {
+function formatDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

@@ -37,11 +37,15 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
                     reader.GetString(reader.GetOrdinal("user_display_name")),
                     reader.GetString(reader.GetOrdinal("question")),
                     reader.GetString(reader.GetOrdinal("answer_summary")),
-                    reader.GetString(reader.GetOrdinal("feedback_value")),
+                    reader.IsDBNull(reader.GetOrdinal("feedback_value"))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal("feedback_value")),
                     reader.IsDBNull(reader.GetOrdinal("feedback_comment"))
                         ? null
                         : reader.GetString(reader.GetOrdinal("feedback_comment")),
-                    reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("feedback_updated_at")),
+                    reader.IsDBNull(reader.GetOrdinal("feedback_updated_at"))
+                        ? null
+                        : reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("feedback_updated_at")),
                     reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("created_at")),
                     reader.GetBoolean(reader.GetOrdinal("cache_hit")),
                     reader.GetString(reader.GetOrdinal("request_id")));
@@ -81,7 +85,7 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
                 event.document_version_id,
                 event.heading_path
             from rag.v_query_audit_with_citations event
-            where event.feedback_value is not null
+            where true
             """);
 
         if (query.NegativeOnly)
@@ -118,7 +122,7 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
         }
 
         sql.AppendLine();
-        sql.AppendLine("order by event.feedback_updated_at desc, event.created_at desc, event.citation_created_at asc");
+        sql.AppendLine("order by event.feedback_updated_at desc nulls last, event.created_at desc, event.citation_created_at asc");
         return sql.ToString();
     }
 
@@ -152,9 +156,9 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
         private readonly string _userDisplayName;
         private readonly string _question;
         private readonly string _answerSummary;
-        private readonly string _feedbackValue;
+        private readonly string? _feedbackValue;
         private readonly string? _feedbackComment;
-        private readonly DateTimeOffset _feedbackUpdatedAt;
+        private readonly DateTimeOffset? _feedbackUpdatedAt;
         private readonly DateTimeOffset _createdAt;
         private readonly bool _cacheHit;
         private readonly string _requestId;
@@ -165,9 +169,9 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
             string userDisplayName,
             string question,
             string answerSummary,
-            string feedbackValue,
+            string? feedbackValue,
             string? feedbackComment,
-            DateTimeOffset feedbackUpdatedAt,
+            DateTimeOffset? feedbackUpdatedAt,
             DateTimeOffset createdAt,
             bool cacheHit,
             string requestId)

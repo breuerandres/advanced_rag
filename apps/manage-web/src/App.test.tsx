@@ -35,6 +35,11 @@ const documentManagerSessionUser = {
   roles: ["DocumentManager"],
 };
 
+const viewerSessionUser = {
+  ...sessionUser,
+  roles: ["Viewer"],
+};
+
 const documentsResponse = [
   {
     id: "55555555-5555-5555-5555-555555555555",
@@ -166,6 +171,9 @@ describe("management users and budgets", () => {
     expect(screen.queryByRole("option", { name: "PT" })).not.toBeInTheDocument();
     expect(screen.getByText("Active session")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sign out/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Users & groups" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create user" })).toBeInTheDocument();
+    expect(screen.getByText("Active users")).toBeInTheDocument();
   });
 
   test("shows first-run setup and creates the first administrator", async () => {
@@ -301,6 +309,64 @@ describe("management users and budgets", () => {
     expect(screen.queryByText("Consola de gestión")).not.toBeInTheDocument();
   });
 
+  test("renders only self-service navigation for viewers", async () => {
+    stubFetch([], { session: viewerSessionUser });
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Mi cuenta" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Mi cuenta" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Configuración" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Documentos" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Usuarios y grupos" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Auditoría" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Feedback" })).not.toBeInTheDocument();
+  });
+
+  test("shows document-manager user read models and hides admin-only user actions", async () => {
+    stubFetch(
+      [
+        jsonResponse(200, usersResponse),
+        jsonResponse(200, [
+          { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+        ]),
+      ],
+      { session: documentManagerSessionUser },
+    );
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Usuarios y grupos" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Crear usuario" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Editar usuario Ana Gomez" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Editar presupuesto de Ana Gomez" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dar de baja a Ana Gomez" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Grupos" }));
+
+    expect(screen.getByRole("button", { name: "Crear grupo" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Editar grupo Operaciones" }),
+    ).toBeInTheDocument();
+  });
+
   test("updates the current user's email and password from the account screen", async () => {
     const updatedSession = {
       ...sessionUser,
@@ -326,6 +392,12 @@ describe("management users and budgets", () => {
     expect(
       await screen.findByRole("heading", { name: "Mi cuenta" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Guardar email" })).toHaveClass(
+      "account-save-button",
+    );
+    expect(
+      screen.getByRole("button", { name: /Cambiar contrase/i }),
+    ).toHaveClass("account-save-button");
 
     await user.clear(screen.getByRole("textbox", { name: "Email" }));
     await user.type(screen.getByRole("textbox", { name: "Email" }), "nueva@example.com");
@@ -377,6 +449,17 @@ describe("management users and budgets", () => {
     expect(
       await screen.findByRole("heading", { name: "Usuarios y grupos" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Usuarios" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("tab", { name: "Grupos" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Crear grupo" }),
+    ).not.toBeInTheDocument();
     const row = screen.getByRole("row", { name: /Ana Gomez/i });
 
     expect(within(row).getByText("ana@example.com")).toBeInTheDocument();
@@ -567,6 +650,11 @@ describe("management users and budgets", () => {
 
     render(<App />);
 
+    await user.click(await screen.findByRole("tab", { name: "Grupos" }));
+    expect(screen.getByRole("tab", { name: "Grupos" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     await user.click(
       await screen.findByRole("button", { name: "Crear grupo" }),
     );
@@ -576,7 +664,7 @@ describe("management users and budgets", () => {
     );
     await user.click(screen.getByRole("button", { name: "Guardar grupo" }));
 
-    expect(await screen.findByText("Grupo creado.")).toBeInTheDocument();
+    expect(await screen.findByText("Ventas")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenLastCalledWith(
       "/api/groups",
       expect.objectContaining({ method: "POST" }),
@@ -684,6 +772,37 @@ describe("management users and budgets", () => {
 });
 
 describe("management documents", () => {
+  test("switches the document workspace static copy to English", async () => {
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+      ]),
+      jsonResponse(200, documentsResponse),
+      jsonResponse(200, [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+      ]),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.selectOptions(await screen.findByLabelText("Idioma"), "en-US");
+    await user.click(await screen.findByRole("link", { name: "Documents" }));
+
+    expect(await screen.findByRole("heading", { name: "Documents" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Document filters")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Document state" })).toBeInTheDocument();
+    expect(screen.getByText("Indexing pending")).toBeInTheDocument();
+    expect(screen.getByText("Draft 1 / Published -")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Edit Politica de seguridad" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Filtros de documentos")).not.toBeInTheDocument();
+    expect(screen.queryByText("Estado del documento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Indexacion pendiente")).not.toBeInTheDocument();
+  });
+
   test("shows document filters for searchable document attributes", async () => {
     stubFetch([
       jsonResponse(200, usersResponse),
@@ -1361,7 +1480,7 @@ describe("management feedback reporting", () => {
     expect(within(auditRow).getByText("Ana Gomez")).toBeInTheDocument();
     expect(within(auditRow).getByText("req-doc-create")).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: "Feedback auditado" }),
+      screen.queryByRole("heading", { name: "Feedback" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("combobox", { name: "Polaridad" }),
@@ -1396,6 +1515,20 @@ describe("management feedback reporting", () => {
             },
           ],
         },
+        {
+          queryAuditEventId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          userId: "11111111-1111-1111-1111-111111111111",
+          userDisplayName: "Ana Gomez",
+          question: "Como ingreso al portal?",
+          answerSummary: "Ingresa con tu cuenta corporativa.",
+          feedbackValue: null,
+          feedbackComment: null,
+          feedbackUpdatedAt: null,
+          createdAt: "2026-05-18T11:30:00Z",
+          cacheHit: true,
+          requestId: "req-no-feedback",
+          citations: [],
+        },
       ]),
     ]);
     const user = userEvent.setup();
@@ -1405,10 +1538,10 @@ describe("management feedback reporting", () => {
     await user.click(await screen.findByRole("link", { name: "Feedback" }));
 
     expect(
-      await screen.findByRole("heading", { name: "Feedback auditado" }),
+      await screen.findByRole("heading", { name: "Feedback" }),
     ).toBeInTheDocument();
     expect(
-      await screen.findByText("Todavia no hay feedback registrado."),
+      await screen.findByText("Todavia no hay preguntas para revisar."),
     ).toBeInTheDocument();
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Polaridad" }),
@@ -1417,7 +1550,9 @@ describe("management feedback reporting", () => {
     await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
 
     expect(await screen.findByText("Que regla aplica?")).toBeInTheDocument();
+    expect(screen.getByText("Como ingreso al portal?")).toBeInTheDocument();
     expect(screen.getByText("No sirvio")).toBeInTheDocument();
+    expect(screen.getByText("Sin feedback")).toBeInTheDocument();
     expect(screen.getByText("Falto detalle")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Exportar a Excel" })).toBeInTheDocument();
     expect(screen.queryByText("req-report")).not.toBeInTheDocument();

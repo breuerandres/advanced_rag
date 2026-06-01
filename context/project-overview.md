@@ -15,12 +15,13 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 
 ## Core User Flow
 
-1. An `Admin` configures users, roles, groups/departments, and access attributes.
-2. A `DocumentManager` creates an document manually or imports a PDF/DOCX to prefill the editor with extracted text, then edits normalized HTML and metadata and sends the draft to review.
+1. An `Admin` configures users, roles, groups/departments, access attributes, and AI budget limits.
+2. A `DocumentManager` creates an document manually or imports a PDF/DOCX to prefill the editor with extracted text, then edits normalized HTML and metadata, manages groups and user group assignments, and sends the draft to review.
 3. An `Admin` publishes from `In Review`; publication is blocked until FastAPI indexes the document successfully.
 4. A `Viewer` asks questions in `chat.client.com`; FastAPI retrieves only published content matching the viewer's effective access scope.
 5. The viewer opens cited documents through short-lived scoped links to `docs.client.com`.
 6. The viewer can submit thumbs up/down feedback with an optional comment for each chat answer.
+7. Any authenticated user can use the limited management self-service area to update their own account and inspect their own AI usage balance.
 
 ## Features
 
@@ -28,6 +29,7 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 
 - Local user, role, and group/department administration through the .NET management API.
 - Document creation, import, metadata editing, review transitions, publication, archive, restore, and audit.
+- Document images uploaded from the editor are stored in private S3-compatible object storage and referenced through authorized app-controlled URLs.
 - Document access is assigned by groups/departments and document attributes in the MVP; per-user document exceptions are handled by creating dedicated groups, not by direct user ACLs.
 - Assisted PDF/DOCX import that extracts text into the editor while leaving final formatting and attributes under user control.
 - Simple formal versioning where every successful publication creates an immutable published version.
@@ -45,6 +47,8 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 - The same user can update their feedback for an answer in the MVP; feedback history is not retained.
 - Feedback review in the management app for `Admin` and `DocumentManager`, with filters by negative feedback, cited document, user, and date range.
 - Per-user monthly AI usage budgets in monetary value, configurable by administrators from the management app.
+- Role-limited management self-service lets `Viewer`, `DocumentManager`, and `Admin` users update their own account and view their own AI balance without exposing unauthorized management workspaces.
+- `DocumentManager` can view all users and AI balances, create/edit groups, and assign users to groups, but cannot create users, change roles, deactivate users, or modify AI budget limits.
 - The default monthly AI usage budget is USD 5 per user.
 - Monthly AI usage budgets reset by customer calendar month using the deployment's configured timezone.
 - Budget exhaustion blocks new paid chat/RAG usage, not document viewing or management access.
@@ -90,16 +94,16 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 - Dedicated `Reviewer` role for the MVP.
 - Retaining original PDF/DOCX import files in the MVP.
 - OCR for scanned PDFs or images in the MVP.
-- One-time-use viewer access tokens; v2 browser runtime uses session-authenticated document-id links instead of viewer tokens.
+- One-time-use viewer access tokens; the current browser runtime uses session-authenticated document-id links instead of viewer tokens.
 - Separate soft delete workflow beyond `Archived`.
 
 ## Success Criteria
 
 1. An `Admin` can publish an document only after successful pre-publication indexing.
 2. A `DocumentManager` can manage draft/review content but cannot publish.
-3. A `Viewer` cannot access the management app and can only chat over and open documents allowed by their effective access scope.
+3. A `Viewer` can access only role-limited management self-service plus chat and allowed published documents; full management workspaces remain hidden and forbidden.
 4. Public chat never retrieves non-`Published` content.
 5. RAG query audit records question, answer, citations, cache hit, feedback, token usage, estimated cost, latency, request ID, and access scope.
 6. A single customer deployment can run with Docker Compose using isolated secrets, data, logs, and health checks.
 7. Chat response latency is measured and can be evaluated when tuning model and cache defaults.
-8. An `Admin` can set or adjust a user's monthly AI budget, and the chat service blocks new paid AI usage when that user reaches the configured budget without blocking authorized document viewing.
+8. An `Admin` can set or adjust a user's monthly AI budget, all users can inspect their own budget state, and the chat service blocks new paid AI usage when that user reaches the configured budget without blocking authorized document viewing or account self-service.

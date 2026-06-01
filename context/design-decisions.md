@@ -30,9 +30,9 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Viewer Access Tokens](#2026-05-11---viewer-access-tokens)
 - [Viewer Access Token TTL](#2026-05-11---viewer-access-token-ttl)
 - [Viewer Access Token Reuse](#2026-05-11---viewer-access-token-reuse)
-- [OQ-001 FastAPI Session Validation Strategy](#2026-05-25---oq-001-fastapi-session-validation-strategy)
 - [Task 7 Auth Foundation](#2026-05-13---task-7-auth-foundation)
 - [Task 8 User Administration And Budget Configuration](#2026-05-14---task-8-user-administration-and-budget-configuration)
+- [Role Acceptance Matrix Promotes Limited Viewer Management Access](#2026-05-31---role-acceptance-matrix-promotes-limited-viewer-management-access)
 
 ### Document Lifecycle And Versioning
 
@@ -97,6 +97,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 - [Initial Database Entity Boundaries](#2026-05-11---initial-database-entity-boundaries)
 - [Initial Database Migration Foundation](#2026-05-13---initial-database-migration-foundation)
+- [Document Images Will Use MinIO Object Storage](#2026-05-31---document-images-will-use-minio-object-storage)
 - [Secrets And Configuration](#2026-05-11---secrets-and-configuration)
 - [Compose PostgreSQL Role Password Secrets](#2026-05-13---compose-postgresql-role-password-secrets)
 - [Local Startup Script Trusts Docker Caddy CA](#2026-05-22---local-startup-script-trusts-docker-caddy-ca)
@@ -1490,207 +1491,9 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 **Evidence:** Verified on 2026-05-20 with `dotnet test services\dotnet-api\AdvancedRag.sln` (`72 passed`; existing NU1900 warnings), `uv run pytest -q` (`32 passed`), `uv run ruff check .`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`.
 
----
+## 2026-05-22 - Embedding Dimension Upgrade Preserves Historical Citations
 
-# v2 Generic Refactor — Decisions
-
-The decisions below are appended in chronological order during the v2 refactor (2026-05-22
-onwards). They **supersede** specific MVP rules where noted. Full reasoning for each lives
-in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
-
-## 2026-05-22 - V2 Product Scope: Generic Multi-Company Self-Hosted
-
-**Context:** The MVP was designed for a single corporate customer (Mymtec / DUX3). The user decided to evolve it into a generic product installable by any company.
-
-**Options Considered:** Replace the legacy CentroDeAyuda for Mymtec, build a generic greenfield with no relation to legacy systems, or fork into product + Mymtec adapter.
-
-**Decision:** Build a generic, self-hosted, multilingual help-center product independent of any legacy system. Each customer installs their own Docker Compose stack.
-
-**Rationale:** Generic positioning maximises addressable market and aligns with the "single-tenant Docker Compose" decision already taken in the MVP.
-
-**Tradeoffs:** Forfeits the integration shortcut of reusing CentroDeAyuda's data.
-
-**Consequences:** All MVP rules tied to Mymtec/DUX3 vocabulary, Spanish-only, or single-customer assumptions are now generic. Setup wizard provisions everything fresh.
-
-## 2026-05-22 - Multi-Provider LLM Abstraction
-
-**Context:** MVP hard-codes OpenAI Python SDK throughout. The v2 product must let each customer pick its own provider.
-
-**Options Considered:** LiteLLM as gateway, custom abstraction layer, hard-code per deployment, or OpenAI-compatible-only.
-
-**Decision:** Introduce `ILlmProvider`, `IEmbeddingProvider`, and `IRerankerProvider` protocols with a factory keyed off `app.tenant_config`. Initial implementations: OpenAI, Anthropic, Azure OpenAI, Ollama; TEI (BGE) for embedding/reranker; Cohere reranker.
-
-**Rationale:** Genericity requires provider swap by config. Custom abstraction gives full control over per-provider quirks while staying minimal.
-
-**Tradeoffs:** More code to maintain than direct SDK use.
-
-**Consequences:** All paid LLM calls go through providers. Direct `AsyncOpenAI` imports outside `services/rag-api/src/advanced_rag/providers/` are now forbidden.
-
-**Evidence:** See ADR-0001 (`docs/adr/0001-multi-provider-llm.md`).
-
-## 2026-05-22 - Multilingual Embedding At 1024 Dimensions
-
-**Context:** MVP uses `text-embedding-3-small` at 1536 dims, biased toward Spanish. v2 is multilingual.
-
-**Options Considered:** Keep 1536 dims with multilingual model, switch to 1024 dims with multilingual model, per-locale corpus, Voyage 3.
-
-**Decision:** Schema column fixed at `VECTOR(1024)`. Default model is `text-embedding-3-large` with `dimensions=1024` (OpenAI native truncation) or `BGE-M3` via TEI for self-hosted deployments.
-
-**Rationale:** 1024 dims is the cross-model lingua franca (OpenAI truncated and BGE-M3 both natively expose this). Multilingual quality on MTEB stays competitive.
-
-**Tradeoffs:** Switching to a higher-dim model later requires schema migration plus reindex.
-
-**Consequences:** All v2 indexing uses 1024-d embeddings. MVP deployments migrating must reindex.
-
-**Evidence:** See ADR-0003 (`docs/adr/0003-multilingual-embeddings.md`).
-
-## 2026-05-22 - Hybrid Retrieval With BM25 And Reranker
-
-**Context:** Vector-only retrieval misses exact-match codes (e.g. `IMA001`), rare proper nouns, and customer-specific vocabulary.
-
-**Options Considered:** Vector-only with reranker, vector + BM25 without reranker, full hybrid with RRF and reranker, or external Elasticsearch.
-
-**Decision:** Vector (k=20) + BM25 (k=20) → RRF (k_constant=60) → top-30 → cross-encoder reranker → top-8. BM25 implemented inside Postgres via `tsvector` plus `pg_trgm`. No Elasticsearch.
-
-**Rationale:** Highest-quality retrieval pipeline that fits inside the single-Postgres constraint of the deployment model.
-
-**Tradeoffs:** Around 80–200ms latency budget added by reranker.
-
-**Consequences:** All retrieval queries use the unified SQL with RRF. Reranker on by default, per-query opt-out via `rerank=false`.
-
-**Evidence:** See ADR-0002 and ADR-0004 (`docs/adr/0002-*.md`, `docs/adr/0004-*.md`).
-
-## 2026-05-22 - MinIO As Default Object Storage
-
-**Context:** MVP base64-inlines images. v2 needs an S3-compatible store for assets.
-
-**Options Considered:** MinIO, Garage, SeaweedFS, plain Docker volume, AWS S3 only.
-
-**Decision:** MinIO ships in `compose.yaml` by default. Garage and SeaweedFS documented as drop-in alternatives. Code uses an S3 SDK abstraction (`IObjectStorage`) so cloud S3 and R2 also work via configuration.
-
-**Rationale:** MinIO is the most mature S3-compatible self-hosted option. AGPL applies to MinIO itself, not to consuming customers who download their own copy.
-
-**Tradeoffs:** One more container; signed-URL pattern adds slight latency at image-load.
-
-**Consequences:** HTML sanitizer rejects base64 image data. Editor uploads to MinIO and inserts URL references.
-
-**Evidence:** See ADR-0005 (`docs/adr/0005-minio-object-storage.md`).
-
-## 2026-05-22 - Unified Session Auth
-
-**Context:** MVP uses three browser auth artefacts (session cookie + chat-token cookie + viewer-exchange code/cookie). User asked for one login serving all three SPAs.
-
-**Options Considered:** Keep MVP pattern and add API keys only, bearer-only headers, single domain-wide cookie, or unified session cookie with `__Host-` prefix and role-based authorisation.
-
-**Decision:** Only `__Host-session` cookie. Add `app.users.role` column with values `admin`, `editor`, `viewer`. Endpoints use `[Authorize(Roles="…")]` in .NET and `require_role()` dependency in FastAPI. Endpoints `POST /api/auth/chat-token` and `POST /api/viewer/exchange-*` are removed.
-
-**Rationale:** Single credential improves UX, reduces code, simplifies tests, and aligns with modern multi-app SaaS handling of same-tenant sub-apps.
-
-**Tradeoffs:** Loses the 15-minute scoped chat-token defense in depth; mitigated by strict `__Host-` cookie attributes, CSP, and CSRF double-submit.
-
-**Consequences:** Chat now requires a database user. The "anonymous viewer link" use case moves to an opt-in HMAC-signed share-link endpoint in Phase 5+.
-
-**Evidence:** See ADR-0006 (`docs/adr/0006-unified-session-auth.md`). OQ-001 resolves the FastAPI cookie validation strategy.
-
-## 2026-05-25 - OQ-001 FastAPI Session Validation Strategy
-
-**Context:** ADR-0006 requires one browser auth cookie for manage, chat, and docs, but FastAPI still needs current user claims for chat authorization, retrieval filtering, semantic cache partitioning, budget audit, and feedback ownership. The current Compose/Caddy stack has no Redis, memcached, Caddy auth plugin, or claim-injection layer.
-
-**Options Considered:** Caddy injects `X-User-Claims` from Redis/memcached, FastAPI calls a .NET session validation endpoint and caches the result in process, or .NET sets an extra short-lived JWT cookie that FastAPI validates locally.
-
-**Decision:** Use an internal-only .NET validation endpoint plus FastAPI in-process caching. FastAPI forwards the session cookie to `.NET` over the Docker network on cache miss, includes `X-Internal-Service-Token`, and caches safe claims for 60 seconds keyed by a SHA-256 hash of the session cookie value.
-
-**Rationale:** This matches the current single-instance Compose deployment without adding Redis or custom Caddy auth plumbing. It preserves the v2 target of one browser auth cookie while keeping FastAPI authorization inputs current enough for chat.
-
-**Tradeoffs:** Cold-cache chat requests depend on .NET availability and add one internal HTTP call. Warm requests avoid that dependency for 60 seconds. Revocation-sensitive changes can be stale for up to the cache TTL, which is materially shorter than the MVP chat-token lifetime.
-
-**Consequences:** The implementation adds a Docker-network-only `.NET` validation endpoint guarded by the internal service token, a FastAPI session validator/cache, and tests for valid session resolution, cache hit behavior, and fail-closed .NET validation failures. It must not log raw session cookies. Browser chat/feedback mutations still require CSRF protection as part of unified session auth.
-
-**Evidence:** `docs/v2/open-questions.md` OQ-001 resolved on 2026-05-25. Current implementation evidence is `InternalSessionController.cs`, `session_validation.py`, `api/routers/chat.py`, `apps/chat-web/src/api/chat.ts`, `infra/compose/compose.yaml`, and focused `.NET`/FastAPI/chat-web tests. The current `infra/compose/compose.yaml` and `infra/compose/Caddyfile` contain no Redis/memcached service or Caddy auth integration.
-
-## 2026-05-22 - `packages/shared-ui` Design System
-
-**Context:** MVP keeps three SPAs with independent UI code. User asked for a real visual refactor toward Linear/Vercel style while keeping the three SPAs separate.
-
-**Options Considered:** Per-SPA shadcn copies + visual guidelines, third-party design system (Mantine, Chakra), Storybook-published separate repo, or internal `packages/shared-ui`.
-
-**Decision:** Create `packages/shared-ui` as a pnpm workspace package consumed by the three SPAs. Provides design tokens (light + dark), hooks, layout, inputs, overlays, data, feedback, chat-specific, and Cmd+K command palette components.
-
-**Rationale:** Single visual source of truth. Components built on Radix UI primitives keep behavior accessible. Tokens via CSS variables make tenant branding a one-variable change.
-
-**Tradeoffs:** Adds workspace build complexity.
-
-**Consequences:** New SPA components live in `shared-ui` unless they are SPA-specific. shadcn copies migrate component-by-component.
-
-**Evidence:** See ADR-0007 (`docs/adr/0007-shared-ui-design-system.md`).
-
-## 2026-05-22 - Configurable Dimensions For Document Categorisation
-
-**Context:** Each customer has its own taxonomy (modules, departments, processes, etc.). Hard-coding the Mymtec model (`module`/`product`/`area`) would betray the product's genericity.
-
-**Options Considered:** Free tags only, hierarchical spaces (Notion-style), hard-coded columns, or configurable multi-dimensional model.
-
-**Decision:** `app.dimensions` and `app.dimension_values` tables let admins define any number of dimensions, each optionally hierarchical, with i18n labels. Documents associate M:N with values via `app.document_dimension_values`.
-
-**Rationale:** Customers categorise in radically different ways. Multi-dimensional with hierarchy support covers the union of needs.
-
-**Tradeoffs:** Setup wizard must walk operators through dimension definition with examples.
-
-**Consequences:** Chat-web accepts `?dim_<key>=<value>` deep links. Permissions can extend to dimension values in Phase 5+ if needed.
-
-**Evidence:** See ADR-0008 (`docs/adr/0008-configurable-dimensions.md`).
-
-## 2026-05-22 - Conversational Memory With Session-Scoped Condensation
-
-**Context:** MVP is single-turn only. The chat-conversational UX direction requires multi-turn coherence.
-
-**Options Considered:** Raw history concatenation, summary windowing, true contextual embeddings, no multi-turn.
-
-**Decision:** Each chat session carries a UUID. On follow-up turns, a cheap LLM (gpt-4o-mini or claude-haiku) rewrites the question as a standalone query using prior turns. The rewritten question drives retrieval and semantic cache lookup; the original question drives the final answer prompt.
-
-**Rationale:** Predictable token usage, cache effectiveness preserved, multi-turn coherence achieved.
-
-**Tradeoffs:** One extra LLM call per multi-turn message. Cheap model keeps cost low.
-
-**Consequences:** `rag.query_audit_events.session_id`, `previous_event_id`, and `rewritten_question` columns added. Condense prompts live in `services/rag-api/.../prompts/condenser_<locale>.md`.
-
-**Evidence:** See ADR-0009 (`docs/adr/0009-conversational-memory.md`).
-
-## 2026-05-22 - Continuous Evals With RAGAS
-
-**Context:** MVP has no automated regression detection for RAG quality.
-
-**Options Considered:** RAGAS, promptfoo, Phoenix/Arize, LangSmith, or custom scripts.
-
-**Decision:** Adopt RAGAS. Golden set at `evals/golden.jsonl`. CI workflow at `.github/workflows/eval.yml`. CI fails if any metric (faithfulness, answer_relevancy, context_precision, context_recall) drops more than 5% versus the baseline.
-
-**Rationale:** RAG-specific metrics out of the box, research-backed, no SaaS lock-in.
-
-**Tradeoffs:** Eval runs cost LLM calls; mitigated by small golden set and cheap evaluator model pinned per run.
-
-**Consequences:** Every PR touching `rag/**` or `prompts/**` runs evals. Baseline is explicitly bumped when intentional improvements raise the bar.
-
-**Evidence:** See ADR-0010 (`docs/adr/0010-ragas-evals.md`).
-
-## 2026-05-22 - V2 Handoff Workflow
-
-**Context:** The v2 refactor is being implemented across two PCs and two LLM accounts. The current PC has no dependencies installed and the user requested that no tests run here.
-
-**Options Considered:** Pause until next PC, write everything as design docs only, write scaffolds plus commit per phase, or single mega-commit at handoff.
-
-**Decision:** Implement scaffolds and commit per phase on a local `feature/v2-generic` branch. Bundle the branch for transfer to the next PC. Write tests but do not run them. Document everything that the next PC must do in `HANDOFF.md` and per-phase docs.
-
-**Rationale:** Granular commits plus comprehensive docs let the next PC pick up cleanly without prior session context.
-
-**Tradeoffs:** Some files will not compile until dependencies are installed on the next PC. The next operator must restore that.
-
-**Consequences:** The original `Human-In-The-Loop Implementation Protocol` from MVP is relaxed for this session per user instruction. It resumes in normal form on the next PC.
-
-**Evidence:** This file, `HANDOFF.md`, and `context/v2-progress.md`.
-
-## 2026-05-22 - V2 Embedding Dimension Upgrade Preserves Historical Citations
-
-**Context:** The v2 migration from `vector(1536)` to `vector(1024)` intentionally invalidates existing embeddings and requires reindexing. Local Compose startup failed when the migration attempted to cast existing `rag.document_chunks.embedding` values to `NULL` while the column still had the original `NOT NULL` constraint. Deleting old chunks was not acceptable because `rag.query_audit_citations.chunk_id` uses a restrictive foreign key to preserve historical citation audit evidence.
+**Context:** The migration from `vector(1536)` to `vector(1024)` intentionally invalidates existing embeddings and requires reindexing. Local Compose startup failed when the migration attempted to cast existing `rag.document_chunks.embedding` values to `NULL` while the column still had the original `NOT NULL` constraint. Deleting old chunks was not acceptable because `rag.query_audit_citations.chunk_id` uses a restrictive foreign key to preserve historical citation audit evidence.
 
 **Options Considered:** Delete old chunks before resizing, keep old 1536-dimensional values, backfill fake 1024-dimensional values, or keep historical chunks inactive with `embedding = NULL`.
 
@@ -1700,15 +1503,15 @@ in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
 
 **Tradeoffs:** The database no longer enforces non-null embeddings on all chunk rows. Runtime indexing still writes embeddings for active chunks, and retrieval already filters active chunks, so the weaker column constraint is limited to historical inactive data.
 
-**Consequences:** Operators upgrading from MVP to v2 must reindex before serving chat traffic. Future retrieval queries and indexes must tolerate inactive historical chunks with `embedding = NULL`.
+**Consequences:** Operators upgrading from the older 1536-dimensional schema must reindex before serving chat traffic. Future retrieval queries and indexes must tolerate inactive historical chunks with `embedding = NULL`.
 
 **Evidence:** Verified on 2026-05-22 with `uv run pytest tests/test_migrations.py -q`, `uv run pytest -q`, `uv run ruff check .`, `uv run mypy src tests`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml build rag-api`.
 
-## 2026-05-22 - V2 BM25 Extensions Installed By Postgres Init
+## 2026-05-22 - BM25 Extensions Installed By Postgres Init
 
-**Context:** The v2 BM25 migration adds `content_tsv` and trigram search over `rag.document_chunks`. Local full Compose startup failed because `rag-api` ran Alembic against an existing database where `public.unaccent` was not installed. The migration tests installed `unaccent` and `pg_trgm` in their bootstrap path, but the real Compose `postgres-init` script still installed only `vector`.
+**Context:** The BM25 migration adds `content_tsv` and trigram search over `rag.document_chunks`. Local full Compose startup failed because `rag-api` ran Alembic against an existing database where `public.unaccent` was not installed. The migration tests installed `unaccent` and `pg_trgm` in their bootstrap path, but the real Compose `postgres-init` script still installed only `vector`.
 
-**Options Considered:** Require manual extension installation before v2 upgrades, let the runtime `rag_owner` migration create extensions, or extend `postgres-init` to install all database extensions needed by the product.
+**Options Considered:** Require manual extension installation before upgrades, let the runtime `rag_owner` migration create extensions, or extend `postgres-init` to install all database extensions needed by the product.
 
 **Decision:** Keep database extension installation in `postgres-init`. It now installs `vector`, `pg_trgm`, and `unaccent` idempotently before service migrations run. The BM25 migration uses an explicit `regdictionary` cast when wrapping `public.unaccent`.
 
@@ -1720,7 +1523,7 @@ in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
 
 **Evidence:** Verified on 2026-05-22 with `uv run pytest tests/test_migrations.py -q`, `uv run ruff check .`, `uv run mypy src tests`, and `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml -f infra/compose/compose.override.yaml up -d --build --force-recreate`.
 
-## 2026-05-22 - V2 Shared UI Wiring Uses Workspace Package Source
+## 2026-05-22 - Shared UI Wiring Uses Workspace Package Source
 
 **Context:** `packages/shared-ui` was scaffolded as a pnpm workspace package, but the three SPAs still rendered their local shells. Simply importing the package would compile but not style correctly because the shared components use Tailwind utility classes and the apps were not yet running Tailwind through Vite or scanning the shared package source. Docker frontend builds also copied only each app directory, so workspace imports would fail inside image builds.
 
@@ -1730,7 +1533,7 @@ in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
 
 **Rationale:** Direct workspace-source consumption is the smallest step that makes the design system real while preserving current app workflows. It avoids publishing/building an internal package before the component API has stabilized.
 
-**Tradeoffs:** The apps now compile shared-ui source as part of their own builds, so React type versions and Tailwind source scanning must stay aligned across the workspace. The full per-SPA UX refactor remains separate Phase 1.7 work.
+**Tradeoffs:** The apps now compile shared-ui source as part of their own builds, so React type versions and Tailwind source scanning must stay aligned across the workspace. The full per-SPA UX refactor remains separate a later UI refactor work.
 
 **Consequences:** New shell-level UI should use `AppShell`, `Header`, `Sidebar`, and `DarkModeToggle` from `@helpcenter/shared-ui`. Frontend Dockerfiles must include workspace packages consumed by each app. The React type packages in the SPAs are aligned to React 18 to match the React 18 runtime and shared-ui peer dependency.
 
@@ -1778,19 +1581,19 @@ in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
 
 **Tradeoffs:** Some shell code remains app-specific instead of fully centralized. This is acceptable because the shell responsibilities differ across management, chat, and document portal/viewer workflows.
 
-**Consequences:** Future shared-ui work should provide primitives and tokens, not force one global navigation frame onto every SPA. `docs.localhost` should expose a browsable catalog for authenticated users; admin and document managers can see management-scope documents, while viewers see only documents allowed by their groups and published state. Account self-service is owned by `.NET` account endpoints. UI language defaults to Spanish but can be changed from each app's visible selector. This 2026-05-22 note was superseded on 2026-05-26 when ADR-0006 runtime cleanup removed chat-token renewal and viewer exchange-code flows.
+**Consequences:** Future shared-ui work should provide primitives and tokens, not force one global navigation frame onto every SPA. `docs.localhost` should expose a browsable catalog for authenticated users; admin and document managers can see management-scope documents, while viewers see only documents allowed by their groups and published state. Account self-service is owned by `.NET` account endpoints. UI language defaults to Spanish but can be changed from each app's visible selector. This 2026-05-22 note was superseded on 2026-05-26 when runtime cleanup removed chat-token renewal and viewer exchange-code flows.
 
 **Evidence:** Verified on 2026-05-22 with `pnpm.cmd --dir apps\chat-web test -- --run App.test.tsx`, `pnpm.cmd --dir apps\docs-web test -- --run App.test.tsx`, `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx`, builds for `apps/chat-web`, `apps/docs-web`, and `apps/manage-web`, `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --filter "UserAccount|ViewerDocumentCatalog"`, `dotnet test services\dotnet-api\tests\AdvancedRag.App.Tests\AdvancedRag.App.Tests.csproj --no-build`, `dotnet test services\dotnet-api\tests\AdvancedRag.Api.Tests\AdvancedRag.Api.Tests.csproj --no-build --filter "FullyQualifiedName~ViewerEndpointTests"`, and `dotnet build services\dotnet-api\AdvancedRag.sln --no-restore`. A broader API filter run for `Viewer|Auth|User` exposed existing duplicate-role seed failures in auth/rate-limit test fixtures; focused viewer/API and application tests pass.
 
-## 2026-05-26 - V2 Unified Session Removes Browser Token Flows
+## 2026-05-26 - Unified Session Removes Browser Token Flows
 
-**Context:** ADR-0006 requires `__Host-session` to become the only browser auth cookie across manage, chat, and docs. The previous Phase 1.5 state still exposed `.NET` `POST /api/auth/chat-token`, `.NET` `/api/viewer/exchange`, `__Host-chat-token`, `__Host-viewer-token`, and FastAPI accepted chat/feedback mutations without locally validating the shared CSRF cookie/header pair.
+**Context:** The unified-session design requires `__Host-session` to become the only browser auth cookie across manage, chat, and docs. The previous Phase 1.5 state still exposed `.NET` `POST /api/auth/chat-token`, `.NET` `/api/viewer/exchange`, `__Host-chat-token`, `__Host-viewer-token`, and FastAPI accepted chat/feedback mutations without locally validating the shared CSRF cookie/header pair.
 
-**Options Considered:** Keep viewer exchange codes as a defense-in-depth exception, replace them with a second docs-scoped JWT cookie, or complete ADR-0006 by using document-id locator links plus session revalidation.
+**Options Considered:** Keep viewer exchange codes as a defense-in-depth exception, replace them with a second docs-scoped JWT cookie, or complete the unified-session cleanup by using document-id locator links plus session revalidation.
 
-**Decision:** Complete ADR-0006 for browser runtime. Remove the `.NET` chat-token endpoint and token issuer. Remove the viewer exchange endpoint and viewer-token service. Viewer links now use `https://docs.<domain>/open?documentId=<id>` and `GET /api/viewer/document?documentId=<id>` revalidates the current `.NET` session, role, document state, and permissions before returning content. FastAPI validates the `__Host-CSRF` cookie and `X-CSRF-Token` header locally before validating the `__Host-session` cookie through `.NET`.
+**Decision:** Complete the unified-session cleanup for browser runtime. Remove the `.NET` chat-token endpoint and token issuer. Remove the viewer exchange endpoint and viewer-token service. Viewer links now use `https://docs.<domain>/open?documentId=<id>` and `GET /api/viewer/document?documentId=<id>` revalidates the current `.NET` session, role, document state, and permissions before returning content. FastAPI validates the `__Host-CSRF` cookie and `X-CSRF-Token` header locally before validating the `__Host-session` cookie through `.NET`.
 
-**Rationale:** A document-id URL is only a locator, not authorization. It preserves the v2 one-session model while keeping authorization server-side. A second viewer JWT cookie would recreate the removed token flow under another name, and keeping exchange codes would leave the v2 auth model only partially implemented.
+**Rationale:** A document-id URL is only a locator, not authorization. It preserves the v2 one-session model while keeping authorization server-side. A second viewer JWT cookie would recreate the removed token flow under another name, and keeping exchange codes would leave the auth model only partially implemented.
 
 **Tradeoffs:** Users must have an authenticated docs-host session before a document-id link can render content. The old exchange-code flow provided a short-lived cross-host access bridge; removing it simplifies auth but shifts link opening to normal session bootstrap/login behavior. A later 2026-05-26 decision removed the deprecated viewer exchange/audit tables from the current EF model and initial app-schema migration instead of keeping them as compatibility tables.
 
@@ -1800,9 +1603,9 @@ in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
 
 ## 2026-05-26 - Deprecated Viewer Exchange Tables Removed From Current Schema
 
-**Context:** After ADR-0006 removed browser chat-token and viewer exchange flows, the current runtime no longer read or wrote the old viewer exchange code or viewer token audit tables. The remaining open decision was whether to keep those tables as deprecated compatibility tables or remove them from the current migration path.
+**Context:** After browser chat-token and viewer exchange flows were removed, the current runtime no longer read or wrote the old viewer exchange code or viewer token audit tables. The remaining open decision was whether to keep those tables as deprecated compatibility tables or remove them from the current migration path.
 
-**Decision:** Remove the deprecated viewer exchange/audit tables from the current EF model, the initial app-schema migration, and the raw v2 drop-script list. Viewer document links remain session-authenticated `documentId` locators.
+**Decision:** Remove the deprecated viewer exchange/audit tables from the current EF model, the initial app-schema migration, and the raw cleanup script list. Viewer document links remain session-authenticated `documentId` locators.
 
 **Rationale:** Keeping unused credential-flow tables in the fresh schema preserves a discontinued auth design and creates misleading migration surface. Removing them makes the database match the unified-session runtime.
 
@@ -1825,3 +1628,61 @@ in `docs/adr/000X-*.md`. The fast diff is `context/v2-overview.md`.
 **Consequences:** New frontend UI text must be added to both `es-AR` and `en-US` resources. RAG prompts must have Spanish and English variants. Visible language selectors expose only ES and EN. Portuguese must not be reintroduced without a new product decision.
 
 **Evidence:** Verified on 2026-05-27 with focused App tests for manage, chat, and docs, focused RAG locale-support tests, app typechecks for all three SPAs, and app builds for all three SPAs.
+
+## 2026-05-29 - Management Feedback Review Includes No-Feedback Queries
+
+**Context:** User review found that the management Feedback workspace only showed chat queries that already had submitted feedback. That hid unanswered quality evidence: operators also need to inspect questions and answers that users did not rate.
+
+**Decision:** The management feedback reporting endpoint continues to use `/api/reporting/feedback`, but it now returns all chat query audit rows exposed by `rag.v_query_audit_with_citations`. `feedbackValue`, `feedbackComment`, and `feedbackUpdatedAt` are nullable in the .NET and frontend contracts. The management UI renders rows without feedback as a clear no-feedback state and falls back to the query creation timestamp when no feedback timestamp exists.
+
+**Rationale:** Keeping all chat questions in the same review workspace lets document managers audit coverage and answer quality without relying on users to submit thumbs feedback.
+
+**Tradeoffs:** The route name still says `feedback`, even though it now behaves more like a chat question review report. Renaming it would be cleaner semantically but would require a wider contract migration; the current change preserves compatibility while fixing the product behavior.
+
+**Consequences:** Negative-only filters still restrict results to explicit negative feedback rows. The unfiltered Feedback workspace is now a complete question/answer review list, not a feedback-only list. Future reporting copy and exports should treat feedback fields as optional.
+
+**Evidence:** Verified on 2026-05-29 with `dotnet test services\dotnet-api\tests\AdvancedRag.Infrastructure.Tests\AdvancedRag.Infrastructure.Tests.csproj --filter NpgsqlFeedbackReportingServiceTests`, `dotnet test services\dotnet-api\tests\AdvancedRag.Api.Tests\AdvancedRag.Api.Tests.csproj --filter FeedbackReportingEndpointTests`, `pnpm.cmd --dir apps\manage-web test -- --run App.test.tsx`, `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, `dotnet build services\dotnet-api\AdvancedRag.sln --no-restore`, and `git diff --check`.
+
+## 2026-05-31 - Role Acceptance Matrix Promotes Limited Viewer Management Access
+
+**Context:** The user updated `pruebas.md` because a pure "Viewer cannot access manage" rule prevents Viewers from updating their own password/email and seeing their AI balance. The same acceptance matrix also requires DocumentManagers to inspect users and balances, manage groups, and assign users to groups without gaining full user administration or budget mutation rights.
+
+**Decision:** Treat `pruebas.md` as the functional acceptance source for role behavior. Viewers can access a limited `manage.client.com` self-service surface for their own account, own AI balance, and safe read-only configuration. DocumentManagers can view all users and balances, create/edit groups, assign users to groups, and view audit/feedback/configuration read models, but cannot publish documents, create users, change user roles/status, or modify AI budget limits. The management sidebar must render only entries allowed by the current user's role; backend authorization remains mandatory for direct URL/API access.
+
+**Rationale:** Account self-service and budget transparency are ordinary authenticated-user needs, not administrator-only workflows. Hiding role-inapplicable navigation improves UX, but API authorization must remain the enforcement layer.
+
+**Tradeoffs:** The management app now needs a finer-grained role model than the earlier Admin/DocumentManager-only console. Existing endpoints and E2E tests must be split between self-service read models, DocumentManager read/group-management paths, and Admin-only mutations.
+
+**Consequences:** Backend authorization, management UI navigation/action visibility, and E2E role matrix coverage must remain aligned with `pruebas.md`. Existing context entries that said Viewer has no management access are superseded by this decision.
+
+**Evidence:** `pruebas.md` was expanded on 2026-05-31 with role-specific acceptance criteria and negative tests. Implementation was aligned on 2026-05-31 with .NET API authorization changes, management UI navigation/action visibility, and focused Playwright role-matrix coverage.
+
+## 2026-05-31 - Obsolete Refactor Documentation Removed
+
+**Context:** The user decided that the currently implemented product is the source of truth and requested removal of documentation for a separate refactor track before deciding how document images should work.
+
+**Decision:** Remove obsolete refactor documentation and branch references from the repository. Keep implemented runtime behavior documented as current product behavior, not as a future-track plan.
+
+**Rationale:** Parallel future-state documentation was creating ambiguity about what is actually true. The next image-handling decision should be made against the implemented system and authoritative context files only.
+
+**Tradeoffs:** Historical rationale for abandoned future plans is intentionally removed from the active repository. If a similar idea is reconsidered later, it must be re-decided and documented from the current implementation state.
+
+**Consequences:** `context/architecture.md`, `context/rag-spec.md`, `context/code-standards.md`, and `context/progress-tracker.md` should be treated as the current source of truth. The next image decision must update these files before implementation.
+
+**Evidence:** Removed obsolete refactor documentation directories, obsolete refactor context files, the obsolete refactor handoff, and the obsolete refactor execution plan on 2026-05-31.
+
+## 2026-05-31 - Document Images Will Use MinIO Object Storage
+
+**Context:** The current product stores normalized document HTML in Postgres and the management editor supports TipTap images, but the active architecture did not yet define durable image storage, authorization, RAG indexing, or multimodal provider behavior. Persisting image bytes as base64 inside `app.document_versions.content_html` would bloat Postgres, complicate backups, make sanitization harder, and create inefficient OpenAI request payloads.
+
+**Decision:** Document image bytes must not be persisted as base64 in Postgres. MinIO is the target object storage service for document image bytes in the Docker Compose deployment. Postgres stores image metadata, ownership, object keys, MIME type, size, hash, audit data, and stable application-controlled image URLs, but not the binary image content. Canonical HTML stores stable same-origin image URLs such as `/api/document-images/{imageId}/content`; it must not store raw MinIO URLs, raw AWS S3 URLs, expiring presigned URLs, arbitrary external URLs, or base64 data URLs. The first implementation slice covers secure upload, storage, sanitizer enforcement, and rendering. Query-time OpenAI multimodal image inputs are deferred to the second slice.
+
+**Rationale:** MinIO provides an S3-compatible object store that fits the single-tenant Compose deployment model and keeps large binary assets out of relational document rows while preserving isolated customer storage. Keeping only metadata in Postgres lets document lifecycle, permissions, audit, and published-version immutability remain owned by the `.NET` document domain. Stable app URLs preserve authorization and make a later migration from MinIO to AWS S3 an implementation/configuration change rather than an HTML data migration. `.NET` uses `AWSSDK.S3` so the runtime client can target either MinIO through `ServiceURL` or AWS S3 through region-based configuration.
+
+**Tradeoffs:** This adds another stateful service, secrets, backups, readiness checks, object lifecycle cleanup, and storage access policies. Postgres and MinIO backups must be coordinated because document HTML and image metadata are incomplete without the referenced objects.
+
+**Consequences:** `.NET` owns document image upload, authorization, metadata, serving, and object lifecycle. FastAPI must not write image metadata or objects. The first slice rejects invalid HTML image sources with `DOCUMENT_IMAGE_SOURCE_INVALID`, supports PNG, JPEG/JPG, WEBP, and GIF uploads up to 5 MB, and keeps the MinIO bucket private. The next slice should add RAG image-reference indexing and then optional query-time multimodal OpenAI image inputs with strict caps, audit fields, and cache behavior.
+
+**Evidence:** Checked MinIO documentation on 2026-05-31: MinIO is S3-compatible object storage, supports container deployment, file-based environment variables for container credentials, policy-based access control, healthcheck endpoints, object versioning, and SDK/presigned URL operations. Checked OpenAI developer documentation on 2026-05-31: image inputs can be supplied as URLs, base64 data URLs, or file IDs; image inputs are metered as tokens; and the Responses API is recommended for new multimodal work while Chat Completions remains supported.
+
+**Implementation Evidence:** First-slice implementation was verified on 2026-05-31 with focused .NET lifecycle tests for image-source rejection, API endpoint tests for upload/content serving, configuration and health tests, EF mapping/migration tests for `app.document_images`, `dotnet build services\dotnet-api\AdvancedRag.sln --no-restore`, manage-web typecheck/tests/build, Compose config validation, and `git diff --check`.

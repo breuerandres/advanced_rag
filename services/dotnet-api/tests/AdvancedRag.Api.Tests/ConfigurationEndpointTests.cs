@@ -46,6 +46,26 @@ public sealed class ConfigurationEndpointTests
     }
 
     [Fact]
+    public async Task GetConfiguration_AsViewer_ReturnsSafeReadOnlyOperationalDefaults()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        string sessionCookie = await LoginAsync(client, FakeAuthService.TargetEmail);
+
+        using HttpRequestMessage request = new(HttpMethod.Get, "/api/configuration");
+        request.Headers.Host = "manage.localhost";
+        request.Headers.Add("Cookie", sessionCookie);
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        string rawBody = await response.Content.ReadAsStringAsync();
+        rawBody.Should().Contain("gpt-4.1-nano");
+        rawBody.Should().Contain("Configured");
+        rawBody.Should().NotContain("sk-");
+        rawBody.ToLowerInvariant().Should().NotContain("secret-value");
+    }
+
+    [Fact]
     public async Task GetV1Config_WithoutSession_ReturnsPublicSafeTenantConfigWithoutSecrets()
     {
         using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
@@ -176,6 +196,7 @@ public sealed class ConfigurationEndpointTests
         request.Headers.Host = "manage.localhost";
         request.Headers.Add("X-CSRF-Token", csrf.Token);
         request.Headers.Add("Cookie", csrf.Cookie);
+        request.Headers.Add("X-Forwarded-For", $"198.51.100.{Interlocked.Increment(ref _loginIpCounter)}");
 
         using HttpResponseMessage response = await client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -225,6 +246,8 @@ public sealed class ConfigurationEndpointTests
     }
 
     private sealed record CsrfState(string Token, string Cookie);
+
+    private static int _loginIpCounter;
 
     private sealed record ConfigurationResponse(
         string CustomerTimezone,

@@ -21,7 +21,11 @@ import {
   type SessionUser,
   type SetupStatus,
 } from './api/auth'
-import { ManagementNav, type ManagementSection } from './components/ManagementNav'
+import {
+  ManagementNav,
+  allowedManagementSections,
+  type ManagementSection,
+} from './components/ManagementNav'
 import { AccountPage } from './features/account/AccountPage'
 import { AuditPage } from './features/audit/AuditPage'
 import { ConfigurationPage } from './features/configuration/ConfigurationPage'
@@ -140,6 +144,17 @@ export default function App() {
     setMode('login')
   }
 
+  const allowedSections = allowedManagementSections(sessionUser.roles)
+  const isViewerOnly =
+    sessionUser.roles.includes('Viewer') &&
+    !sessionUser.roles.includes('Admin') &&
+    !sessionUser.roles.includes('DocumentManager')
+  const activeView = allowedSections.includes(view)
+    ? view
+    : isViewerOnly
+      ? 'account'
+      : allowedSections[0] ?? 'account'
+
   return (
     <AppShell
       sidebar={
@@ -175,19 +190,19 @@ export default function App() {
               </section>
             }
           >
-            <ManagementNav active={view} onNavigate={setView} />
+            <ManagementNav active={activeView} onNavigate={setView} userRoles={sessionUser.roles} />
           </Sidebar>
         </section>
       }
       className="app-workspace"
     >
       <section className="app-workspace">
-        {view === 'documents' ? <DocumentsPage userRoles={sessionUser.roles} /> : null}
-        {view === 'users' ? <UsersBudgetPage /> : null}
-        {view === 'audit' ? <AuditPage /> : null}
-        {view === 'feedback' ? <FeedbackReviewPage /> : null}
-        {view === 'configuration' ? <ConfigurationPage /> : null}
-        {view === 'account' ? (
+        {activeView === 'documents' ? <DocumentsPage userRoles={sessionUser.roles} /> : null}
+        {activeView === 'users' ? <UsersBudgetPage userRoles={sessionUser.roles} /> : null}
+        {activeView === 'audit' ? <AuditPage /> : null}
+        {activeView === 'feedback' ? <FeedbackReviewPage /> : null}
+        {activeView === 'configuration' ? <ConfigurationPage /> : null}
+        {activeView === 'account' ? (
           <AccountPage user={sessionUser} onUserUpdated={setSessionUser} />
         ) : null}
       </section>

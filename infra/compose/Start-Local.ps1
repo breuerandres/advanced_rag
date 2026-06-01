@@ -39,19 +39,23 @@ function Assert-SecretFilesReady {
         "openai_api_key.txt",
         "jwt_signing_keys.json",
         "csrf_signing_key.txt",
-        "internal_service_token.txt"
+        "internal_service_token.txt",
+        "minio_root_user.txt",
+        "minio_root_password.txt",
+        "s3_access_key.txt",
+        "s3_secret_key.txt"
     )
 
     $missing = @()
     foreach ($file in $requiredFiles) {
         $path = Join-Path $secretsDir $file
-        if (-not (Test-Path $path)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             $missing += $file
         }
     }
 
     if ($missing.Count -gt 0) {
-        throw "Missing local Compose secret files: $($missing -join ', '). Run .\infra\compose\New-LocalDevSecrets.ps1 and create openai_api_key.txt manually before starting the stack."
+        throw "Missing local Compose secret files, or paths are directories instead of files: $($missing -join ', '). Run .\infra\compose\New-LocalDevSecrets.ps1 -Overwrite and create openai_api_key.txt manually before starting the stack."
     }
 }
 

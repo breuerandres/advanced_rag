@@ -56,6 +56,130 @@ public sealed class UserAdministrationEndpointTests
     }
 
     [Fact]
+    public async Task ListUsers_AsDocumentManager_ReturnsUsersAndBalances()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var session = await LoginAsync(client, FakeAuthService.DocumentManagerEmail, "manage.localhost");
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/users");
+        request.Headers.Host = "manage.localhost";
+        request.Headers.Add("Cookie", session.SessionCookie);
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<UserResponse[]>();
+        body.Should().NotBeNull();
+        body!.Should().ContainSingle(user =>
+            user.Email == FakeAuthService.TargetEmail
+            && user.MonthlyBudgetUsd == 5m
+            && user.RemainingBudgetUsd == 5m);
+    }
+
+    [Fact]
+    public async Task MutateAdminOnlyUserFields_AsDocumentManager_ReturnsForbidden()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var session = await LoginAsync(client, FakeAuthService.DocumentManagerEmail, "manage.localhost");
+
+        using HttpResponseMessage createUser = await SendJsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/users",
+            new
+            {
+                email = "blocked.viewer@example.com",
+                displayName = "Blocked Viewer",
+                password = "temporary-password",
+                roles = new[] { "Viewer" },
+                groupIds = Array.Empty<Guid>(),
+            },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+        using HttpResponseMessage setRoles = await SendJsonAsync(
+            client,
+            HttpMethod.Put,
+            $"/api/users/{FakeAuthService.TargetUserId}/roles",
+            new { roles = new[] { "Admin" } },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+        using HttpResponseMessage setStatus = await SendJsonAsync(
+            client,
+            HttpMethod.Patch,
+            $"/api/users/{FakeAuthService.TargetUserId}/status",
+            new { isActive = false },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+        using HttpResponseMessage setBudget = await SendJsonAsync(
+            client,
+            HttpMethod.Put,
+            $"/api/users/{FakeAuthService.TargetUserId}/ai-budget",
+            new { monthlyBudgetUsd = 1m, isDisabled = false },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+
+        createUser.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        setRoles.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        setStatus.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        setBudget.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task ManageGroupsAndAssignments_AsDocumentManager_ReturnsSuccess()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var session = await LoginAsync(client, FakeAuthService.DocumentManagerEmail, "manage.localhost");
+
+        using HttpResponseMessage createGroup = await SendJsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/groups",
+            new { name = "People Ops" },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+        using HttpResponseMessage updateGroup = await SendJsonAsync(
+            client,
+            HttpMethod.Put,
+            $"/api/groups/{FakeUserAdministrationService.OperationsGroupId}",
+            new { name = "Operations Updated" },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+        using HttpResponseMessage assignGroups = await SendJsonAsync(
+            client,
+            HttpMethod.Put,
+            $"/api/users/{FakeAuthService.TargetUserId}/groups",
+            new { groupIds = new[] { FakeUserAdministrationService.OperationsGroupId } },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+
+        createGroup.StatusCode.Should().Be(HttpStatusCode.Created);
+        updateGroup.StatusCode.Should().Be(HttpStatusCode.OK);
+        assignGroups.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task ListUsers_AsViewer_ReturnsForbidden()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var session = await LoginAsync(client, FakeAuthService.TargetEmail, "manage.localhost");
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/users");
+        request.Headers.Host = "manage.localhost";
+        request.Headers.Add("Cookie", session.SessionCookie);
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task SetUserStatus_DeactivatesUserAndBlocksNewLogin()
     {
         using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
@@ -114,13 +238,15 @@ public sealed class UserAdministrationEndpointTests
     private static async Task<HttpResponseMessage> LoginResponseAsync(HttpClient client, string email, string host)
     {
         var csrf = await GetCsrfAsync(client, host);
-        return await SendJsonAsync(
-            client,
-            HttpMethod.Post,
-            "/api/auth/login",
-            new { email, password = FakeAuthService.ValidPassword },
-            host,
-            csrf);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
+        {
+            Content = JsonContent.Create(new { email, password = FakeAuthService.ValidPassword }),
+        };
+        request.Headers.Host = host;
+        request.Headers.Add("X-CSRF-Token", csrf.Token);
+        request.Headers.Add("Cookie", csrf.Cookie);
+        request.Headers.Add("X-Forwarded-For", $"192.0.2.{Interlocked.Increment(ref _loginIpCounter)}");
+        return await client.SendAsync(request);
     }
 
     private static async Task<CsrfState> GetCsrfAsync(HttpClient client, string host)
@@ -166,6 +292,8 @@ public sealed class UserAdministrationEndpointTests
     private sealed record CsrfState(string Token, string Cookie);
 
     private sealed record LoginSession(CsrfState Csrf, string SessionCookie);
+
+    private static int _loginIpCounter;
 
     private sealed record ApiErrorEnvelope(ApiErrorBody Error);
 

@@ -30,9 +30,19 @@ function Write-SecretFile {
     )
 
     $path = Join-Path $secretsDir $Name
-    if ((Test-Path $path) -and -not $Overwrite) {
-        Write-Host "Keeping existing $Name"
-        return
+    if (Test-Path -LiteralPath $path) {
+        $item = Get-Item -LiteralPath $path
+        if ($item.PSIsContainer) {
+            if (-not $Overwrite) {
+                throw "$Name exists as a directory. Re-run with -Overwrite to replace it with a secret file."
+            }
+
+            Remove-Item -LiteralPath $path -Force -Recurse
+        }
+        elseif (-not $Overwrite) {
+            Write-Host "Keeping existing $Name"
+            return
+        }
     }
 
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -52,6 +62,10 @@ Write-SecretFile -Name "postgres_rag_password.txt" -Value (New-Base64UrlSecret -
 Write-SecretFile -Name "postgres_reporting_password.txt" -Value (New-Base64UrlSecret -Bytes 32)
 Write-SecretFile -Name "csrf_signing_key.txt" -Value (New-Base64UrlSecret -Bytes 32)
 Write-SecretFile -Name "internal_service_token.txt" -Value (New-Base64UrlSecret -Bytes 32)
+Write-SecretFile -Name "minio_root_user.txt" -Value "advanced-rag-local"
+Write-SecretFile -Name "minio_root_password.txt" -Value (New-Base64UrlSecret -Bytes 32)
+Write-SecretFile -Name "s3_access_key.txt" -Value "advanced-rag-images"
+Write-SecretFile -Name "s3_secret_key.txt" -Value (New-Base64UrlSecret -Bytes 32)
 
 $openAiKeyPath = Join-Path $secretsDir "openai_api_key.txt"
 if (Test-Path $openAiKeyPath) {

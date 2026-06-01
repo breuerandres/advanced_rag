@@ -49,6 +49,16 @@ public sealed class OperationalReadinessChecker : IOperationalReadinessChecker
             failed.Add("internal_service_token");
         }
 
+        if (!HasRequiredSecret("S3:AccessKey", "S3:AccessKeyFile"))
+        {
+            failed.Add("s3_access_key");
+        }
+
+        if (!HasRequiredSecret("S3:SecretKey", "S3:SecretKeyFile"))
+        {
+            failed.Add("s3_secret_key");
+        }
+
         try
         {
             _jwtKeys.GetCurrentSigningKey();

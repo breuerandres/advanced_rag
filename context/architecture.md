@@ -12,6 +12,7 @@
 | RAG backend | FastAPI | Public chat API, retrieval, semantic cache, embeddings, RAG audit, indexing worker |
 | Database | PostgreSQL with pgvector | Relational data, document content, audit, vectors, cache, indexing jobs |
 | AI provider | OpenAI | Chat completions/responses and embeddings |
+| Document image object storage | MinIO / S3-compatible object storage | Private binary storage for document images referenced by canonical HTML |
 | Deployment | Docker Compose | Single-tenant customer deployment |
 | Secrets | Docker Compose secrets | Sensitive configuration mounted as files |
 | Logs | JSON files on mounted volumes | Daily per-service technical logs |
@@ -38,7 +39,7 @@ Browser frontends should call same-origin `/api/*` routes exposed on their own h
 | --- | --- | --- |
 | `manage.client.com` | `/api/*` | .NET API |
 | `chat.client.com` | `/api/chat/*`, `/api/feedback/*`, chat health routes | FastAPI |
-| `chat.client.com` | `/api/auth/*`, `/api/session/*`, viewer-token exchange if needed | .NET API |
+| `chat.client.com` | `/api/auth/*`, `/api/session/*` | .NET API |
 | `docs.client.com` | `/api/*` | .NET API |
 
 This same-origin gateway pattern is the preferred browser topology for the MVP because it supports host-only cookies, reduces CORS complexity, and avoids broad parent-domain cookies.
@@ -84,6 +85,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - **`app` schema:** owned by .NET. Stores users, roles, groups/departments, documents, document metadata, lifecycle state, permissions, session-authenticated document access data, and management audit events.
 - **`rag` schema:** owned by FastAPI. Stores indexing jobs, document chunks with embeddings, semantic cache entries and sources, query audit events with simple feedback, query audit citations, and model pricing.
 - **Document source content:** canonical normalized HTML and metadata are stored in Postgres.
+- **Document image content:** image bytes are stored in private S3-compatible object storage, MinIO in the Docker Compose MVP. Postgres stores only image metadata, document ownership, version references, content type, size, checksum, object key, and audit fields. Canonical document HTML must reference images through stable same-origin application URLs such as `/api/document-images/{imageId}/content`; it must not store base64 image data, raw MinIO URLs, raw AWS S3 URLs, or expiring presigned URLs.
 - **Imported files:** PDF/DOCX originals are not retained in the MVP. Imports are assisted extraction flows owned by the .NET management API: .NET accepts PDF/DOCX uploads up to 10 MB, extracts text from the uploaded file, and returns it to `manage.client.com`, which inserts it into the document editor so the user can correct formatting, structure, and attributes before saving. The system stores the user-edited normalized HTML plus import metadata such as original filename, MIME type, size, hash, importer, timestamp, extraction result, and file size.
 - **Import extraction libraries:** .NET uses `DocumentFormat.OpenXml` for DOCX extraction and `PdfPig` for PDF extraction. These libraries are used only for assisted text extraction into the editor, not for final formatting or publication decisions.
 
@@ -96,7 +98,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - JWTs, refresh tokens, session IDs, and other credential-bearing tokens must not be stored in `localStorage` or `sessionStorage`.
 - SameSite cookies are defense in depth, not the only CSRF defense. Mutating browser requests must include an approved CSRF mitigation such as synchronizer tokens or a signed double-submit cookie/header pattern.
 - Browser session cookies must be host-only `__Host-` prefixed cookies when set through the same-origin frontend hosts. Avoid broad parent-domain cookies such as `Domain=.client.com` for the MVP.
-- Phase 1.5 unified auth uses `__Host-session` as the only browser auth cookie. FastAPI chat/feedback read the `__Host-session` cookie and validate it through `.NET` internal `GET /internal/session/validate` on cache miss with `X-Internal-Service-Token`.
+- Unified auth uses `__Host-session` as the only browser auth cookie. FastAPI chat/feedback read the `__Host-session` cookie and validate it through `.NET` internal `GET /internal/session/validate` on cache miss with `X-Internal-Service-Token`.
 - FastAPI caches safe session claims in process for 60 seconds keyed by a SHA-256 hash of the session cookie value. Raw session cookies must not be logged.
 - .NET remains the authority for login, session issuance, user state, role/group assignment, internal session validation, and token signing key management.
 - Legacy `POST /api/auth/chat-token`, `__Host-chat-token`, `/api/viewer/exchange`, and `__Host-viewer-token` runtime flows have been removed. The deprecated viewer exchange/audit tables are not part of the current EF model or initial app-schema migration.
@@ -121,6 +123,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - `__Host-` cookies remain `Secure` in local development because Caddy serves HTTPS locally. There is no `Secure=false` exception in any environment.
 - The `.localhost` TLD resolves to `127.0.0.1` per RFC 6761; no `hosts` file edits are required.
 - Because the project Caddy instance runs inside Docker Compose, local Windows developers should use `infra/compose/Start-Local.ps1 -TrustCaddyCertificate` to copy and trust the Docker-generated Caddy root CA. Running `caddy trust` on the host only trusts a separate host-installed Caddy instance and does not trust the Compose container CA.
+- The local Compose override may expose the MinIO admin console on `127.0.0.1:9001` for developer inspection of the private document image bucket. Production Compose must not publish the MinIO console or S3 API ports; runtime document image access remains authorized and streamed through `.NET`.
 
 ## JWT Signing Key Rotation
 
@@ -147,9 +150,9 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 
 | Role | Permissions |
 | --- | --- |
-| `Admin` | Full access, including publishing, user management, roles, groups, audit, and configuration |
-| `DocumentManager` | Can create, read, update, import, archive eligible draft or in-review documents, restore archived documents to draft, edit metadata, and send documents to review. Cannot publish. |
-| `Viewer` | No access to `manage.client.com`. Can use chat and open allowed documents in `docs.client.com`. |
+| `Admin` | Full management access, including publishing, user creation, role/status changes, group management, group assignment, AI budget limits, audit, feedback, configuration, chat, docs, and account self-service. |
+| `DocumentManager` | Can use Viewer self-service, create/read/update/import/archive eligible draft or in-review documents, restore archived documents to draft, edit metadata, send documents to review, view all users and AI balances, create/edit groups, assign users to groups, and view audit/feedback/configuration read models. Cannot publish, create users, change roles/status, or modify AI budget limits. |
+| `Viewer` | Can use chat, open allowed published documents in `docs.client.com`, and access a limited `manage.client.com` self-service surface for own account, own AI usage balance, and safe read-only configuration. Cannot access full management workspaces. |
 
 ## Viewer Document Access
 
@@ -163,7 +166,7 @@ The main session token and any other credential-bearing token must not be placed
 
 Document states are `Draft`, `In Review`, `Published`, and `Archived`.
 
-- The MVP uses simple formal versioning. Each successful publication creates an immutable version number such as `v1`, `v2`, and so on.
+- The MVP uses simple formal versioning. Each successful publication creates an immutable version number such as `version 1`, `version 2`, and so on.
 - The document viewer and public RAG use the latest successfully published version.
 - Version records preserve the normalized HTML, metadata snapshot, publication timestamp, publisher, and indexing reference used for that version.
 - Editing an already published document creates a new draft version. The latest published version remains active until the new draft completes review, pre-publication indexing, and publication.
@@ -205,6 +208,7 @@ Document states are `Draft`, `In Review`, `Published`, and `Archived`.
 - The .NET API requests indexing by calling an internal FastAPI endpoint.
 - FastAPI creates and owns `rag.indexing_jobs`.
 - FastAPI receives only saved normalized document content for indexing; it does not parse PDF/DOCX imports in the MVP.
+- Document image upload, metadata, authorization, and serving are owned by `.NET` because they are part of document lifecycle and viewer access. FastAPI does not write document image metadata or objects. In the first image slice, indexing remains text-first and may include `alt` text present in saved HTML, but query-time multimodal OpenAI image inputs are deferred.
 - Indexing jobs store state, attempts, technical error, timestamps, and document references.
 
 ## Semantic Cache
@@ -229,7 +233,7 @@ Cache invalidation rules:
 
 ## AI Usage Budgets
 
-The MVP supports per-user monthly AI usage budgets configured in monetary value, initially USD. The default monthly budget is USD 5 per user unless an `Admin` configures another value. Budget periods use the customer deployment's configured timezone and reset by calendar month, from the first day through the last day of that month. `Admin` users can set and adjust a user's monthly budget from the management app. Budget configuration is owned by the .NET API in the `app` schema and changes are captured in management audit.
+The MVP supports per-user monthly AI usage budgets configured in monetary value, initially USD. The default monthly budget is USD 5 per user unless an `Admin` configures another value. Budget periods use the customer deployment's configured timezone and reset by calendar month, from the first day through the last day of that month. `Admin` users can set and adjust a user's monthly budget from the management app. `Viewer` and `DocumentManager` users can inspect budget status and available balance according to their role: Viewers see only their own balance, while DocumentManagers can inspect all user balances but cannot modify limits. Budget configuration is owned by the .NET API in the `app` schema and changes are captured in management audit.
 
 FastAPI enforces the budget before starting new paid AI work for chat. Enforcement reads `.NET`-owned `app.user_ai_budget_limits` through an explicitly granted read-only database path, then combines the configured budget with the user's current-period spend calculated from `rag.query_audit_events`, where each query stores the actual model IDs, token usage, pricing snapshot, and estimated cost. Budget checks must happen before semantic cache lookup, embeddings, or LLM generation so over-budget users do not keep generating cost.
 
@@ -272,9 +276,11 @@ The `postgres-init` service reads those files to create or update the `app_owner
 
 Non-sensitive runtime configuration uses environment variables, including internal URLs, ports, cache TTL, model names, and environment flags.
 
+Document image object storage uses separate Compose secrets for the S3-compatible access key and secret key. The MinIO root user/password are operational bootstrap secrets and must not be reused by runtime services. The document image bucket is private; browser image requests always pass through `.NET` authorization and object streaming.
+
 OpenAI models are configurable with environment variables such as `OPENAI_CHAT_MODEL`, `OPENAI_EMBEDDING_MODEL`, and `OPENAI_EMBEDDING_DIMENSIONS`. Model prices are stored in the database.
 
-The current default chat model is `gpt-4.1-nano` to minimize cost while the product is being validated. The v2 RAG schema uses `OPENAI_EMBEDDING_DIMENSIONS=1024` and pgvector `vector(1024)`. `infra/compose/.env.example` still sets `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`; the final shipped embedding default remains blocked by `OQ-002`. These defaults remain runtime configuration values, not hardcoded business logic. Chat response speed, answer quality, and cost are product quality attributes and must be tracked through latency, feedback, and cost metrics in RAG query audit and logs.
+The current default chat model is `gpt-4.1-nano` to minimize cost while the product is being validated. The current RAG schema uses `OPENAI_EMBEDDING_DIMENSIONS=1024` and pgvector `vector(1024)`. `infra/compose/.env.example` sets `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`. These defaults remain runtime configuration values, not hardcoded business logic. Chat response speed, answer quality, and cost are product quality attributes and must be tracked through latency, feedback, and cost metrics in RAG query audit and logs.
 
 ## Operational Defaults
 
@@ -328,7 +334,7 @@ Rate limit exceedances must use stable safe error codes and must not expose inte
 ### `rag` Schema, Owned By FastAPI
 
 - `indexing_jobs`
-- `document_chunks` with the `vector(1024)` embedding stored on the chunk row after the v2 migration
+- `document_chunks` with the `vector(1024)` embedding stored on the chunk row
 - `semantic_cache_entries`
 - `semantic_cache_sources`
 - `query_audit_events` with one simple feedback value/comment per answer
@@ -344,6 +350,7 @@ The MVP includes health/readiness endpoints and Compose healthchecks:
 - FastAPI `/health/live` (always 200 if the process is up) and `/health/ready` (verifies DB connectivity, pgvector extension presence, OpenAI API key file readable, JWKS fetched from .NET, and internal service token loaded).
 - Frontend HTTP health checks: each frontend returns `200` on `/` once Vite preview/served bundle is up.
 - Caddy admin endpoint `/-/health` (or equivalent) to verify route configuration loaded.
+- MinIO readiness check uses MinIO health endpoints and bucket initialization must complete before runtime image upload is considered ready.
 
 Readiness must verify critical dependencies such as DB connectivity and required secrets presence. The Compose `depends_on` graph uses `service_healthy` for the migration ordering described in Operations.
 

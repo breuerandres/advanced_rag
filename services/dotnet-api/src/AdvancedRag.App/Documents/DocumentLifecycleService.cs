@@ -26,6 +26,15 @@ public interface IDocumentLifecycleService
 public sealed class DocumentLifecycleService : IDocumentLifecycleService
 {
     private static readonly Regex HtmlTagPattern = new("<[^>]+>", RegexOptions.Compiled);
+    private static readonly Regex ImageTagPattern = new(
+        "<img\\b[^>]*>",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex ImageSrcPattern = new(
+        "\\bsrc\\s*=\\s*(?:\"(?<src>[^\"]*)\"|'(?<src>[^']*)'|(?<src>[^\\s>]+))",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex StableDocumentImageSourcePattern = new(
+        "^/api/document-images/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/content$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly IDocumentRepository _repository;
     private readonly IInternalIndexingClient _indexingClient;
@@ -59,7 +68,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             command.Title.Trim(),
             command.DocumentType.Trim(),
             command.Audience.Trim(),
-            _htmlSanitizer.Sanitize(command.ContentHtml.Trim()),
+            SanitizeDocumentHtml(command.ContentHtml),
             NormalizeGroupIds(command.AllowedGroupIds),
             command.ActorUserId);
 
@@ -86,7 +95,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         string normalizedTitle = command.Title.Trim();
         string normalizedType = command.DocumentType.Trim();
         string normalizedAudience = command.Audience.Trim();
-        string normalizedContent = _htmlSanitizer.Sanitize(command.ContentHtml.Trim());
+        string normalizedContent = SanitizeDocumentHtml(command.ContentHtml);
         DateTimeOffset now = DateTimeOffset.UtcNow;
         DocumentVersionRecord? existingDraft = document.CurrentDraftVersion;
 
@@ -457,6 +466,37 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     private static string PlainText(string html)
     {
         return HtmlTagPattern.Replace(html, string.Empty).Trim();
+    }
+
+    private string SanitizeDocumentHtml(string html)
+    {
+        string trimmed = html.Trim();
+        ValidateImageSources(trimmed);
+        return _htmlSanitizer.Sanitize(trimmed);
+    }
+
+    private static void ValidateImageSources(string html)
+    {
+        foreach (Match imageMatch in ImageTagPattern.Matches(html))
+        {
+            Match sourceMatch = ImageSrcPattern.Match(imageMatch.Value);
+            if (!sourceMatch.Success)
+            {
+                continue;
+            }
+
+            string source = sourceMatch.Groups["src"].Value.Trim();
+            if (StableDocumentImageSourcePattern.IsMatch(source))
+            {
+                continue;
+            }
+
+            throw new DocumentLifecycleException(
+                "DOCUMENT_IMAGE_SOURCE_INVALID",
+                400,
+                "Document image sources must use stable app-controlled URLs.",
+                new Dictionary<string, object?> { ["field"] = "contentHtml" });
+        }
     }
 
     private static string RequireComment(string comment)

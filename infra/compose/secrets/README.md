@@ -10,6 +10,10 @@ Create these files locally before running the Compose stack:
 - `jwt_signing_keys.json`
 - `csrf_signing_key.txt`
 - `internal_service_token.txt`
+- `minio_root_user.txt`
+- `minio_root_password.txt`
+- `s3_access_key.txt`
+- `s3_secret_key.txt`
 
 Do not commit secret values. This directory is ignored except for this README.
 
@@ -41,6 +45,7 @@ The script generates:
 - Three random runtime Postgres role passwords.
 - A random CSRF HMAC signing key.
 - A random internal service token shared by `.NET` and FastAPI.
+- Local MinIO root and S3-compatible runtime credentials for document image storage.
 - A valid RS256 `jwt_signing_keys.json` document with one `current` key.
 
 The script never creates, overwrites, or rotates `openai_api_key.txt`. That file contains the external OpenAI API key and must be created or updated manually by the developer/operator.
@@ -91,4 +96,8 @@ Set-Content -NoNewline -Path infra/compose/secrets/openai_api_key.txt -Value "re
 Set-Content -NoNewline -Path infra/compose/secrets/jwt_signing_keys.json -Value "[]"
 Set-Content -NoNewline -Path infra/compose/secrets/csrf_signing_key.txt -Value "local-csrf-signing-key"
 Set-Content -NoNewline -Path infra/compose/secrets/internal_service_token.txt -Value "local-internal-service-token"
+Set-Content -NoNewline -Path infra/compose/secrets/minio_root_user.txt -Value "minioadmin"
+Set-Content -NoNewline -Path infra/compose/secrets/minio_root_password.txt -Value "minioadminpassword"
+Set-Content -NoNewline -Path infra/compose/secrets/s3_access_key.txt -Value "advanced-rag-images"
+Set-Content -NoNewline -Path infra/compose/secrets/s3_secret_key.txt -Value "local-s3-runtime-password"
 ```

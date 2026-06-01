@@ -36,7 +36,7 @@
 - The FastAPI service targets Python 3.12. `services/rag-api/.python-version` must stay on the Python 3.12 line and `pyproject.toml` must constrain `requires-python` to `>=3.12,<3.13` unless the stack decision is updated.
 - FastAPI must not parse PDF/DOCX imports in the MVP.
 - Use Alembic migrations for the `rag` schema.
-- Store chunk text/metadata and its vector embedding together in `rag.document_chunks`. The current v2 migration resizes the default embedding column to pgvector `vector(1024)` and the embeddings request must pass the configured `OPENAI_EMBEDDING_DIMENSIONS`.
+- Store chunk text/metadata and its vector embedding together in `rag.document_chunks`. The current embedding column is pgvector `vector(1024)`, and the embeddings request must pass the configured `OPENAI_EMBEDDING_DIMENSIONS`.
 - Store citations as `rag.query_audit_citations` child rows of `rag.query_audit_events`.
 - Store one simple thumbs feedback value and optional sanitized comment on `rag.query_audit_events` for the MVP. Allow the same user to update feedback on the same answer by overwriting the single feedback value/comment and updating `feedback_updated_at`; split feedback into a child table only if multi-feedback/history requirements are introduced.
 - Enforce per-user AI usage budgets before new paid chat work whenever possible. Return stable error code `AI_BUDGET_EXCEEDED` when a user has reached the configured budget. Do not treat budget exhaustion as a general authorization failure for document viewing or management workflows.
@@ -61,8 +61,8 @@
 - Enforce authentication and authorization before mutation.
 - Use the shared error envelope: `{ "error": { "code", "message", "details", "requestId" } }`.
 - Stable validation error codes are required for oversized imports, non-extractable imports, invalid lifecycle transitions, unauthorized access, and indexing failures.
-- Stable error codes are required for invalid, expired, already-used, and unauthorized viewer exchange codes.
-- Stable rate-limit error codes are required for login, chat, import extraction, and viewer exchange rate limits.
+- Stable error codes are required for unauthorized document viewer access.
+- Stable rate-limit error codes are required for login, chat, and import extraction rate limits.
 - Browser-facing authentication must use `HttpOnly`, `Secure`, `SameSite` cookies with CSRF protection for mutating requests.
 - Browser frontends should call same-origin `/api/*` routes through Caddy instead of cross-origin backend hosts.
 - Use host-only `__Host-` prefixed cookies for browser sessions when set through frontend hosts; do not use broad parent-domain cookies for the MVP.
@@ -73,6 +73,9 @@
 - `.NET` writes the `app` schema; FastAPI writes the `rag` schema.
 - Cross-schema writes are not allowed except through explicit API/internal contracts.
 - Store canonical normalized document HTML and metadata in Postgres.
+- Store document image bytes in private S3-compatible object storage, not in Postgres. Postgres stores image metadata and stable app-controlled image references only.
+- Canonical HTML may reference images only through same-origin app URLs under `/api/document-images/{imageId}/content`. Reject base64 `data:` image sources, arbitrary external URLs, raw MinIO/S3 URLs, and presigned URLs with stable error code `DOCUMENT_IMAGE_SOURCE_INVALID`.
+- Document image uploads are `.NET` document-domain operations. FastAPI must not write image objects or `app` image metadata.
 - Model MVP document access through groups/departments and attributes. Do not add per-user document ACLs unless a later requirement explicitly changes the access model.
 - Store per-user AI budget configuration in the `app` schema and RAG spend evidence in `rag.query_audit_events`.
 - Store functional audit in Postgres and technical logs as daily JSON files on mounted volumes.
@@ -107,6 +110,7 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | PDF extraction | `PdfPig` `0.1.14` | Assisted import only. |
 | DOCX extraction | `DocumentFormat.OpenXml` `3.5.1` | Assisted import only. |
 | HTML sanitization | `Ganss.Xss` via `HtmlSanitizer` `9.0.892` | Sanitize stored normalized document HTML and any review comment input that may render HTML. |
+| Object storage | `AWSSDK.S3` | S3-compatible client for document image bytes. Configure `ServiceURL` for MinIO in Compose and normal AWS S3 settings for a later migration. |
 | Authentication | Cookie authentication plus local users in `app.users`; hand-rolled PBKDF2-SHA256 password hashing using `Rfc2898DeriveBytes` | Session cookies are host-only `__Host-session` cookies. The legacy chat-token and viewer-token browser flows are removed. |
 | CSRF | Signed double-submit token using `__Host-CSRF` cookie plus `X-CSRF-Token` header | HMAC secret is shared with FastAPI through `csrf_signing_key`; see `architecture.md`. |
 | JWT signing/validation | `System.IdentityModel.Tokens.Jwt` `8.14.0` + `Microsoft.IdentityModel.Tokens` | RS256, `kid` header, two active keys for rotation. |
@@ -124,7 +128,7 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | Logging | `structlog` configured with `JSONRenderer` + stdlib `logging` bridge | Daily rolling JSON via a custom file handler; same log envelope as .NET. |
 | HTTP client | `httpx` (async) | Used for FastAPI -> .NET internal session validation and available for provider transports that require direct HTTP calls. |
 | OpenAI | `openai` (official Python SDK, async client) | Wrap behind a thin internal adapter that the rest of the service depends on. |
-| Vector DB | `pgvector` Postgres extension + `pgvector.asyncpg` integration registered through SQLAlchemy types | Current v2 column type is `Vector(1024)` after migration `20260522_120000_v2_change_embedding_dimensions.py`. |
+| Vector DB | `pgvector` Postgres extension + `pgvector.asyncpg` integration registered through SQLAlchemy types | Current column type is `Vector(1024)` after migration `20260522_120000_v2_change_embedding_dimensions.py`. |
 | Tokenization | `tiktoken` | Chunk sizing and token-cost calculations. |
 | JWT validation crypto | `pyjwt[crypto]` `2.12.1` | Legacy chat-token validator code may remain temporarily for test cleanup, but browser runtime must use internal `.NET` session validation. |
 | Tracing/correlation | `asgi-correlation-id` | Reads/propagates `X-Request-ID`. |

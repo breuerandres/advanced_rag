@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   FolderPlus,
   Pencil,
@@ -27,8 +28,14 @@ import { Button, Checkbox, DataTable, Dialog, Input } from '@helpcenter/shared-u
 
 type LoadState = 'loading' | 'ready' | 'error'
 type UserStatusFilter = 'all' | 'active' | 'inactive'
+type UsersWorkspaceTab = 'users' | 'groups'
 
-export function UsersBudgetPage() {
+interface UsersBudgetPageProps {
+  userRoles: string[]
+}
+
+export function UsersBudgetPage({ userRoles }: UsersBudgetPageProps) {
+  const { t } = useTranslation()
   const [users, setUsers] = useState<UserSummary[]>([])
   const [groups, setGroups] = useState<GroupSummary[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
@@ -41,6 +48,9 @@ export function UsersBudgetPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('all')
+  const [activeTab, setActiveTab] = useState<UsersWorkspaceTab>('users')
+  const isAdmin = userRoles.includes('Admin')
+  const canManageGroups = isAdmin || userRoles.includes('DocumentManager')
 
   useEffect(() => {
     void loadUsers()
@@ -107,13 +117,13 @@ export function UsersBudgetPage() {
           currentUser.id === updatedUser.id ? updatedUser : currentUser,
         ),
       )
-      setSuccessMessage(isActive ? 'Usuario reactivado.' : 'Usuario dado de baja.')
+      setSuccessMessage(isActive ? t('users.status_reactivated') : t('users.status_deactivated'))
     } catch (error) {
       const reference = error instanceof ApiError ? error.requestId : 'unknown'
       setErrorMessage(
         isActive
-          ? `No se pudo reactivar el usuario. Referencia: ${reference}.`
-          : `No se pudo dar de baja el usuario. Referencia: ${reference}.`,
+          ? t('users.error_reactivate', { reference })
+          : t('users.error_deactivate', { reference }),
       )
     }
   }
@@ -124,42 +134,45 @@ export function UsersBudgetPage() {
       <section className="workspace" id="usuarios">
         <header className="workspace-header">
           <div>
-            <p className="eyebrow">Administración</p>
-            <h1>Usuarios y grupos</h1>
+            <p className="eyebrow">{t('users.eyebrow')}</p>
+            <h1>{t('users.title')}</h1>
           </div>
           <div className="workspace-actions">
             {!isCreatingGroup && !isCreatingUser ? (
               <>
-                <Button
-                  className="text-button"
-                  type="button"
-                  onClick={() => {
-                    setIsCreatingGroup(true)
-                    setSuccessMessage(null)
-                    setErrorMessage(null)
-                  }}
-                >
-                  <FolderPlus size={16} />
-                  Crear grupo
-                </Button>
-                <Button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => {
-                    setIsCreatingUser(true)
-                    setSuccessMessage(null)
-                    setErrorMessage(null)
-                  }}
-                >
-                  <UserPlus size={16} />
-                  Crear usuario
-                </Button>
+                {activeTab === 'groups' && canManageGroups ? (
+                  <Button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => {
+                      setIsCreatingGroup(true)
+                      setSuccessMessage(null)
+                      setErrorMessage(null)
+                    }}
+                  >
+                    <FolderPlus size={16} />
+                    {t('users.create_group')}
+                  </Button>
+                ) : activeTab === 'users' && isAdmin ? (
+                  <Button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => {
+                      setIsCreatingUser(true)
+                      setSuccessMessage(null)
+                      setErrorMessage(null)
+                    }}
+                  >
+                    <UserPlus size={16} />
+                    {t('users.create_user')}
+                  </Button>
+                ) : null}
               </>
             ) : null}
             <Button
               className="icon-button"
               type="button"
-              aria-label="Actualizar usuarios"
+              aria-label={t('users.refresh')}
               disabled={loadState === 'loading'}
               onClick={() => void loadUsers()}
             >
@@ -168,30 +181,62 @@ export function UsersBudgetPage() {
           </div>
         </header>
 
-        <section className="metrics-row" aria-label="Resumen de usuarios">
+        <div className="workspace-tabs" role="tablist" aria-label={t('users.title')}>
+          <button
+            className="workspace-tab"
+            id="users-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'users'}
+            aria-controls="users-panel"
+            onClick={() => setActiveTab('users')}
+          >
+            {t('users.users_tab')}
+          </button>
+          <button
+            className="workspace-tab"
+            id="groups-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'groups'}
+            aria-controls="groups-panel"
+            onClick={() => setActiveTab('groups')}
+          >
+            {t('users.groups_tab')}
+          </button>
+        </div>
+
+        {activeTab === 'users' ? (
+          <section
+            className="tab-panel"
+            id="users-panel"
+            role="tabpanel"
+            aria-labelledby="users-tab"
+          >
+        <section className="metrics-row" aria-label={t('users.summary_label')}>
           <div>
-            <span className="metric-label">Usuarios activos</span>
+            <span className="metric-label">{t('users.active_users')}</span>
             <strong>{activeUsers}</strong>
           </div>
           <div>
-            <span className="metric-label">Grupos disponibles</span>
+            <span className="metric-label">{t('users.available_groups')}</span>
             <strong>{groups.length}</strong>
           </div>
           <div>
-            <span className="metric-label">Presupuesto base</span>
+            <span className="metric-label">{t('users.base_budget')}</span>
             <strong>USD 5.00</strong>
           </div>
         </section>
 
         {loadState === 'ready' && users.length > 0 ? (
-          <section className="filter-bar" aria-label="Filtros de usuarios">
+          <section className="filter-bar" aria-label={t('users.filters_label')}>
             <label className="field filter-search">
-              <span>Buscar usuarios</span>
+              <span>{t('users.search_users')}</span>
               <span className="search-control">
                 <Search size={16} />
                 <Input
                   type="search"
-                  placeholder="Nombre, email, rol o grupo"
+                  placeholder={t('users.search_placeholder')}
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                 />
@@ -199,14 +244,14 @@ export function UsersBudgetPage() {
             </label>
 
             <label className="field filter-status">
-              <span>Estado</span>
+              <span>{t('users.status')}</span>
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as UserStatusFilter)}
               >
-                <option value="all">Todos</option>
-                <option value="active">Activos</option>
-                <option value="inactive">Inactivos</option>
+                <option value="all">{t('users.status_all')}</option>
+                <option value="active">{t('users.status_active_plural')}</option>
+                <option value="inactive">{t('users.status_inactive_plural')}</option>
               </select>
             </label>
           </section>
@@ -225,21 +270,21 @@ export function UsersBudgetPage() {
         ) : null}
 
         {loadState === 'loading' ? (
-          <p className="status-message">Cargando usuarios...</p>
+          <p className="status-message">{t('users.loading_users')}</p>
         ) : null}
 
         {loadState === 'error' ? (
           <p className="status-message error" role="alert">
-            No se pudo cargar la información de usuarios.
+            {t('users.load_error')}
           </p>
         ) : null}
 
         {loadState === 'ready' && users.length === 0 ? (
-          <p className="status-message">No hay usuarios para mostrar.</p>
+          <p className="status-message">{t('users.empty_users')}</p>
         ) : null}
 
         {loadState === 'ready' && users.length > 0 && filteredUsers.length === 0 ? (
-          <p className="status-message">No hay usuarios que coincidan con los filtros.</p>
+          <p className="status-message">{t('users.empty_users_filtered')}</p>
         ) : null}
 
         {loadState === 'ready' && filteredUsers.length > 0 ? (
@@ -248,7 +293,7 @@ export function UsersBudgetPage() {
             columns={[
               {
                 key: 'user',
-                header: 'Usuario',
+                header: t('users.user_column'),
                 rowHeader: true,
                 render: (user) => (
                   <>
@@ -257,77 +302,83 @@ export function UsersBudgetPage() {
                   </>
                 ),
               },
-              { key: 'roles', header: 'Roles', render: (user) => joinOrDash(user.roles) },
+              { key: 'roles', header: t('users.roles_column'), render: (user) => joinOrDash(user.roles) },
               {
                 key: 'groups',
-                header: 'Grupos',
+                header: t('users.groups_column'),
                 render: (user) => joinOrDash(user.groups.map((group) => group.name)),
               },
               {
                 key: 'status',
-                header: 'Estado',
+                header: t('users.status_column'),
                 render: (user) => (
                       <span className={user.isActive ? 'badge active' : 'badge inactive'}>
-                        {user.isActive ? 'Activo' : 'Inactivo'}
+                        {user.isActive ? t('users.status_active') : t('users.status_inactive')}
                       </span>
                 ),
               },
               {
                 key: 'monthlyBudget',
-                header: 'Presupuesto mensual',
+                header: t('users.monthly_budget_column'),
                 render: (user) => formatBudget(user.monthlyBudgetUsd, user.isBudgetDisabled),
               },
               {
                 key: 'currentSpend',
-                header: 'Gasto actual',
+                header: t('users.current_spend_column'),
                 render: (user) => formatCurrency(user.currentSpendUsd),
               },
               {
                 key: 'remaining',
-                header: 'Restante',
+                header: t('users.remaining_column'),
                 render: (user) => formatNullableCurrency(user.remainingBudgetUsd),
               },
               {
                 key: 'actions',
-                header: 'Acciones',
+                header: t('users.actions_column'),
                 render: (user) => (
                       <div className="row-actions">
-                        <Button
-                          className="icon-button"
-                          type="button"
-                          aria-label={`Editar usuario ${user.displayName}`}
-                          onClick={() => {
-                            setManagingUser(user)
-                            setSuccessMessage(null)
-                            setErrorMessage(null)
-                          }}
-                        >
-                          <UserCog size={16} />
-                        </Button>
-                        <Button
-                          className="icon-button"
-                          type="button"
-                          aria-label={`Editar presupuesto de ${user.displayName}`}
-                          onClick={() => {
-                            setEditingUser(user)
-                            setSuccessMessage(null)
-                            setErrorMessage(null)
-                          }}
-                        >
-                          <WalletCards size={16} />
-                        </Button>
-                        <Button
-                          className="icon-button"
-                          type="button"
-                          aria-label={
-                            user.isActive
-                              ? `Dar de baja a ${user.displayName}`
-                              : `Reactivar a ${user.displayName}`
-                          }
-                          onClick={() => void setActiveStatus(user, !user.isActive)}
-                        >
-                          {user.isActive ? <UserX size={16} /> : <UserCheck size={16} />}
-                        </Button>
+                        {canManageGroups ? (
+                          <Button
+                            className="icon-button"
+                            type="button"
+                            aria-label={t('users.edit_user_for', { name: user.displayName })}
+                            onClick={() => {
+                              setManagingUser(user)
+                              setSuccessMessage(null)
+                              setErrorMessage(null)
+                            }}
+                          >
+                            <UserCog size={16} />
+                          </Button>
+                        ) : null}
+                        {isAdmin ? (
+                          <>
+                            <Button
+                              className="icon-button"
+                              type="button"
+                              aria-label={t('users.edit_budget_for', { name: user.displayName })}
+                              onClick={() => {
+                                setEditingUser(user)
+                                setSuccessMessage(null)
+                                setErrorMessage(null)
+                              }}
+                            >
+                              <WalletCards size={16} />
+                            </Button>
+                            <Button
+                              className="icon-button"
+                              type="button"
+                              aria-label={
+                                user.isActive
+                                  ? t('users.deactivate_user_for', { name: user.displayName })
+                                  : t('users.reactivate_user_for', { name: user.displayName })
+                              }
+                              onClick={() => void setActiveStatus(user, !user.isActive)}
+                            >
+                              {user.isActive ? <UserX size={16} /> : <UserCheck size={16} />}
+                            </Button>
+                          </>
+                        ) : null}
                       </div>
                 ),
               },
@@ -336,43 +387,61 @@ export function UsersBudgetPage() {
             getRowId={(user) => user.id}
           />
         ) : null}
-      </section>
+          </section>
+        ) : null}
 
-      {loadState === 'ready' ? (
-        <section className="workspace compact-workspace" id="grupos">
-          <header className="workspace-header">
+        {activeTab === 'groups' ? (
+          <section
+            className="tab-panel"
+            id="groups-panel"
+            role="tabpanel"
+            aria-labelledby="groups-tab"
+          >
+          <header className="workspace-header tab-panel-header">
             <div>
               <p className="eyebrow">Acceso documental</p>
-              <h2>Grupos</h2>
+              <h2>{t('users.groups_tab')}</h2>
             </div>
           </header>
 
-          {groups.length === 0 ? (
-            <p className="status-message">No hay grupos para mostrar.</p>
-          ) : (
+          {loadState === 'loading' ? (
+            <p className="status-message">{t('users.loading_groups')}</p>
+          ) : null}
+
+          {loadState === 'error' ? (
+            <p className="status-message error" role="alert">
+              {t('users.groups_load_error')}
+            </p>
+          ) : null}
+
+          {loadState === 'ready' && groups.length === 0 ? (
+            <p className="status-message">{t('users.empty_groups')}</p>
+          ) : null}
+
+          {loadState === 'ready' && groups.length > 0 ? (
             <DataTable<GroupSummary>
               className="table-frame groups-table-frame groups-table"
               columns={[
                 {
                   key: 'group',
-                  header: 'Grupo',
+                  header: t('users.group_column'),
                   rowHeader: true,
                   render: (group) => group.name,
                 },
                 {
                   key: 'users',
-                  header: 'Usuarios',
+                  header: t('users.users_column'),
                   render: (group) =>
                     users.filter((user) => user.groups.some((item) => item.id === group.id)).length,
                 },
                 {
                   key: 'actions',
-                  header: 'Acciones',
-                  render: (group) => (
+                  header: t('users.actions_column'),
+                  render: (group) => canManageGroups ? (
                         <Button
                           className="icon-button"
                           type="button"
-                          aria-label={`Editar grupo ${group.name}`}
+                          aria-label={t('users.edit_group_for', { name: group.name })}
                           onClick={() => {
                             setEditingGroup(group)
                             setSuccessMessage(null)
@@ -381,17 +450,18 @@ export function UsersBudgetPage() {
                         >
                           <Pencil size={16} />
                         </Button>
-                  ),
+                  ) : null,
                 },
               ]}
               data={groups}
               getRowId={(group) => group.id}
             />
-          )}
+          ) : null}
         </section>
       ) : null}
+      </section>
 
-      {editingUser ? (
+      {editingUser && isAdmin ? (
         <BudgetDialog
           user={editingUser}
           onClose={() => setEditingUser(null)}
@@ -405,10 +475,11 @@ export function UsersBudgetPage() {
         />
       ) : null}
 
-      {managingUser ? (
+      {managingUser && canManageGroups ? (
         <UserManagementDialog
           user={managingUser}
           groups={groups}
+          canEditRole={isAdmin}
           onClose={() => setManagingUser(null)}
           onSaved={(updatedUser) => {
             setUsers((current) =>
@@ -420,7 +491,7 @@ export function UsersBudgetPage() {
         />
       ) : null}
 
-      {editingGroup ? (
+      {editingGroup && canManageGroups ? (
         <GroupEditDialog
           group={editingGroup}
           onClose={() => setEditingGroup(null)}
@@ -440,7 +511,7 @@ export function UsersBudgetPage() {
         />
       ) : null}
 
-      {isCreatingGroup ? (
+      {isCreatingGroup && canManageGroups ? (
         <GroupDialog
           onClose={() => setIsCreatingGroup(false)}
           onSaved={(group) => {
@@ -451,7 +522,7 @@ export function UsersBudgetPage() {
         />
       ) : null}
 
-      {isCreatingUser ? (
+      {isCreatingUser && isAdmin ? (
         <UserDialog
           groups={groups}
           onClose={() => setIsCreatingUser(false)}
@@ -786,11 +857,13 @@ function UserDialog({
 function UserManagementDialog({
   user,
   groups,
+  canEditRole,
   onClose,
   onSaved,
 }: {
   user: UserSummary
   groups: GroupSummary[]
+  canEditRole: boolean
   onClose: () => void
   onSaved: (user: UserSummary) => void
 }) {
@@ -808,7 +881,7 @@ function UserManagementDialog({
 
     try {
       let updatedUser = user
-      if (role !== primaryRole(user.roles)) {
+      if (canEditRole && role !== primaryRole(user.roles)) {
         updatedUser = await updateUserRoles(user.id, { roles: [role] })
       }
 
@@ -853,18 +926,20 @@ function UserManagementDialog({
             <span>{user.email}</span>
           </div>
 
-          <label className="field">
-            <span>Rol</span>
-            <select
-              value={role}
-              onChange={(event) => setRole(event.target.value)}
-              disabled={isSaving}
-            >
-              <option value="Viewer">Viewer</option>
-              <option value="DocumentManager">DocumentManager</option>
-              <option value="Admin">Admin</option>
-            </select>
-          </label>
+          {canEditRole ? (
+            <label className="field">
+              <span>Rol</span>
+              <select
+                value={role}
+                onChange={(event) => setRole(event.target.value)}
+                disabled={isSaving}
+              >
+                <option value="Viewer">Viewer</option>
+                <option value="DocumentManager">DocumentManager</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </label>
+          ) : null}
 
           <fieldset className="checkbox-list" disabled={isSaving}>
             <legend>Grupos</legend>

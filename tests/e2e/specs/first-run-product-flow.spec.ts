@@ -57,10 +57,12 @@ test('setup fallback creates an admin and reaches chat and viewer product surfac
   await expect(adminPage.getByRole('heading', { name: 'Usuarios y grupos' })).toBeVisible()
 
   const groupName = `Primer uso ${Date.now()}`
+  await adminPage.getByRole('tab', { name: 'Grupos' }).click()
   await adminPage.getByRole('button', { name: 'Crear grupo' }).click()
   await adminPage.getByRole('textbox', { name: 'Nombre del grupo' }).fill(groupName)
   await adminPage.getByRole('button', { name: 'Guardar grupo' }).click()
   await expect(adminPage.getByText('Grupo creado.')).toBeVisible()
+  await adminPage.getByRole('tab', { name: 'Usuarios' }).click()
 
   await adminPage.getByRole('button', { name: 'Crear usuario' }).click()
   await adminPage.getByRole('textbox', { name: 'Email' }).fill(viewerEmail)

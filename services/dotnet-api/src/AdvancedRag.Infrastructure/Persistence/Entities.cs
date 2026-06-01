@@ -82,6 +82,20 @@ public sealed class DocumentTag
     public required string Name { get; set; }
 }
 
+public sealed class DocumentImage
+{
+    public Guid Id { get; set; }
+    public Guid DocumentId { get; set; }
+    public required string ObjectKey { get; set; }
+    public required string OriginalFilename { get; set; }
+    public required string ContentType { get; set; }
+    public long SizeBytes { get; set; }
+    public required string Sha256Hash { get; set; }
+    public required string AltText { get; set; }
+    public Guid UploadedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class ReviewComment
 {
     public Guid Id { get; set; }

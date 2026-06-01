@@ -7,7 +7,6 @@ namespace AdvancedRag.Api.Controllers;
 
 [ApiController]
 [Route("api/users")]
-[Authorize(Roles = "Admin")]
 public sealed class UsersController : ApiControllerBase
 {
     private readonly IUserAdministrationService _users;
@@ -18,6 +17,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "Admin,DocumentManager")]
     public async Task<IActionResult> ListUsersAsync(CancellationToken ct)
     {
         IReadOnlyList<UserManagementUser> users = await _users.ListUsersAsync(ct);
@@ -25,6 +25,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateUserAsync([FromBody] CreateUserRequest request, CancellationToken ct)
     {
         try
@@ -47,6 +48,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpPut("{id:guid}/roles")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> SetUserRolesAsync(
         Guid id,
         [FromBody] SetUserRolesRequest request,
@@ -66,6 +68,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpPut("{id:guid}/groups")]
+    [Authorize(Roles = "Admin,DocumentManager")]
     public async Task<IActionResult> SetUserGroupsAsync(
         Guid id,
         [FromBody] SetUserGroupsRequest request,
@@ -85,6 +88,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpPatch("{id:guid}/status")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> SetUserStatusAsync(
         Guid id,
         [FromBody] SetUserStatusRequest request,
@@ -104,6 +108,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpPut("{id:guid}/ai-budget")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> SetAiBudgetAsync(
         Guid id,
         [FromBody] SetAiBudgetRequest request,

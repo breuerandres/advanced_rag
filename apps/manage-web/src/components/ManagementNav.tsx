@@ -20,6 +20,7 @@ export type ManagementSection =
 interface ManagementNavProps {
   active: ManagementSection
   onNavigate: (section: ManagementSection) => void
+  userRoles: string[]
 }
 
 const links = [
@@ -35,12 +36,13 @@ const links = [
   icon: typeof ShieldCheck
 }>
 
-export function ManagementNav({ active, onNavigate }: ManagementNavProps) {
+export function ManagementNav({ active, onNavigate, userRoles }: ManagementNavProps) {
   const { t } = useTranslation()
+  const visibleLinks = links.filter((link) => canAccessSection(link.id, userRoles))
 
   return (
     <nav className="sidebar-nav">
-      {links.map((link) => {
+      {visibleLinks.map((link) => {
         const Icon = link.icon
         return (
           <a
@@ -59,4 +61,26 @@ export function ManagementNav({ active, onNavigate }: ManagementNavProps) {
       })}
     </nav>
   )
+}
+
+export function allowedManagementSections(userRoles: string[]): ManagementSection[] {
+  return links
+    .filter((link) => canAccessSection(link.id, userRoles))
+    .map((link) => link.id)
+}
+
+function canAccessSection(section: ManagementSection, userRoles: string[]) {
+  if (section === 'account') {
+    return true
+  }
+
+  if (section === 'configuration') {
+    return true
+  }
+
+  if (userRoles.includes('Admin') || userRoles.includes('DocumentManager')) {
+    return true
+  }
+
+  return false
 }

@@ -17,6 +17,7 @@ public sealed class AppDbContextMappingTests
         [typeof(DocumentVersion)] = "document_versions",
         [typeof(DocumentPermission)] = "document_permissions",
         [typeof(DocumentTag)] = "document_tags",
+        [typeof(DocumentImage)] = "document_images",
         [typeof(ReviewComment)] = "review_comments",
         [typeof(ImportMetadata)] = "import_metadata",
         [typeof(UserAiBudgetLimit)] = "user_ai_budget_limits",
