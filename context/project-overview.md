@@ -41,6 +41,7 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 - FastAPI validates short-lived signed chat access tokens issued by .NET.
 - Chat access tokens are issued or renewed by .NET from the main secure session, stored only as host-only `HttpOnly` cookies on `chat.client.com`, and validated locally by FastAPI.
 - Default MVP OpenAI models are `gpt-4.1-nano` for chat and `text-embedding-3-small` for embeddings with native 1536 dimensions to reduce cost until the MVP is running end to end. Models remain configurable per deployment.
+- Query-time multimodal RAG can attach a capped set of authorized document images from retrieved chunks so chat can answer visual questions without exposing raw object storage URLs or sending every document image to the model.
 - Published-only retrieval for normal viewers and internal preview retrieval for authorized management users.
 - Semantic cache with `access_scope_hash`, conservative default similarity threshold, TTL, citations, and source-document invalidation.
 - Thumbs up/down answer feedback with optional comment tied to RAG query audit.

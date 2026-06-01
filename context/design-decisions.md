@@ -93,6 +93,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Task 8 User Administration And Budget Configuration](#2026-05-14---task-8-user-administration-and-budget-configuration)
 - [Task 17 Budget Exhaustion E2E Scope](#2026-05-18---task-17-budget-exhaustion-e2e-scope)
 - [Text-First RAG Image Indexing](#2026-06-01---text-first-rag-image-indexing)
+- [Query-Time Multimodal RAG](#2026-06-01---query-time-multimodal-rag)
 
 ### Data Model And Operations
 
@@ -1701,3 +1702,19 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Editors and document managers should provide descriptive image `alt` text when the image carries business meaning. A later multimodal slice must make a separate decision for provider API choice, max images per query, max bytes, image detail level, cache behavior, and audit fields before fetching image bytes or sending image inputs.
 
 **Evidence:** Verified on 2026-06-01 from `services/rag-api` with `uv run pytest tests/test_chunking.py tests/test_indexing.py -q`, `uv run ruff check .`, `uv run pytest -q`, and `uv run mypy src tests`. Repository `git diff --check` returned only line-ending warnings.
+
+## 2026-06-01 - Query-Time Multimodal RAG
+
+**Context:** The user approved changing the next image strategy from text-only image descriptions to query-time multimodal RAG. The prior text-first slice remains useful as a retrieval signal, but it cannot answer visual questions when evidence exists only in image pixels.
+
+**Options Considered:** Query-time multimodal RAG after textual retrieval, offline visual caption generation during publication, or a hybrid of offline captions plus query-time image inputs.
+
+**Decision:** Implement query-time multimodal RAG first. The service keeps text retrieval as the primary filter, stores FastAPI-owned `chunk -> image_id` references during indexing, selects only images associated with final retrieved chunks, fetches authorized bytes through a `.NET` internal endpoint, and sends a capped set of images to OpenAI through the Responses API.
+
+**Rationale:** This gives direct visual reasoning while preserving the current retrieval, access, and storage boundaries. It avoids sending every document image to OpenAI and avoids committing to offline visual-caption persistence before quality and cost are measured.
+
+**Tradeoffs:** Chat latency and provider cost increase for multimodal requests. The first slice also requires a new RAG table, a `.NET` internal endpoint, a Responses API provider path, additional audit fields, and stricter readiness/pricing checks. Multimodal answers are not cached initially, so repeated visual questions may cost more until cache semantics include image evidence identity.
+
+**Consequences:** `.NET` remains the owner of image metadata, authorization, object storage access, and public serving. FastAPI may store `chunk -> image_id` references in the `rag` schema but must not write `app.document_images`, expose object keys, or read MinIO directly. Initial limits are 3 images, 5 MB total image bytes, and `detail: "low"` per chat request. Multimodal generation uses OpenAI Responses API with `store: false` and in-memory base64 data URLs.
+
+**Evidence:** OpenAI documentation checked on 2026-06-01 states that the Responses API supports text and image inputs, that image inputs may be provided as URLs, base64 data URLs, or file IDs, that images count as tokens, and that Responses is recommended for new projects while Chat Completions remains supported.

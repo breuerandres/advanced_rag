@@ -208,7 +208,9 @@ Document states are `Draft`, `In Review`, `Published`, and `Archived`.
 - The .NET API requests indexing by calling an internal FastAPI endpoint.
 - FastAPI creates and owns `rag.indexing_jobs`.
 - FastAPI receives only saved normalized document content for indexing; it does not parse PDF/DOCX imports in the MVP.
-- Document image upload, metadata, authorization, and serving are owned by `.NET` because they are part of document lifecycle and viewer access. FastAPI does not write document image metadata or objects. The first RAG image update remains text-first: indexing converts accessible image descriptions and captions from saved HTML into ordinary chunk text, but it does not persist image URLs, fetch image bytes, or send query-time multimodal OpenAI image inputs.
+- Document image upload, metadata, authorization, object storage access, and public serving are owned by `.NET` because they are part of document lifecycle and viewer access. FastAPI does not write document image metadata or objects. FastAPI indexing converts accessible image descriptions and captions from saved HTML into ordinary chunk text and stores FastAPI-owned `chunk -> image_id` references for stable same-origin image URLs. Query-time multimodal RAG may attach only a capped set of authorized images associated with retrieved chunks.
+- FastAPI obtains image bytes only through a `.NET` internal document image endpoint protected by `X-Internal-Service-Token`; it must not call public browser image URLs, raw MinIO/S3 URLs, or presigned URLs.
+- Query-time multimodal RAG uses the OpenAI Responses API for image inputs while the existing text-only generation path may remain on Chat Completions during the incremental migration. Multimodal requests use `store: false`, in-memory base64 data URLs, `detail: "low"` by default, and hard caps of 3 images and 5 MB total image bytes per chat request.
 - Indexing jobs store state, attempts, technical error, timestamps, and document references.
 
 ## Semantic Cache
@@ -230,6 +232,7 @@ Cache invalidation rules:
 - Creating a new document does not invalidate existing cache entries.
 - TTL is configurable by customer with default `24` hours, using an environment variable such as `RAG_SEMANTIC_CACHE_TTL_HOURS`.
 - Semantic cache similarity threshold is configurable by customer with default `0.90`, using an environment variable such as `RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD`.
+- Multimodal answers are not written to semantic cache in the first multimodal slice because the cache key does not yet include visual evidence identity, image byte hashes, detail level, or provider multimodal behavior.
 
 ## AI Usage Budgets
 

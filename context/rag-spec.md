@@ -6,7 +6,8 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 
 ## Models And Provider
 
-- Chat: OpenAI `gpt-4.1-nano` via `/v1/chat/completions`. Configured by `OPENAI_CHAT_MODEL`.
+- Text-only chat: OpenAI `gpt-4.1-nano` via `/v1/chat/completions`. Configured by `OPENAI_CHAT_MODEL`.
+- Query-time multimodal chat: OpenAI Responses API with text plus image inputs. The configured chat model must support image input when multimodal is enabled.
 - Embeddings: `Settings` currently default to OpenAI `text-embedding-3-large` with `dimensions=1024`; `infra/compose/.env.example` sets `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`.
 - SDK: official `openai` Python SDK, async client, with `max_retries=2` and `timeout=30` seconds at the SDK level. Service-level retry/circuit-breaker is added with `tenacity` only for transient errors (`APIConnectionError`, `RateLimitError`, `APIStatusError` with 5xx).
 - Every paid call (`embeddings.create`, `chat.completions.create`) records the actual model id, usage tokens, latency, and pricing snapshot in `rag.query_audit_events`.
@@ -14,7 +15,7 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 ## Chunking
 
 - Input is the normalized HTML stored in `app.document_versions.content_html`.
-- The first MinIO-backed RAG image slice remains text-first. The chunker indexes accessible image text (`alt`, `aria-label`, then `title`) and nearby captions as ordinary text when present in `content_html`, but it must not index image URLs, fetch image bytes, or call a multimodal OpenAI endpoint during indexing.
+- MinIO-backed image indexing has two outputs: accessible image text (`alt`, `aria-label`, then `title`) and nearby captions are indexed as ordinary chunk text, and stable same-origin image references are stored as `chunk -> image_id` associations. Indexing must not fetch image bytes or call a multimodal OpenAI endpoint.
 - The chunker is HTML-structure-aware: it splits along block boundaries (`<h1>`, `<h2>`, `<h3>`, `<p>`, `<li>`, `<pre>`) before falling back to length-based splits.
 - Target chunk size: **500 tokens** measured with `tiktoken` using the model's encoding.
 - Hard upper bound: **800 tokens** per chunk (a chunk may exceed 500 if a single block does, up to 800; otherwise it splits).
@@ -31,6 +32,7 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
   - `embedding` (`Vector(1024)`)
   - `embedding_model` (string snapshot)
   - `created_at`
+- Image references associated with each chunk live in `rag.document_chunk_images` with `chunk_id`, `document_id`, `document_version_id`, `image_id`, `ordinal`, optional `alt_text`, optional `caption`, and `created_at`.
 - Chunking is deterministic given the same input HTML, the same configured chunker version, and the same target/overlap parameters. The chunker version (`CHUNKER_VERSION` constant, starts at `1`) is recorded on every indexing job for traceability.
 
 ## Indexing Pipeline
@@ -43,7 +45,8 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
   2. Run the HTML-aware chunker. Reject jobs that produce zero chunks with stable code `INDEXING_NO_CONTENT`.
   3. Embed chunks in batches of **100** with the embeddings API. The job records total embedding tokens, latency, model id, dimensions, and pricing snapshot.
   4. Upsert chunks into `rag.document_chunks` (delete existing rows for the same `document_version_id` first, then insert).
-  5. Mark the job `Succeeded` with `chunk_count` and `embedding_tokens`.
+  5. Upsert image references into `rag.document_chunk_images` for stable `/api/document-images/{imageId}/content` URLs present in each chunk's HTML fragment.
+  6. Mark the job `Succeeded` with `chunk_count` and `embedding_tokens`.
 - Pre-publication indexing is synchronous from `.NET`'s perspective: `.NET` keeps the document in `In Review` until the job succeeds.
 - Indexing does **not** invalidate semantic cache. Cache invalidation is triggered separately by `.NET` lifecycle events (archive, edit-after-publish, etc.) via a dedicated internal endpoint `POST /internal/cache-invalidations` that takes a list of `document_id`s. See `architecture.md` for the rule.
 
@@ -53,7 +56,9 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 - Similarity metric: cosine distance (`<=>` in pgvector). HNSW index is built on `embedding` with `vector_cosine_ops`.
 - Filtering: applied **at SQL level** before similarity ranking. The retrieval query joins `rag.document_chunks` against allowed document records resolved from `.NET`-owned `app.document_permissions` through read-only database grants. FastAPI uses the session validation claims (`role`, `groups`, `corpus`, and `access_scope_hash`) as the user's scope inputs, but it does not receive or trust a precomputed document-id allow list.
 - Only chunks belonging to the latest successfully indexed version of each allowed document are eligible (a `rag.document_chunks.is_active` boolean defaulted to `true` and flipped to `false` when a newer version supersedes the prior version's chunks).
-- No reranking step in the MVP. A future cross-encoder rerank stage is the natural next optimization once retrieval quality metrics exist.
+- Retrieval uses hybrid vector/BM25 candidates with optional reranking when a reranker provider is configured; multimodal selection runs after this final retrieval stage.
+- For query-time multimodal answers, image candidates are selected only after final text retrieval/reranking. FastAPI selects images associated with the final retrieved chunks, ordered by retrieval order, chunk index, and image ordinal, then deduplicated by `image_id`.
+- Initial multimodal caps are 3 images per chat request, 5 MB total image bytes, and OpenAI image `detail: "low"`.
 - The retrieved chunks plus their `heading_path` and a short context window (chunk index ±0; no neighbor expansion in MVP) are fed to the chat completion.
 
 ## Access Claim (Effective Scope Delivery)
@@ -131,6 +136,7 @@ Rules:
 - Structured output is **incompatible with token streaming** in some model/version combinations. For the MVP, the implementation streams the `answer` token-by-token using a custom server-side parser that watches for the `"answer":"..."` field and emits its character deltas as SSE `event: answer-token`, then emits one `event: citations` payload when streaming completes, followed by `event: done`. If a future OpenAI version supports streaming structured outputs natively, switch to that.
 - The system prompt template is stored in `services/rag-api/src/advanced_rag/rag/prompts/system_v1.md` and loaded at process startup. The active prompt version (`PROMPT_VERSION`, starts at `1`) is recorded per audit row.
 - The user-facing answer is in **Spanish (es-AR)**. The system prompt explicitly instructs the model to answer in Spanish regardless of the question language, and to refuse politely if the retrieved context cannot support an answer.
+- Multimodal generation uses the OpenAI Responses API with `store: false`, text context plus selected images as input, and structured JSON output through Responses `text.format`. Image bytes are converted to in-memory base64 data URLs for the provider request and are never persisted as base64.
 
 ### SSE Event Types
 
@@ -149,6 +155,7 @@ Rules:
 - Entries live in `rag.semantic_cache_entries`. Source documents per entry live in `rag.semantic_cache_sources`.
 - Lookup keys: `(corpus, access_scope_hash, question_embedding)` with `cosine_similarity â‰¥ 0.90` and `expires_at > now()`.
 - Cache write happens **only on successful answer with at least one citation**. Answers with empty citations (refusals, "I don't know" cases) are not cached.
+- Multimodal answers are not written to semantic cache in the first multimodal slice. Text-only cache lookup may still serve before retrieval; if a multimodal generation path is used, the generated answer bypasses cache write.
 - On hit, the response stream emits `cache-hit` followed by the cached `answer` (as a single `answer-token` of the full text or as a fast simulated stream), then the cached `citations`, then a `usage` event with zero new tokens and zero cost.
 - Over-budget users skip cache lookup entirely (see `architecture.md` AI Usage Budgets). The chat request returns `AI_BUDGET_EXCEEDED` immediately.
 - TTL default: 24 hours (`RAG_SEMANTIC_CACHE_TTL_HOURS`). Threshold default: 0.90 (`RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD`).
@@ -175,6 +182,7 @@ Rules:
   - `access_scope_hash`, `corpus`
   - `prompt_version`, `chunker_version`
   - `feedback_value` (nullable), `feedback_comment` (nullable), `feedback_updated_at` (nullable)
+  - `multimodal_used`, `multimodal_image_count`, `multimodal_image_detail`, `multimodal_image_bytes_total`, and `multimodal_image_ids`
 - Citations are stored in `rag.query_audit_citations` keyed by `query_audit_event_id`.
 - Cost calculation reads the active `rag.model_pricing` row for each model id, snapshots its primary key into the audit row, then computes `cost = input_tokens * input_price + cached_tokens * cached_price + output_tokens * output_price`.
 - FastAPI migrations or startup seed logic must ensure active `rag.model_pricing` rows exist for the configured `OPENAI_CHAT_MODEL` and `OPENAI_EMBEDDING_MODEL`.
@@ -197,10 +205,9 @@ Rules:
 
 ## What Is Out Of Scope For The MVP
 
-- Reranking (cross-encoder or third-party rerank API).
-- Hybrid lexical + vector search.
 - Query rewriting / HyDE / step-back prompting.
-- Query-time multimodal retrieval and OpenAI image inputs. The next image slice may attach a capped set of authorized images from retrieved chunks by reading object bytes from S3-compatible storage at request time, without persisting base64 payloads.
+- Visual embeddings or image-vector search.
+- Offline visual caption generation during publication.
 - Multi-embedding per chunk (e.g., title embedding + body embedding).
 - Conversation memory across user sessions; each chat question is independent in the MVP.
 - Tool/function calling beyond the structured-output schema.
