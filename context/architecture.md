@@ -208,7 +208,7 @@ Document states are `Draft`, `In Review`, `Published`, and `Archived`.
 - The .NET API requests indexing by calling an internal FastAPI endpoint.
 - FastAPI creates and owns `rag.indexing_jobs`.
 - FastAPI receives only saved normalized document content for indexing; it does not parse PDF/DOCX imports in the MVP.
-- Document image upload, metadata, authorization, and serving are owned by `.NET` because they are part of document lifecycle and viewer access. FastAPI does not write document image metadata or objects. In the first image slice, indexing remains text-first and may include `alt` text present in saved HTML, but query-time multimodal OpenAI image inputs are deferred.
+- Document image upload, metadata, authorization, and serving are owned by `.NET` because they are part of document lifecycle and viewer access. FastAPI does not write document image metadata or objects. The first RAG image update remains text-first: indexing converts accessible image descriptions and captions from saved HTML into ordinary chunk text, but it does not persist image URLs, fetch image bytes, or send query-time multimodal OpenAI image inputs.
 - Indexing jobs store state, attempts, technical error, timestamps, and document references.
 
 ## Semantic Cache

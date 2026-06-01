@@ -14,7 +14,7 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 ## Chunking
 
 - Input is the normalized HTML stored in `app.document_versions.content_html`.
-- The first MinIO-backed document image slice remains text-first. The chunker may include image `alt` text and nearby captions as ordinary text if they are present in `content_html`, but it must not fetch image bytes or call a multimodal OpenAI endpoint during indexing.
+- The first MinIO-backed RAG image slice remains text-first. The chunker indexes accessible image text (`alt`, `aria-label`, then `title`) and nearby captions as ordinary text when present in `content_html`, but it must not index image URLs, fetch image bytes, or call a multimodal OpenAI endpoint during indexing.
 - The chunker is HTML-structure-aware: it splits along block boundaries (`<h1>`, `<h2>`, `<h3>`, `<p>`, `<li>`, `<pre>`) before falling back to length-based splits.
 - Target chunk size: **500 tokens** measured with `tiktoken` using the model's encoding.
 - Hard upper bound: **800 tokens** per chunk (a chunk may exceed 500 if a single block does, up to 800; otherwise it splits).

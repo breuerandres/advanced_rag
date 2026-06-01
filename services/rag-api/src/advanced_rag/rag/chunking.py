@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from html.parser import HTMLParser
 
 from pydantic import BaseModel, ConfigDict
@@ -63,7 +64,7 @@ def _create_chunk(index: int, heading_path: list[str], content: str) -> Document
         token_count=len(_tokens(normalized)),
         char_count=len(normalized),
         content=normalized,
-        content_html=f"<p>{normalized}</p>",
+        content_html=f"<p>{escape(normalized)}</p>",
     )
 
 
@@ -100,7 +101,7 @@ class _Block:
 
 
 class _HtmlBlockParser(HTMLParser):
-    _block_tags = {"h1", "h2", "h3", "p", "li", "pre"}
+    _block_tags = {"h1", "h2", "h3", "p", "li", "pre", "figure", "figcaption"}
 
     def __init__(self) -> None:
         super().__init__()
@@ -113,15 +114,17 @@ class _HtmlBlockParser(HTMLParser):
         parser = cls()
         parser.feed(html)
         parser.close()
-        if not parser.blocks:
-            text = " ".join(parser._buffer).strip()
-            return [_Block("p", text)] if text else []
+        parser._flush()
         return parser.blocks
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag in self._block_tags:
             self._flush()
             self._active_tag = tag
+        if tag == "img":
+            image_text = _image_text(attrs)
+            if image_text:
+                self._buffer.append(image_text)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == self._active_tag:
@@ -138,3 +141,15 @@ class _HtmlBlockParser(HTMLParser):
         if text:
             self.blocks.append(_Block(self._active_tag or "p", text))
         self._buffer = []
+
+
+def _image_text(attrs: list[tuple[str, str | None]]) -> str:
+    attributes = {
+        key.lower(): " ".join(value.split())
+        for key, value in attrs
+        if value is not None and value.strip()
+    }
+    for key in ("alt", "aria-label", "title"):
+        if key in attributes:
+            return attributes[key]
+    return ""

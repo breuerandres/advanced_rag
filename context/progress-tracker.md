@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Stabilize the first document image implementation slice: private MinIO/S3-compatible storage, Postgres metadata, stable app-controlled image URLs, editor upload, sanitizer enforcement, and Compose wiring.
+- Stabilize the MinIO-backed document image flow and the first text-first RAG image indexing update.
 
 ## Completed
 
@@ -19,24 +19,23 @@
 - On 2026-05-31, obsolete refactor documentation was removed from `docs/`, `context/`, and the root handoff file. Current implementation files and current context are now the project source of truth.
 - On 2026-05-31, the first document image slice was implemented. Document image bytes are stored in private S3-compatible object storage, image metadata is stored in `app.document_images`, canonical HTML references stable `/api/document-images/{imageId}/content` URLs, and external/base64 image sources are rejected with `DOCUMENT_IMAGE_SOURCE_INVALID`.
 - Verification for the first document image slice passed on 2026-05-31: focused .NET lifecycle, API, health, EF mapping/migration tests; `dotnet build services\dotnet-api\AdvancedRag.sln --no-restore`; `pnpm --dir apps\manage-web typecheck`; focused manage-web tests; manage-web production build; `docker compose --env-file infra/compose/.env.example -f infra/compose/compose.yaml config`; and `git diff --check` with line-ending warnings only.
+- On 2026-06-01, user-owned local validation confirmed document images save correctly to MinIO and are visible in the MinIO browser.
+- On 2026-06-01, FastAPI text-first RAG image indexing was implemented. The chunker indexes accessible image text from saved HTML (`alt`, then `aria-label`, then `title`) plus nearby captions, without indexing image URLs, fetching object bytes, or using multimodal OpenAI image inputs. Verification passed with `uv run pytest tests/test_chunking.py tests/test_indexing.py -q`, `uv run ruff check .`, `uv run pytest -q`, and `uv run mypy src tests` from `services/rag-api`; repository `git diff --check` returned only line-ending warnings.
 
 ## In Progress
 
-- Local Compose/MinIO validation checkpoint is active for the first document image slice. Agent-owned static checks confirmed `Start-Local.ps1` parses, all required local secret files exist by name, and Compose configuration renders with `minio`, `minio-init`, S3 secrets, and `.NET` S3 runtime wiring. Browser validation is pending user-owned Compose startup output.
-- MinIO startup failed locally because `minio_root_user.txt`, `minio_root_password.txt`, `s3_access_key.txt`, and `s3_secret_key.txt` existed as directories instead of secret files. `Start-Local.ps1` now validates required secrets with `-PathType Leaf`, and `New-LocalDevSecrets.ps1 -Overwrite` can replace accidental directories with generated local secret files. User-owned repair is still pending.
-- The local Compose override now exposes the MinIO admin console on `127.0.0.1:9001` for developer-only inspection. Production Compose remains unexposed for MinIO admin and S3 ports.
-- Slice 2 design is pending for RAG image-reference indexing and optional query-time OpenAI multimodal image inputs. The first slice does not fetch image bytes from FastAPI or send images to OpenAI.
+- Text-first RAG image indexing needs a user-owned end-to-end acceptance pass against the local Compose stack: publish/index a document with a meaningful image description, then confirm chat can use that textual description when answering.
+- Query-time multimodal image inputs remain intentionally unimplemented.
 
 ## Next Up
 
-- User-owned: confirm `infra/compose/secrets/openai_api_key.txt` contains a real local key, then run `.\infra\compose\Start-Local.ps1 -TrustCaddyCertificate` and report `docker compose ps -a` plus whether `minio-init` exits successfully.
-- After Compose startup is confirmed, validate document image upload/rendering through the browser at `https://manage.localhost` and inspect the stable `/api/document-images/{imageId}/content` response path.
-- Start slice 2 by deciding the RAG image-reference data model, retrieval caps, OpenAI image detail level, cache behavior, and query audit fields before implementation.
+- User-owned: create or edit a document image with meaningful `alt` text/caption, publish it, wait for indexing to succeed, and ask chat a question that can only be answered from that image description.
+- If direct visual reasoning is required later, define a separate multimodal slice before implementation: provider API path, retrieval caps, max total image bytes, image detail level, audit fields, cost behavior, and semantic-cache behavior.
 
 ## Open Questions
 
-- Slice 2 must decide whether OpenAI image inputs use Responses API or extend the current Chat Completions provider path.
-- Slice 2 must define max images per query, max total image bytes per OpenAI request, image detail level, audit fields, and semantic-cache behavior for multimodal answers.
+- Future multimodal slice must decide whether OpenAI image inputs use Responses API or extend the current Chat Completions provider path.
+- Future multimodal slice must define max images per query, max total image bytes per OpenAI request, image detail level, audit fields, and semantic-cache behavior for multimodal answers.
 - Future cleanup may add orphan image cleanup for uploaded draft images that are removed from HTML before publication.
 
 ## Architecture Decisions
@@ -65,7 +64,8 @@ Start by reading `context/README.md`. It defines reading order and source-of-tru
 Current state:
 
 - The active branch is `mvp-implementation`.
-- The working tree has existing uncommitted implementation changes plus this documentation cleanup.
-- Document image slice 1 is implemented but still needs local Compose/browser validation with real local secrets.
-- User-owned local setup: confirm or create/update `openai_api_key.txt`, then run `.\infra\compose\Start-Local.ps1 -TrustCaddyCertificate`; report `docker compose ps -a` and whether `minio-init` exits successfully before deeper browser validation.
-- Slice 2 handoff: keep FastAPI text-first until a design decision defines image-reference indexing, multimodal OpenAI request caps, query audit fields, and cache behavior. Do not send every document image to OpenAI.
+- The latest local work is the text-first RAG image indexing slice and its context updates.
+- Document image slice 1 is implemented and the user confirmed image storage through the local MinIO browser on 2026-06-01.
+- Text-first RAG image indexing is implemented and RAG verification passed on 2026-06-01.
+- Next user-owned acceptance: publish/index a document with meaningful image `alt` text/caption and confirm chat can answer from that textual description.
+- Keep FastAPI text-first until a separate design decision defines multimodal image retrieval, OpenAI request caps, query audit fields, and cache behavior. Do not send every document image to OpenAI.

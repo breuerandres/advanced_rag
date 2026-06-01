@@ -35,6 +35,7 @@
 - Do not use standard-library `@dataclass` for FastAPI boundary data, configuration, or validated contracts. Internal simple classes or dataclasses are allowed only for private implementation details that do not cross service/module boundaries and do not need validation, serialization, aliases, or OpenAPI/schema behavior. Prefer a frozen Pydantic model when an internal value object leaves a module or benefits from validation.
 - The FastAPI service targets Python 3.12. `services/rag-api/.python-version` must stay on the Python 3.12 line and `pyproject.toml` must constrain `requires-python` to `>=3.12,<3.13` unless the stack decision is updated.
 - FastAPI must not parse PDF/DOCX imports in the MVP.
+- FastAPI chunking may index accessible text from document images already present in saved HTML (`alt`, `aria-label`, `title`, and captions), but it must not index raw image URLs, fetch object storage bytes, or write document image metadata.
 - Use Alembic migrations for the `rag` schema.
 - Store chunk text/metadata and its vector embedding together in `rag.document_chunks`. The current embedding column is pgvector `vector(1024)`, and the embeddings request must pass the configured `OPENAI_EMBEDDING_DIMENSIONS`.
 - Store citations as `rag.query_audit_citations` child rows of `rag.query_audit_events`.

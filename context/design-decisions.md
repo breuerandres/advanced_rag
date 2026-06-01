@@ -92,6 +92,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Task 11 RAG Enforcement Boundaries](#2026-05-17---task-11-rag-enforcement-boundaries)
 - [Task 8 User Administration And Budget Configuration](#2026-05-14---task-8-user-administration-and-budget-configuration)
 - [Task 17 Budget Exhaustion E2E Scope](#2026-05-18---task-17-budget-exhaustion-e2e-scope)
+- [Text-First RAG Image Indexing](#2026-06-01---text-first-rag-image-indexing)
 
 ### Data Model And Operations
 
@@ -1686,3 +1687,17 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Evidence:** Checked MinIO documentation on 2026-05-31: MinIO is S3-compatible object storage, supports container deployment, file-based environment variables for container credentials, policy-based access control, healthcheck endpoints, object versioning, and SDK/presigned URL operations. Checked OpenAI developer documentation on 2026-05-31: image inputs can be supplied as URLs, base64 data URLs, or file IDs; image inputs are metered as tokens; and the Responses API is recommended for new multimodal work while Chat Completions remains supported.
 
 **Implementation Evidence:** First-slice implementation was verified on 2026-05-31 with focused .NET lifecycle tests for image-source rejection, API endpoint tests for upload/content serving, configuration and health tests, EF mapping/migration tests for `app.document_images`, `dotnet build services\dotnet-api\AdvancedRag.sln --no-restore`, manage-web typecheck/tests/build, Compose config validation, and `git diff --check`.
+
+## 2026-06-01 - Text-First RAG Image Indexing
+
+**Context:** The first MinIO document image slice stores image bytes correctly and keeps canonical document HTML on stable app-controlled image URLs. The RAG service still consumed only plain text extracted from saved HTML, so accessible image descriptions risked being lost during indexing even when editors supplied useful `alt` text or captions.
+
+**Decision:** Keep the RAG image update text-first. FastAPI chunking indexes accessible image text from saved HTML, using `alt`, then `aria-label`, then `title`, and indexes nearby captions as ordinary chunk text. FastAPI must not index image URLs, fetch MinIO/S3 object bytes, write document image metadata, or send image inputs to OpenAI in this slice.
+
+**Rationale:** This gives immediate RAG value for documents that include meaningful image descriptions while preserving the existing service boundary: `.NET` owns image storage, authorization, metadata, and serving. It also avoids adding multimodal provider cost, cache semantics, audit fields, byte-size caps, and image authorization rules before those are explicitly designed.
+
+**Tradeoffs:** The chat can only reason over images whose authors provide useful textual descriptions or captions. It cannot inspect visual content directly yet, so diagrams or screenshots without meaningful `alt` text remain effectively invisible to retrieval.
+
+**Consequences:** Editors and document managers should provide descriptive image `alt` text when the image carries business meaning. A later multimodal slice must make a separate decision for provider API choice, max images per query, max bytes, image detail level, cache behavior, and audit fields before fetching image bytes or sending image inputs.
+
+**Evidence:** Verified on 2026-06-01 from `services/rag-api` with `uv run pytest tests/test_chunking.py tests/test_indexing.py -q`, `uv run ruff check .`, `uv run pytest -q`, and `uv run mypy src tests`. Repository `git diff --check` returned only line-ending warnings.
