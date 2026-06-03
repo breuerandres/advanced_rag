@@ -15,7 +15,7 @@
   }
 }
 
-manage.localhost {
+manage.{$PUBLIC_DOMAIN} {
   tls internal
   import security_headers
 
@@ -29,7 +29,7 @@ manage.localhost {
   }
 }
 
-chat.localhost {
+chat.{$PUBLIC_DOMAIN} {
   tls internal
   import security_headers
 
@@ -50,7 +50,7 @@ chat.localhost {
   }
 }
 
-docs.localhost {
+docs.{$PUBLIC_DOMAIN} {
   tls internal
   import security_headers
 

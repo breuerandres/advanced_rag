@@ -110,6 +110,8 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Default OpenAI Models](#2026-05-11---default-openai-models)
 - [Task 17 Local Compose Deep Links And Viewer Host](#2026-05-18---task-17-local-compose-deep-links-and-viewer-host)
 - [Clean Compose Startup Seeds Default Admin And Pricing](#2026-05-22---clean-compose-startup-seeds-default-admin-and-pricing)
+- [Interim Manual Source-Based Service Updates](#2026-06-03---interim-manual-source-based-service-updates)
+- [Demo Host systemd Autostart](#2026-06-03---demo-host-systemd-autostart)
 
 ### Workflow
 
@@ -1718,3 +1720,63 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** `.NET` remains the owner of image metadata, authorization, object storage access, and public serving. FastAPI may store `chunk -> image_id` references in the `rag` schema but must not write `app.document_images`, expose object keys, or read MinIO directly. Initial limits are 3 images, 5 MB total image bytes, and `detail: "low"` per chat request. Multimodal generation uses OpenAI Responses API with `store: false` and in-memory base64 data URLs.
 
 **Evidence:** OpenAI documentation checked on 2026-06-01 states that the Responses API supports text and image inputs, that image inputs may be provided as URLs, base64 data URLs, or file IDs, that images count as tokens, and that Responses is recommended for new projects while Chat Completions remains supported.
+
+## 2026-06-01 - Demo Host Caddy Domain Uses PUBLIC_DOMAIN
+
+**Context:** The Compose Caddyfile still hardcoded `manage.localhost`, `chat.localhost`, and `docs.localhost`. That is acceptable for same-machine local development, but it prevents a Raspberry Pi demo host from being reached correctly from another computer because `.localhost` resolves to the client machine, not the Raspberry Pi.
+
+**Decision:** Caddy site labels now use `manage.{$PUBLIC_DOMAIN}`, `chat.{$PUBLIC_DOMAIN}`, and `docs.{$PUBLIC_DOMAIN}`. The default `.env.example` value remains `PUBLIC_DOMAIN=localhost` for local development, while a demo host can set `PUBLIC_DOMAIN` to a LAN DNS name, a split-horizon domain, or a real domain pointed at the host.
+
+**Rationale:** This preserves the same-origin host topology and `__Host-` cookie model while allowing the same Compose file to serve local workstation development and a separate demo host.
+
+**Tradeoffs:** A LAN demo now needs explicit hostname resolution from the client machine, such as router DNS, `/etc/hosts`, Windows `hosts`, or a real domain. Direct IP-only access is not appropriate for the current multi-host Caddy routing and cookie model.
+
+**Consequences:** Raspberry Pi demos should use hostnames such as `manage.rag-demo.lan`, `chat.rag-demo.lan`, and `docs.rag-demo.lan` or an equivalent domain. Operators must set `PUBLIC_DOMAIN` accordingly before starting Compose.
+
+**Evidence:** Updated `infra/compose/Caddyfile` on 2026-06-01 to consume `PUBLIC_DOMAIN` in all three frontend site labels.
+
+## 2026-06-02 - Raspberry Pi Demo Uses breuerai.com
+
+**Context:** The Raspberry Pi demo stack is working on the LAN with `PUBLIC_DOMAIN=ragpi.lan`. External demo access needs stable public hostnames without exposing router ports directly.
+
+**Decision:** Use the `breuerai.com` domain for the Raspberry Pi demo deployment. Public hostnames should follow the existing same-origin topology: `manage.breuerai.com`, `chat.breuerai.com`, and `docs.breuerai.com`. Cloudflare Tunnel is the preferred exposure mechanism for the demo host.
+
+**Rationale:** A real domain keeps the MVP's host-based routing and host-only cookie model intact while avoiding IP-based access. Cloudflare Tunnel avoids inbound port forwarding and gives public TLS at the edge for a demo-grade deployment.
+
+**Tradeoffs:** The demo now depends on Cloudflare DNS/Tunnel availability and a running `cloudflared` connector on the Raspberry Pi. Caddy still routes by host internally, so all three public hostnames must be configured consistently.
+
+**Consequences:** The Raspberry Pi `.env` should set `PUBLIC_DOMAIN=breuerai.com`. Cloudflare should route `manage.breuerai.com`, `chat.breuerai.com`, and `docs.breuerai.com` to the local Caddy origin.
+
+**Evidence:** User confirmed ownership of `breuerai.com` on 2026-06-02.
+
+## 2026-06-03 - Interim Manual Source-Based Service Updates
+
+**Context:** The user wants a practical way to update the Raspberry Pi/local-server deployment while the GHCR-based CI/CD flow is still being investigated and not yet integrated. The current authoritative deployment model remains Docker Compose with local secret files and persistent Postgres/MinIO volumes.
+
+**Options Considered:** Keep running ad hoc `git pull` and `docker compose up -d --build` commands, implement the full GHCR deployment workflow immediately, or add an interim manual helper script.
+
+**Decision:** Add a repository-root `updateService.sh` helper for interim manual source-based updates on the Linux deployment host.
+
+**Rationale:** A scripted flow reduces operator mistakes during the temporary manual phase. It preserves local secrets and volumes, creates a Postgres backup before code updates when the stack is already running, refuses tracked local changes, uses `git pull --ff-only`, validates Compose, rebuilds/recreates services, waits for health checks, and prints relevant logs.
+
+**Tradeoffs:** The deployment host still compiles `.NET`, FastAPI, and frontend images locally, which is slower and less reproducible than GHCR-published images. Automatic rollback is intentionally not included because database migrations may have already changed schema.
+
+**Consequences:** Operators can run `./updateService.sh --env-file infra/compose/.env.pi` on the demo host until GHCR/CD replaces this path. The helper must not delete volumes, reset local Git state, or manage real secret values.
+
+**Evidence:** Added `updateService.sh`, `docs/operations/manual-service-update.md`, and `tests/operations/test_update_service_script.py`. Verified on 2026-06-03 with `python -m unittest tests.operations.test_update_service_script`, which checks required safety steps and Bash syntax.
+
+## 2026-06-03 - Demo Host systemd Autostart
+
+**Context:** The Raspberry Pi/local-server demo should recover after a host shutdown or reboot without requiring an operator to run Docker Compose manually.
+
+**Options Considered:** Rely only on Docker container restart policies, add a cron `@reboot` command, or install a `systemd` unit that runs Docker Compose after Docker and the network are available.
+
+**Decision:** Add a repository-root `installServiceAutostart.sh` helper that installs `advanced-rag.service` as a systemd oneshot unit. The unit runs `docker compose up -d` with the selected Compose environment file after `docker.service` and `network-online.target`.
+
+**Rationale:** systemd is the correct host-level boot coordinator on Ubuntu Server. It records status and logs, starts after Docker, can be enabled or disabled cleanly, and avoids ad hoc shell startup behavior. `docker compose up -d` preserves Compose dependency and health-check semantics better than relying only on daemon restart of old containers.
+
+**Tradeoffs:** The unit is not fine-grained per-container monitoring because Docker Compose exits after starting containers. Container-level crash recovery remains a separate decision, such as Compose restart policies, if needed later.
+
+**Consequences:** Operators can run `./installServiceAutostart.sh --env-file infra/compose/.env.pi` on the Linux demo host. The script writes `/etc/systemd/system/advanced-rag.service`, runs `systemctl daemon-reload`, enables the unit for boot, and starts it immediately. It does not store secret values or modify Compose secrets.
+
+**Evidence:** Added `installServiceAutostart.sh`, `docs/operations/systemd-autostart.md`, and `tests/operations/test_install_service_autostart_script.py`. Verified on 2026-06-03 with `python -m unittest tests.operations.test_install_service_autostart_script`, which checks required systemd/Compose steps and Bash syntax.

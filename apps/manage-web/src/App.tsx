@@ -294,6 +294,7 @@ function LoginPage({
   notice: string | null
   onAuthenticated: (user: SessionUser) => void
 }) {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -309,9 +310,9 @@ function LoginPage({
       onAuthenticated(session.user)
     } catch (nextError) {
       if (nextError instanceof ApiError && nextError.code === 'AUTH_REQUIRED') {
-        setError('Email o contraseña no válidos.')
+        setError(t('auth.invalid_credentials'))
       } else {
-        setError(formatApiError(nextError, 'No se pudo iniciar sesión.'))
+        setError(formatApiError(nextError, t('auth.login_error')))
       }
     } finally {
       setIsSubmitting(false)
@@ -322,9 +323,9 @@ function LoginPage({
     <AuthFrame>
       <form className="auth-card" onSubmit={submit}>
         <AuthCardHeader
-          eyebrow="Consola de gestión"
-          title="Ingresá a la consola"
-          detail="Usá tu cuenta Admin o DocumentManager para administrar instrucciones, usuarios, auditoria y configuración."
+          eyebrow={t('auth.login_eyebrow')}
+          title={t('auth.login_title')}
+          detail={t('auth.login_detail')}
         />
         {notice ? <p className="status-message success">{notice}</p> : null}
         {error ? <p className="status-message error">{error}</p> : null}
@@ -338,7 +339,7 @@ function LoginPage({
           />
         </label>
         <label className="field">
-          <span>Contraseña</span>
+          <span>{t('auth.password')}</span>
           <Input
             autoComplete="current-password"
             type="password"
@@ -347,7 +348,7 @@ function LoginPage({
           />
         </label>
         <Button className="ui-button primary-button auth-submit" disabled={isSubmitting} type="submit">
-          Ingresar
+          {t('auth.login_submit')}
         </Button>
       </form>
     </AuthFrame>
@@ -355,7 +356,33 @@ function LoginPage({
 }
 
 function AuthFrame({ children }: { children: ReactNode }) {
-  return <AuthShell>{children}</AuthShell>
+  return (
+    <AuthShell>
+      <section className="auth-card-stack" aria-label="Controles de acceso">
+        <AuthSurfaceControls />
+        {children}
+      </section>
+    </AuthShell>
+  )
+}
+
+function AuthSurfaceControls() {
+  const { t, i18n } = useTranslation()
+
+  return (
+    <div className="auth-surface-controls">
+      <LanguageSelect
+        label={t('common.language')}
+        value={i18n.resolvedLanguage ?? i18n.language}
+        onChange={(value) => void i18n.changeLanguage(value)}
+        options={[
+          { value: 'es-AR', label: 'ES' },
+          { value: 'en-US', label: 'EN' },
+        ]}
+      />
+      <DarkModeToggle label={t('common.toggle_theme')} />
+    </div>
+  )
 }
 
 function StatusPanel({

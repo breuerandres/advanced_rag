@@ -10,6 +10,13 @@
   },
   "auth": {
     "active_session": "Active session",
+    "invalid_credentials": "Email or password is not valid.",
+    "login_detail": "Use your Admin or DocumentManager account to manage instructions, users, audit, and configuration.",
+    "login_error": "Could not sign in.",
+    "login_eyebrow": "Management console",
+    "login_submit": "Sign in",
+    "login_title": "Sign in to the console",
+    "password": "Password",
     "logout": "Sign out"
   },
   "nav": {

@@ -564,11 +564,12 @@ function DocumentEditor({
   onSaved: (document: DocumentDetail, message: string) => void;
 }) {
   const { t } = useTranslation();
-  const draft = documentDetail.currentDraftVersion;
-  const [title, setTitle] = useState(draft?.title ?? documentDetail.title);
-  const [documentType, setDocumentType] = useState(draft?.documentType ?? "");
-  const [audience, setAudience] = useState(draft?.audience ?? "");
-  const [contentHtml, setContentHtml] = useState(draft?.contentHtml ?? "");
+  const editableVersion =
+    documentDetail.currentDraftVersion ?? documentDetail.currentPublishedVersion;
+  const [title, setTitle] = useState(editableVersion?.title ?? documentDetail.title);
+  const [documentType, setDocumentType] = useState(editableVersion?.documentType ?? "");
+  const [audience, setAudience] = useState(editableVersion?.audience ?? "");
+  const [contentHtml, setContentHtml] = useState(editableVersion?.contentHtml ?? "");
   const [allowedGroupIds, setAllowedGroupIds] = useState<string[]>(
     documentDetail.allowedGroupIds.map((groupId) => groupId.toString()),
   );

@@ -423,6 +423,8 @@ Readiness must verify critical dependencies such as DB connectivity and required
   - `apps/*`: `pnpm install --frozen-lockfile` â†’ `pnpm -r lint` â†’ `pnpm -r test` â†’ `pnpm -r build`.
 - Docker image builds are gated on tests passing and tagged with the short Git SHA. Images are published to GitHub Container Registry (`ghcr.io/<org>/<service>:<sha>`).
 - Production deployment is manual: an operator pulls the tagged images on the customer host and runs `docker compose up -d`.
+- Until the GHCR-based deployment flow is implemented, the Raspberry Pi/demo host may use the repository-root `updateService.sh` helper for manual source-based updates. The helper creates a Postgres backup when the stack is running, performs a fast-forward-only Git pull, validates Compose, rebuilds with Docker Compose, recreates services, and waits for health checks. It is an interim demo-host workflow, not the final production release path.
+- The Raspberry Pi/demo host may install repository-root `installServiceAutostart.sh` to create a `systemd` unit named `advanced-rag.service`. The unit starts the Compose stack with `docker compose up -d` after Docker and `network-online.target` are available, so the stack recovers after host reboot. This is host bootstrapping; container-level monitoring and the final GHCR/CD deployment flow remain separate concerns.
 
 ### Backup And Restore
 

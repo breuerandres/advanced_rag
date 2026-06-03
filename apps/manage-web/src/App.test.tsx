@@ -115,6 +115,26 @@ const inReviewDocumentDetail = {
   updatedAt: "2026-05-17T13:00:00Z",
 };
 
+const publishedDocumentDetail = {
+  ...documentDetail,
+  id: "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb",
+  title: "Manual publicado",
+  state: "Published",
+  currentDraftVersion: null,
+  currentPublishedVersion: {
+    ...documentDetail.currentDraftVersion!,
+    id: "bbbbbbbb-1111-2222-3333-cccccccccccc",
+    versionNumber: 1,
+    state: "Published",
+    title: "Manual publicado",
+    documentType: "Manual",
+    audience: "Operaciones",
+    contentHtml: "<p>Contenido vigente publicado.</p>",
+    indexingStatus: "Succeeded",
+  },
+  updatedAt: "2026-05-17T14:00:00Z",
+};
+
 const configurationResponse = {
   customerTimezone: "America/Argentina/Buenos_Aires",
   chatModel: "gpt-4.1-nano",
@@ -259,6 +279,27 @@ describe("management users and budgets", () => {
       await screen.findByRole("heading", { name: "Usuarios y grupos" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Ana Gomez")).toBeInTheDocument();
+  });
+
+  test("shows language and dark mode controls on the login surface", async () => {
+    stubFetch([], { session: null });
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: /Ingres.*a la consola/i }),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Idioma"), "en-US");
+
+    expect(screen.queryByRole("option", { name: "PT" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Sign in to the console" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Change theme" }),
+    ).toBeInTheDocument();
   });
 
   test("logs out and returns to the login surface", async () => {
@@ -1154,6 +1195,60 @@ describe("management documents", () => {
       "/api/documents/66666666-6666-6666-6666-666666666666/request-publish",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  test("opens published version content in the editor when no draft exists", async () => {
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+      ]),
+      jsonResponse(200, [
+        {
+          id: publishedDocumentDetail.id,
+          title: publishedDocumentDetail.title,
+          state: "Published",
+          documentType: "Manual",
+          audience: "Operaciones",
+          allowedGroupIds: ["22222222-2222-2222-2222-222222222222"],
+          draftVersionNumber: null,
+          publishedVersionNumber: 1,
+          indexingStatus: "Succeeded",
+          updatedAt: publishedDocumentDetail.updatedAt,
+        },
+      ]),
+      jsonResponse(200, [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+      ]),
+      jsonResponse(200, publishedDocumentDetail),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("link", { name: "Documentos" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Editar Manual publicado" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Editar documento" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Titulo" })).toHaveValue(
+      "Manual publicado",
+    );
+    expect(screen.getByRole("textbox", { name: "Tipo" })).toHaveValue(
+      "Manual",
+    );
+    expect(screen.getByRole("textbox", { name: "Audiencia" })).toHaveValue(
+      "Operaciones",
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Contenido del documento" }),
+    ).toHaveTextContent("Contenido vigente publicado.");
+    expect(
+      screen.getByRole("button", { name: "Guardar borrador" }),
+    ).toBeInTheDocument();
   });
 
   test("hides publish and send-to-review actions from document managers when a document is in review", async () => {

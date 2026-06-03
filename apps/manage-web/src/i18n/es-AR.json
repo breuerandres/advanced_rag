@@ -10,6 +10,13 @@
   },
   "auth": {
     "active_session": "Sesión activa",
+    "invalid_credentials": "Email o contraseña no válidos.",
+    "login_detail": "Usá tu cuenta Admin o DocumentManager para administrar instrucciones, usuarios, auditoría y configuración.",
+    "login_error": "No se pudo iniciar sesión.",
+    "login_eyebrow": "Consola de gestión",
+    "login_submit": "Ingresar",
+    "login_title": "Ingresá a la consola",
+    "password": "Contraseña",
     "logout": "Cerrar sesión"
   },
   "nav": {
