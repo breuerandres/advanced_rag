@@ -320,7 +320,7 @@ function LoginPage({
   }
 
   return (
-    <AuthFrame>
+    <AuthFrame controls={<AuthSurfaceControls />}>
       <form className="auth-card" onSubmit={submit}>
         <AuthCardHeader
           eyebrow={t('auth.login_eyebrow')}
@@ -355,11 +355,11 @@ function LoginPage({
   )
 }
 
-function AuthFrame({ children }: { children: ReactNode }) {
+function AuthFrame({ children, controls }: { children: ReactNode; controls?: ReactNode }) {
   return (
     <AuthShell>
       <section className="auth-card-stack" aria-label="Controles de acceso">
-        <AuthSurfaceControls />
+        {controls}
         {children}
       </section>
     </AuthShell>

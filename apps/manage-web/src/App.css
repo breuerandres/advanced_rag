@@ -1010,6 +1010,7 @@ select {
 }
 
 .auth-card-stack {
+  position: relative;
   align-self: stretch;
   justify-self: stretch;
   display: grid;
@@ -1021,11 +1022,15 @@ select {
 }
 
 .auth-surface-controls {
+  position: absolute;
+  top: 24px;
+  right: 32px;
   display: flex;
   align-items: end;
   justify-content: flex-end;
   gap: 8px;
-  width: min(420px, calc(100% - 32px));
+  width: auto;
+  z-index: 1;
 }
 
 .auth-card {
@@ -1112,7 +1117,12 @@ select {
 
   .auth-card-stack {
     align-content: start;
-    padding: 24px 0 32px;
+    padding: 84px 0 32px;
+  }
+
+  .auth-surface-controls {
+    top: 20px;
+    right: 16px;
   }
 
   .session-bar {

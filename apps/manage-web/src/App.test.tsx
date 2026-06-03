@@ -302,6 +302,22 @@ describe("management users and budgets", () => {
     ).toBeInTheDocument();
   });
 
+  test("does not show language and dark mode controls on first-run setup", async () => {
+    stubFetch([], { setupRequired: true });
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /Configur.*primer administrador/i,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Idioma")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cambiar tema" }),
+    ).not.toBeInTheDocument();
+  });
+
   test("logs out and returns to the login surface", async () => {
     stubFetch([
       jsonResponse(200, usersResponse),
