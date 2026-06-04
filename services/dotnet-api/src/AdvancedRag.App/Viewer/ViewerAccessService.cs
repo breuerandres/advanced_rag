@@ -1,21 +1,29 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace AdvancedRag.App.Viewer;
 
 public sealed class ViewerAccessService : IViewerAccessService
 {
     private static readonly IReadOnlyList<string> ChatAllowedStatuses = ["Published"];
     private static readonly IReadOnlyList<string> ManagementAllowedStatuses = ["Draft", "In Review", "Published"];
+    private static readonly TimeSpan HandoffTtl = TimeSpan.FromSeconds(60);
 
     private readonly IViewerAccessRepository _repository;
+    private readonly IViewerSessionHandoffRepository _handoffs;
     private readonly string _docsBaseUrl;
+    private readonly TimeProvider _timeProvider;
 
     public ViewerAccessService(
         IViewerAccessRepository repository,
+        IViewerSessionHandoffRepository handoffs,
         string docsBaseUrl = "https://docs.client.com",
         TimeProvider? timeProvider = null)
     {
         _repository = repository;
+        _handoffs = handoffs;
         _docsBaseUrl = docsBaseUrl.TrimEnd('/');
-        _ = timeProvider;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<ViewerLinkResult> CreateLinkAsync(CreateViewerLinkCommand command, CancellationToken ct)
@@ -25,8 +33,61 @@ public sealed class ViewerAccessService : IViewerAccessService
         IReadOnlyList<string> allowedStatuses = AllowedStatusesFor(purpose, command.Roles);
         RequireDocumentAllowed(document, allowedStatuses);
 
-        string url = $"{_docsBaseUrl}/open?documentId={Uri.EscapeDataString(command.DocumentId.ToString())}";
-        return new ViewerLinkResult(url, DateTimeOffset.MaxValue);
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        DateTimeOffset expiresAt = now.Add(HandoffTtl);
+        string handoffCode = GenerateHandoffCode();
+        ViewerSessionHandoffRecord record = new(
+            Guid.NewGuid(),
+            HashHandoffCode(handoffCode),
+            command.UserId,
+            command.DocumentId,
+            purpose,
+            string.Join(',', allowedStatuses),
+            expiresAt,
+            null,
+            now,
+            string.IsNullOrWhiteSpace(command.RequestId) ? Guid.NewGuid().ToString("N") : command.RequestId);
+        await _handoffs.StoreAsync(record, ct);
+
+        string url = $"{_docsBaseUrl}/open?documentId={Uri.EscapeDataString(command.DocumentId.ToString())}&handoff={Uri.EscapeDataString(handoffCode)}";
+        return new ViewerLinkResult(url, expiresAt);
+    }
+
+    public async Task<ViewerSessionHandoffResult> ConsumeHandoffAsync(
+        ConsumeViewerSessionHandoffCommand command,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(command.HandoffCode))
+        {
+            throw new ViewerAccessException("VIEWER_HANDOFF_INVALID", 401, "Viewer handoff code is invalid.");
+        }
+
+        string codeHash = HashHandoffCode(command.HandoffCode);
+        ViewerSessionHandoffRecord record = await _handoffs.FindByCodeHashAsync(codeHash, ct)
+            ?? throw new ViewerAccessException("VIEWER_HANDOFF_INVALID", 401, "Viewer handoff code is invalid.");
+
+        if (record.DocumentId != command.DocumentId)
+        {
+            throw new ViewerAccessException("VIEWER_HANDOFF_INVALID", 401, "Viewer handoff code is invalid.");
+        }
+
+        if (record.ConsumedAt is not null)
+        {
+            throw new ViewerAccessException("VIEWER_HANDOFF_USED", 410, "Viewer handoff code has already been used.");
+        }
+
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        if (record.ExpiresAt <= now)
+        {
+            throw new ViewerAccessException("VIEWER_HANDOFF_EXPIRED", 410, "Viewer handoff code has expired.");
+        }
+
+        IReadOnlyList<string> allowedStatuses = ParseAllowedStateScope(record.AllowedStateScope);
+        ViewerDocumentAccess document = await RequireDocumentAsync(command.DocumentId, ct);
+        RequireDocumentAllowed(document, allowedStatuses);
+
+        await _handoffs.MarkConsumedAsync(record.Id, now, ct);
+        return new ViewerSessionHandoffResult(record.UserId, allowedStatuses, record.ExpiresAt);
     }
 
     public async Task<ViewerDocumentResult> GetDocumentAsync(GetViewerDocumentCommand command, CancellationToken ct)
@@ -123,5 +184,28 @@ public sealed class ViewerAccessService : IViewerAccessService
             || roles.Contains("DocumentManager", StringComparer.Ordinal)
                 ? ManagementAllowedStatuses
                 : ChatAllowedStatuses;
+    }
+
+    private static string GenerateHandoffCode()
+    {
+        byte[] bytes = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private static string HashHandoffCode(string code)
+    {
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(code))).ToLowerInvariant();
+    }
+
+    private static IReadOnlyList<string> ParseAllowedStateScope(string allowedStateScope)
+    {
+        string[] states = allowedStateScope
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return states.Length == 0
+            ? throw new ViewerAccessException("VIEWER_HANDOFF_INVALID", 401, "Viewer handoff code is invalid.")
+            : states;
     }
 }

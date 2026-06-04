@@ -6,7 +6,7 @@
 
 ## Current Goal
 
-- Plan and implement query-time multimodal RAG for MinIO-backed document images.
+- Resume query-time multimodal RAG for MinIO-backed document images after user-owned browser/Compose acceptance for the document creation/editor fixes.
 
 ## Completed
 
@@ -32,11 +32,16 @@
 - On 2026-06-03, an interim manual update helper was added at `updateService.sh` with documentation in `docs/operations/manual-service-update.md`. It performs a safe source-based update for the demo host until GHCR/CD is implemented: tracked-worktree guard, optional environment selection, Postgres backup, fast-forward-only pull, Compose validation, rebuild/recreate, health waits, and recent log output.
 - On 2026-06-03, a host reboot recovery helper was added at `installServiceAutostart.sh` with documentation in `docs/operations/systemd-autostart.md`. It installs `advanced-rag.service` as a systemd oneshot unit that runs Docker Compose after Docker and network-online are available.
 - On 2026-06-03, unauthenticated management surfaces gained visible language and dark-mode controls through the shared `AuthFrame`, including the login page. Login copy is now backed by `es-AR` and `en-US` i18n keys. Verification passed with the focused manage-web login-control test, `pnpm.cmd --dir apps\manage-web typecheck`, and `pnpm.cmd --dir apps\manage-web build`. A full `src/App.test.tsx` run remains blocked by two pre-existing authenticated language-switch tests that still render Spanish after selecting English.
+- On 2026-06-03, the Raspberry Pi/demo host branch was realigned with `origin/mvp-implementation` after temporary local Caddy and file-permission commits were discarded from the deployment branch. The remaining local `backups/` directory is untracked deployment-host data and should be ignored locally through `.git/info/exclude` or a later repository-level `.gitignore` update.
+- On 2026-06-04, document creation/editor fixes were implemented and agent-verified: management document editor quick group creation, richer TipTap toolbar and list/content styling, DOCX/PDF import responses with safe `contentHtml` plus fallback text, Mammoth `1.11.0` DOCX conversion without embedded image import, DB-backed one-time viewer session handoff codes, docs-web handoff consumption with URL cleanup, and viewer content list styling. Verification passed with focused .NET viewer/import/migration tests, .NET solution build, manage-web App tests/typecheck/build, docs-web App tests/typecheck/build, and `git diff --check` with line-ending warnings only. User-owned Compose/browser acceptance remains pending.
+- On 2026-06-04, follow-up management editor usability fixes were implemented and agent-verified: document editor group creation now uses the same modal workflow as the users/groups workspace, access groups render in a compact three-column grid, a select-all groups action was added, the TipTap packages were refreshed from `3.23.5` to the npm latest `3.25.0`, and the toolbar was refit into the compact grouped layout with a native color input backed by the official TipTap color/text-style extensions plus a clear-color action. The document HTML sanitizer now preserves only the `color` CSS property and strips other inline CSS. Manage and chat document-viewer handoff links now open `docs-web` in a new tab with `noopener,noreferrer`. A Docker/Compose frozen-lockfile mismatch was corrected by regenerating the `apps/manage-web` pnpm lockfile importer so every TipTap specifier matches the exact `3.25.0` manifest entries. Verification passed with focused manage-web and chat-web App tests, full manage-web and chat-web App test files, `pnpm.cmd --dir apps\manage-web install --frozen-lockfile`, `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\chat-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, `pnpm.cmd --dir apps\chat-web build`, focused .NET sanitizer tests, and `dotnet build services\dotnet-api\AdvancedRag.sln --no-restore`.
+- On 2026-06-04, a toolbar review follow-up refined the management TipTap toolbar without browser automation: the heading selector was replaced by fixed `P`, `H1`, `H2`, and `H3` buttons, semantic highlight and text-alignment controls were added, docs rendering now styles `<mark>`, and the document sanitizer preserves only approved `color` and `text-align` CSS plus `<mark>` while continuing to strip unsafe inline styles. Verification was intentionally limited per user request and passed with `pnpm.cmd --dir apps\manage-web install --frozen-lockfile`, `pnpm.cmd --dir apps\manage-web typecheck`, focused `DocumentHtmlSanitizerTests`, `pnpm.cmd --dir apps\manage-web build`, and `git diff --check` with line-ending warnings only.
 
 ## In Progress
 
 - Query-time multimodal RAG design is approved and documented in `docs/superpowers/specs/2026-06-01-query-time-multimodal-rag-design.md`.
 - Query-time multimodal RAG implementation plan is written in `docs/superpowers/plans/2026-06-01-query-time-multimodal-rag-implementation-plan.md`.
+- Demo knowledge-library design is being drafted for a generic internal services company. The user selected this domain on 2026-06-03; final taxonomy, document set, permissions, and golden chat questions are pending approval before any seeding implementation.
 
 ## Next Up
 
@@ -45,11 +50,15 @@
 - User-owned later: copy or clone the repository to the Raspberry Pi demo host, create demo-only Compose secret files locally on that host, and run the Compose stack acceptance check.
 - User-owned next: when manually updating the demo host before GHCR/CD, run `chmod +x updateService.sh` once and then `./updateService.sh --env-file infra/compose/.env.pi` from the repository root.
 - User-owned next: to recover after host reboot, run `chmod +x installServiceAutostart.sh` once and then `./installServiceAutostart.sh --env-file infra/compose/.env.pi` on the Linux demo host; verify with `sudo systemctl status advanced-rag.service --no-pager`.
+- User-owned next: on the demo host, ignore generated backup output locally with `echo "backups/" >> .git/info/exclude` and prevent Linux file-mode noise with `git config core.fileMode false`.
 - User-owned next: finish verifying public access for `chat.breuerai.com` and `docs.breuerai.com`, then optionally add Cloudflare Access in front of `manage.breuerai.com` before showing the demo to untrusted users.
+- User-owned later: run the local Compose/browser acceptance for document creation/editor fixes from `docs/superpowers/plans/2026-06-04-document-creation-editor-fixes-implementation-plan.md`, including confirmation that manage-to-docs and chat-to-docs viewer links open in a new browser tab.
 
 ## Open Questions
 
 - Future cleanup may add orphan image cleanup for uploaded draft images that are removed from HTML before publication.
+- Demo content design must still choose the final group/access taxonomy, document type taxonomy, initial published/draft/review mix, and the golden question set for chat validation.
+- No open product decisions remain for the current document creation/editor fixes slice or its management editor usability follow-up. Browser/Compose acceptance, including the new-tab document handoff behavior, is still pending.
 
 ## Architecture Decisions
 
@@ -77,10 +86,11 @@ Start by reading `context/README.md`. It defines reading order and source-of-tru
 Current state:
 
 - The active branch is `mvp-implementation`.
-- The latest local work adds visible language and dark-mode controls to unauthenticated management surfaces, including login. Query-time multimodal RAG is approved and its slice-based implementation plan is written.
+- The latest local work implements document creation/editor fixes plus the follow-up management editor group-selection, TipTap `3.25.0` toolbar/color controls, and cross-app docs links opening in new tabs. Query-time multimodal RAG remains approved and its slice-based implementation plan is written.
 - Document image slice 1 is implemented and the user confirmed image storage through the local MinIO browser on 2026-06-01.
 - Text-first RAG image indexing is implemented and RAG verification passed on 2026-06-01.
 - Management editor published-document fallback is implemented and manage-web verification passed on 2026-06-01.
 - Query-time multimodal RAG is approved and planned for implementation. Do not send every document image to OpenAI; select only images associated with final retrieved chunks and enforce the initial caps of 3 images and 5 MB total image bytes per chat request.
 - Interim manual service updates can use `updateService.sh` from the repository root on the Linux demo host. This is a temporary source-build path until GHCR/CD is implemented.
 - Demo-host boot recovery can use `installServiceAutostart.sh` from the repository root on the Linux demo host to install `advanced-rag.service`.
+- The demo host deployment branch should remain aligned with `origin/mvp-implementation`; host-only generated data such as `backups/` belongs outside tracked Git state.

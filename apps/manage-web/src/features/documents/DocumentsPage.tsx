@@ -1,8 +1,10 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Archive,
   ExternalLink,
+  FolderPlus,
   Pencil,
   Plus,
   RefreshCw,
@@ -25,9 +27,9 @@ import {
   uploadDocumentImage,
 } from "../../api/documents";
 import type { DocumentDetail, DocumentSummary } from "../../api/documents";
-import { listGroups, type GroupSummary } from "../../api/users";
+import { createGroup, listGroups, type GroupSummary } from "../../api/users";
 import { RichTextEditor } from "./RichTextEditor";
-import { Button, Checkbox, DataTable, Input } from "@helpcenter/shared-ui";
+import { Button, Checkbox, DataTable, Dialog, Input } from "@helpcenter/shared-ui";
 
 type DocumentStateFilter =
   | "all"
@@ -170,6 +172,16 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
     setActiveTab("list");
   }
 
+  function addGroup(group: GroupSummary) {
+    setGroups((current) =>
+      current.some((item) => item.id === group.id)
+        ? current
+        : [...current, group].sort((left, right) =>
+            left.name.localeCompare(right.name),
+          ),
+    );
+  }
+
   async function runArchive(document: DocumentSummary) {
     const updated = await archiveDocument(document.id);
     setDocuments((current) =>
@@ -214,7 +226,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
     setMessage(null);
     try {
       const link = await createManagementViewerLink(document.id);
-      window.location.assign(link.url);
+      window.open(link.url, "_blank", "noopener,noreferrer");
     } catch (error) {
       const reference = error instanceof ApiError ? error.requestId : "unknown";
       setMessage(t("documents.viewer_error", { reference }));
@@ -533,6 +545,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
             groups={groups}
             userRoles={userRoles}
             onClose={closeEditor}
+            onGroupCreated={addGroup}
             onSaved={upsertDocument}
           />
         ) : (
@@ -554,6 +567,7 @@ function DocumentEditor({
   groups,
   userRoles,
   onClose,
+  onGroupCreated,
   onSaved,
 }: {
   mode: "create" | "edit";
@@ -561,6 +575,7 @@ function DocumentEditor({
   groups: GroupSummary[];
   userRoles: string[];
   onClose: () => void;
+  onGroupCreated: (group: GroupSummary) => void;
   onSaved: (document: DocumentDetail, message: string) => void;
 }) {
   const { t } = useTranslation();
@@ -577,6 +592,8 @@ function DocumentEditor({
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importFileName, setImportFileName] = useState<string | null>(null);
+  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
+  const [groupCreateMessage, setGroupCreateMessage] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(mode === "create");
   const [isSaving, setIsSaving] = useState(false);
   const importInputId = useId();
@@ -663,7 +680,12 @@ function DocumentEditor({
 
     try {
       const result = await importDocumentText(file);
-      setContentHtml(plainTextToParagraphHtml(result.text));
+      const extractedHtml = result.contentHtml?.trim();
+      setContentHtml(
+        extractedHtml && extractedHtml.length > 0
+          ? extractedHtml
+          : plainTextToParagraphHtml(result.text),
+      );
       setIsDirty(true);
       setImportMessage(t("documents.import_success", { filename: result.metadata.originalFilename }));
     } catch (error) {
@@ -679,6 +701,21 @@ function DocumentEditor({
         : [...current, groupId],
     );
     setIsDirty(true);
+  }
+
+  function selectAllGroups() {
+    setAllowedGroupIds(groups.map((group) => group.id));
+    setIsDirty(true);
+  }
+
+  function addCreatedAccessGroup(group: GroupSummary) {
+    onGroupCreated(group);
+    setAllowedGroupIds((current) =>
+      current.includes(group.id) ? current : [...current, group.id],
+    );
+    setIsGroupDialogOpen(false);
+    setIsDirty(true);
+    setGroupCreateMessage(t("documents.group_create_success", { name: group.name }));
   }
 
   return (
@@ -766,16 +803,39 @@ function DocumentEditor({
 
         <fieldset className="checkbox-list">
           <legend>{t("documents.access_groups")}</legend>
+          <div className="checkbox-list-actions">
+            <Button
+              className="text-button"
+              type="button"
+              onClick={() => setIsGroupDialogOpen(true)}
+            >
+              <FolderPlus size={16} />
+              {t("documents.group_new")}
+            </Button>
+            <Button
+              className="text-button"
+              type="button"
+              disabled={groups.length === 0}
+              onClick={selectAllGroups}
+            >
+              {t("documents.select_all_groups")}
+            </Button>
+          </div>
+          {groupCreateMessage ? (
+            <p className="status-message success">{groupCreateMessage}</p>
+          ) : null}
           {groups.length > 0 ? (
-            groups.map((group) => (
-              <Checkbox
-                className="checkbox-field"
-                key={group.id}
-                label={group.name}
-                checked={allowedGroupIds.includes(group.id)}
-                onCheckedChange={() => toggleGroup(group.id)}
-              />
-            ))
+            <div className="checkbox-grid">
+              {groups.map((group) => (
+                <Checkbox
+                  className="checkbox-field"
+                  key={group.id}
+                  label={group.name}
+                  checked={allowedGroupIds.includes(group.id)}
+                  onCheckedChange={() => toggleGroup(group.id)}
+                />
+              ))}
+            </div>
           ) : (
             <p className="muted-copy">{t("documents.no_groups")}</p>
           )}
@@ -843,7 +903,95 @@ function DocumentEditor({
           ) : null}
         </div>
       </form>
+
+      {isGroupDialogOpen ? (
+        <GroupCreateDialog
+          onClose={() => setIsGroupDialogOpen(false)}
+          onSaved={addCreatedAccessGroup}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function GroupCreateDialog({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void;
+  onSaved: (group: GroupSummary) => void;
+}) {
+  const { t } = useTranslation();
+  const [name, setName] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setValidationError(null);
+    setApiError(null);
+
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) {
+      setValidationError(t("documents.group_create_name_required"));
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      onSaved(await createGroup({ name: trimmedName }));
+    } catch (error) {
+      const reference = error instanceof ApiError ? error.requestId : "unknown";
+      setApiError(t("documents.group_create_error", { reference }));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open
+      title={t("documents.group_create")}
+      description={t("documents.group_create_description")}
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+    >
+      <form className="dialog-form" noValidate onSubmit={handleSubmit}>
+        <label className="field">
+          <span>{t("documents.group_create_name")}</span>
+          <Input
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            disabled={isSaving}
+          />
+        </label>
+
+        {validationError ? (
+          <p className="status-message error" role="alert">
+            {validationError}
+          </p>
+        ) : null}
+        {apiError ? (
+          <p className="status-message error" role="alert">
+            {apiError}
+          </p>
+        ) : null}
+
+        <div className="dialog-actions">
+          <Button className="text-button" type="button" onClick={onClose}>
+            {t("documents.cancel")}
+          </Button>
+          <Button className="primary-button" type="submit" disabled={isSaving}>
+            {isSaving ? t("documents.saving") : t("documents.group_save")}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

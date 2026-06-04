@@ -33,6 +33,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Task 7 Auth Foundation](#2026-05-13---task-7-auth-foundation)
 - [Task 8 User Administration And Budget Configuration](#2026-05-14---task-8-user-administration-and-budget-configuration)
 - [Role Acceptance Matrix Promotes Limited Viewer Management Access](#2026-05-31---role-acceptance-matrix-promotes-limited-viewer-management-access)
+- [Secure Cross-Subdomain Viewer SSO Handoff](#2026-06-03---secure-cross-subdomain-viewer-sso-handoff)
 
 ### Document Lifecycle And Versioning
 
@@ -53,6 +54,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Indexing Ownership](#2026-05-11---indexing-ownership)
 - [Task 9 Document Lifecycle And Assisted Imports](#2026-05-17---task-9-document-lifecycle-and-assisted-imports)
 - [Task 10 Internal Indexing Pipeline](#2026-05-17---task-10-internal-indexing-pipeline)
+- [Deferred MVP Document Tags](#2026-06-03---deferred-mvp-document-tags)
 
 ### Imports
 
@@ -63,12 +65,14 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Import Upload Size Limit](#2026-05-11---import-upload-size-limit)
 - [.NET Import Extraction Libraries](#2026-05-11---net-import-extraction-libraries)
 - [Non-Extractable PDF Handling](#2026-05-11---non-extractable-pdf-handling)
+- [Assisted Import Moves From Plain Text To Safer Structured HTML](#2026-06-03---assisted-import-moves-from-plain-text-to-safer-structured-html)
 
 ### RAG, Cache, And Feedback
 
 - [Semantic Cache](#2026-05-11---semantic-cache)
 - [Semantic Cache Similarity Threshold](#2026-05-11---semantic-cache-similarity-threshold)
 - [Cache Invalidation](#2026-05-11---cache-invalidation)
+- [Generic Internal Services Demo Corpus](#2026-06-03---generic-internal-services-demo-corpus)
 - [Chat Answer Feedback](#2026-05-11---chat-answer-feedback)
 - [Chat Feedback Update Behavior](#2026-05-11---chat-feedback-update-behavior)
 - [Chat Feedback Review UI](#2026-05-11---chat-feedback-review-ui)
@@ -1780,3 +1784,111 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** Operators can run `./installServiceAutostart.sh --env-file infra/compose/.env.pi` on the Linux demo host. The script writes `/etc/systemd/system/advanced-rag.service`, runs `systemctl daemon-reload`, enables the unit for boot, and starts it immediately. It does not store secret values or modify Compose secrets.
 
 **Evidence:** Added `installServiceAutostart.sh`, `docs/operations/systemd-autostart.md`, and `tests/operations/test_install_service_autostart_script.py`. Verified on 2026-06-03 with `python -m unittest tests.operations.test_install_service_autostart_script`, which checks required systemd/Compose steps and Bash syntax.
+
+## 2026-06-03 - Generic Internal Services Demo Corpus
+
+**Context:** The product needs a realistic demo document library that can validate management workflows, group-based document access, RAG retrieval, citations, feedback, and no-answer behavior. The current local demo seed creates only one group and an optional minimal draft document, which is not enough to exercise the chat or permission model.
+
+**Decision:** Design the demo corpus as a generic internal services company rather than a specialized industry corpus or a meta corpus about the Advanced RAG product itself.
+
+**Rationale:** A generic internal services company is immediately understandable to most prospects and supports clear document groups such as HR, IT, Finance, Security, Operations, Sales Support, and Leadership. It also lets the demo include policies, procedures, checklists, troubleshooting guides, and escalation paths without needing domain-specific regulatory accuracy.
+
+**Tradeoffs:** The corpus will be less differentiated than an industry-specific demo, but it is safer for an MVP because the questions and expected answers can stay broadly credible and easier to verify.
+
+**Consequences:** The demo design must separate access groups from document categories. Groups are authorization boundaries; document types, audiences, and tags are classification metadata. The final corpus should include published documents, at least one restricted document, and a small set of draft or in-review records so the management lifecycle remains visible without leaking unpublished content into public chat.
+
+## 2026-06-03 - Secure Cross-Subdomain Viewer SSO Handoff
+
+**Context:** The management and chat apps create links to `docs.*` document viewer URLs. The current browser auth cookie is `__Host-session`, which is intentionally host-only. A session created on `manage.*` or `chat.*` therefore does not automatically authenticate the user on `docs.*`. This preserves the host-only cookie model but creates a poor user experience when a user follows a viewer link and appears logged out.
+
+**Options Considered:** Keep the current behavior and require a separate manual login on `docs.*`, introduce a secure cross-subdomain handoff that mints a host-only docs session after server-side validation, or weaken the cookie topology by using a shared parent-domain session cookie.
+
+**Decision:** Design a secure cross-subdomain viewer SSO handoff. Do not switch to parent-domain cookies. The handoff should let `docs.*` establish its own host-only `__Host-session` after validating a short-lived, server-owned handoff flow initiated by an authenticated source host. On 2026-06-04, the user approved DB-backed one-time handoff codes with expiration and consumed/used state.
+
+**Rationale:** This preserves the security benefits of host-only cookies while removing the confusing "lost login" experience when users open document links. It also keeps document viewer access authorization server-side: the link remains a locator, not an authorization grant.
+
+**Tradeoffs:** The implementation is more complex than a parent-domain cookie. It needs a short-lived handoff artifact, replay protection or narrow validity, audit/logging, CSRF-safe initiation, safe error states, and tests across management, chat, docs, and the .NET API.
+
+**Consequences:** The existing `__Host-session` rule remains intact. Viewer link generation and docs app bootstrapping need a new handoff path before claiming login is shared across product surfaces. Implementation should add persisted one-time handoff state, safe replay failure handling, and audit/logging around handoff issuance and consumption.
+
+**Implementation Evidence:** Implemented on 2026-06-04 with `.NET` app-layer `ViewerAccessService` handoff issuance/consumption, EF-owned `app.viewer_session_handoff_codes`, `POST /api/viewer/session-handoff`, docs-web handoff bootstrap, and URL cleanup through `history.replaceState`. Verified with focused viewer service tests, viewer API endpoint tests, EF mapping/migration tests, docs-web App tests, docs-web typecheck/build, and .NET solution build.
+
+## 2026-06-03 - Deferred MVP Document Tags
+
+**Context:** The database schema includes `app.document_tags` and older documentation mentions optional tags, but the current API contracts, document lifecycle service, management UI, viewer UI, and RAG retrieval flow do not expose or use tags. Implementing tags now would add backend and frontend scope without improving access control or RAG behavior in the MVP.
+
+**Options Considered:** Implement optional editorial tags now, remove tags entirely from the model and documentation, or defer tags in product documentation while leaving the unused schema table in place.
+
+**Decision:** Defer document tags for the MVP. Documentation should not describe tags as an available product capability. The existing unused table can remain as dormant schema history until a future cleanup or product decision.
+
+**Rationale:** Groups are the current authorization boundary and document type/audience already cover the MVP's visible classification needs. Adding tag UI/API now would widen the document workflow without a clear operational payoff.
+
+**Tradeoffs:** The schema contains an unused table for now. This is acceptable because removing it would require migration churn and does not improve the user-facing fixes currently needed.
+
+**Consequences:** The document editor fixes should not add tag UI. Authoritative context and user-facing documentation should describe tags as deferred or remove active-tag wording.
+
+**Implementation Evidence:** On 2026-06-04, active context was updated so document tags are described as deferred/out of scope for the MVP product surface. The document editor fixes did not add tag UI, API fields, lifecycle behavior, filters, or RAG behavior.
+
+## 2026-06-03 - Assisted Import Moves From Plain Text To Safer Structured HTML
+
+**Context:** PDF/DOCX import currently returns plain text only. DOCX extraction uses OpenXML `Body.InnerText`; PDF extraction concatenates PdfPig `page.Text`; the management frontend wraps the resulting text in paragraphs. This is safe but loses headings, lists, tables, and paragraph structure, making imports uncomfortable to edit.
+
+**Options Considered:** Keep plain-text assisted extraction and improve only copy, use structured DOCX-to-HTML conversion plus conservative PDF layout extraction, or attempt full high-fidelity HTML conversion for both DOCX and PDF.
+
+**Decision:** Improve imports using structured DOCX-to-HTML conversion and conservative PDF formatting. DOCX may produce sanitized semantic HTML for common headings, paragraphs, lists, links, emphasis, and tables. PDF should improve reading order and paragraph grouping where reliable, but must not promise faithful HTML reconstruction.
+
+**Rationale:** DOCX stores semantic document structure, so a converter such as Mammoth can preserve useful HTML shape. PDF is primarily a presentation format and often lacks semantic structure, so aggressive conversion would produce misleading or brittle HTML. Imports remain assisted drafts: the user still reviews and edits before saving.
+
+**Tradeoffs:** Adding DOCX-to-HTML conversion introduces a new dependency and requires security controls. PDF results remain imperfect, especially for scanned, multi-column, or heavily designed PDFs.
+
+**Consequences:** Import responses should carry HTML content rather than only raw text, or carry both text and HTML during a compatibility transition. Converted HTML must be sanitized server-side before returning to the browser and again on save. On 2026-06-04, the user approved using Mammoth for DOCX-to-HTML conversion, with final NuGet version/license validation during implementation, and approved not importing embedded DOCX images in this slice.
+
+**Evidence:** Tiptap docs checked on 2026-06-03 show `StarterKit` includes headings, lists, blockquote, code block, horizontal rule, and undo/redo. Mammoth for .NET documentation states it converts DOCX to simple semantic HTML including headings, lists, tables, images, emphasis, links, and line breaks, but performs no sanitization and warns about untrusted input. PdfPig documentation checked on 2026-06-03 warns against using `page.Text` directly for extraction and recommends text/layout analysis tools such as `ContentOrderTextExtractor`, `NearestNeighbourWordExtractor`, and page segmenters. On 2026-06-04, NuGet validation pinned Mammoth `1.11.0` for the .NET import slice.
+
+**Implementation Evidence:** Implemented on 2026-06-04 with backend import responses returning `contentHtml` plus fallback `text`, Mammoth DOCX conversion sanitized through `HtmlSanitizer`, embedded DOCX image output removed/skipped, PDF paragraph HTML generation through PdfPig reading-order extraction, and manage-web insertion of `contentHtml` when present. Verified with focused import extraction tests, manage-web App tests, manage-web typecheck/build, and .NET solution build.
+
+## 2026-06-04 - TipTap Text Color Uses Narrow Sanitized CSS
+
+**Context:** The management document editor needed a text-color selector in the TipTap toolbar. TipTap's official color support emits inline `style="color: ..."` on text-style spans, while the project must continue rejecting arbitrary inline styling in saved document HTML.
+
+**Options Considered:** Skip text color, add a custom semantic color mark/class, or use TipTap's official `Color` and `TextStyle` extensions with a tightly configured backend sanitizer.
+
+**Decision:** Use TipTap `@tiptap/extension-color` with `@tiptap/extension-text-style` for the toolbar color selector. Persist only the `color` CSS property through the `.NET` `Ganss.Xss` document sanitizer and strip every other inline CSS property.
+
+**Rationale:** This follows the editor's native extension model and keeps the stored HTML compatible with TipTap without broadening the document sanitizer to arbitrary styles.
+
+**Tradeoffs:** Stored HTML now permits one inline CSS property. That increases sanitizer responsibility, so the allowed CSS surface must stay explicit and covered by tests.
+
+**Consequences:** Future rich-text formatting that requires inline styles must go through the same decision process. Do not add broad style support to solve editor formatting issues.
+
+**Evidence:** Tiptap documentation checked on 2026-06-04 confirms `Color` with `TextStyle` and `setColor`/`unsetColor` commands. The npm registry check on 2026-06-04 reported `@tiptap/react` latest as `3.25.0`, so the management TipTap packages were refreshed from `3.23.5` to `3.25.0`. Implementation uses `@tiptap/extension-color` and `@tiptap/extension-text-style`, a native toolbar color input with a clear-color action, and a sanitizer regression test proving safe color survives while unsafe CSS properties are stripped. After Docker/Compose exposed a frozen-lockfile mismatch, the `apps/manage-web` pnpm lockfile importer was regenerated so every TipTap specifier matches the exact `3.25.0` manifest entries. Verification passed with focused manage-web tests, `pnpm.cmd --dir apps\manage-web install --frozen-lockfile`, `pnpm.cmd --dir apps\manage-web typecheck`, `pnpm.cmd --dir apps\manage-web build`, focused .NET sanitizer test, and `.NET` solution build.
+
+## 2026-06-04 - TipTap Highlight And Alignment Stay Narrowly Sanitized
+
+**Context:** User review of the management document editor toolbar requested a cleaner heading control, a highlighter, and text-alignment controls. TipTap `TextAlign` emits inline `style="text-align: ..."` on paragraphs/headings, while the project still needs to reject arbitrary inline styling in stored document HTML.
+
+**Options Considered:** Keep the toolbar limited to text color, add alignment with broad inline-style preservation, use custom CSS classes for alignment/highlight, or use TipTap's official `Highlight` and `TextAlign` extensions with narrowly configured sanitization.
+
+**Decision:** Use TipTap `@tiptap/extension-highlight` for semantic `<mark>` highlights and `@tiptap/extension-text-align` for paragraph/heading alignment. Persist only `color` and `text-align` CSS properties through the `.NET` `Ganss.Xss` document sanitizer, preserve `<mark>`, and continue stripping every other inline CSS property.
+
+**Rationale:** This follows TipTap's official extension model while keeping saved HTML predictable for management editing and docs rendering. Avoiding multicolor highlights prevents the MVP from allowing `background-color` or wider style support.
+
+**Tradeoffs:** Alignment now adds a second approved inline CSS property. Any future rich-text control that needs styles must still be reviewed and tested explicitly.
+
+**Consequences:** The toolbar uses fixed `P`, `H1`, `H2`, and `H3` buttons instead of a narrow heading select, plus icon buttons for alignment and highlight. Docs rendering styles `<mark>` consistently, but highlight colors are intentionally fixed for now.
+
+**Evidence:** Tiptap documentation checked on 2026-06-04 confirms `Highlight`, `TextAlign.configure({ types: ["heading", "paragraph"] })`, `toggleHighlight`, and `setTextAlign` commands. Implementation pins `@tiptap/extension-highlight` and `@tiptap/extension-text-align` at `3.25.0` and adds a sanitizer regression test for `color`, `text-align`, `<mark>`, and unsafe CSS removal.
+
+## 2026-06-04 - Cross-App Document Links Open In New Tabs
+
+**Context:** Management and chat can hand off authenticated document-viewer sessions to `docs-web`. These links leave the current app context, so replacing the current page makes it harder to keep the management or chat workflow open while reviewing evidence.
+
+**Options Considered:** Continue navigating the current tab, add explicit copy-link controls, or open cross-app document handoffs in a new browser tab.
+
+**Decision:** Open manage-to-docs and chat-to-docs viewer handoff links in a new tab using `window.open(url, "_blank", "noopener,noreferrer")`.
+
+**Rationale:** The current app remains available while `docs-web` shows the document, and the `noopener,noreferrer` feature string avoids giving the new tab access to the opener.
+
+**Tradeoffs:** The handoff URL is created after an API request, so real-browser acceptance should confirm the browser does not block the popup in the deployed flow.
+
+**Evidence:** Implemented on 2026-06-04 in manage-web document viewer links and chat-web citation links. Verified with focused App tests for both apps, full manage-web and chat-web App test files, typechecks, production builds, and `git diff --check` with line-ending warnings only.

@@ -244,6 +244,8 @@ test('shows a safe generic error with request id', async () => {
 
 test('opens citations through session-based viewer links', async () => {
   const assign = vi.fn()
+  const open = vi.fn()
+  vi.stubGlobal('open', open)
   Object.defineProperty(window, 'location', {
     configurable: true,
     value: { assign },
@@ -279,7 +281,12 @@ test('opens citations through session-based viewer links', async () => {
     '/api/viewer/links',
     expect.objectContaining({ method: 'POST' }),
   )
-  expect(assign).toHaveBeenCalledWith('https://docs.client.com/open?documentId=55555555-5555-5555-5555-555555555555')
+  expect(assign).not.toHaveBeenCalled()
+  expect(open).toHaveBeenCalledWith(
+    'https://docs.client.com/open?documentId=55555555-5555-5555-5555-555555555555',
+    '_blank',
+    'noopener,noreferrer',
+  )
 })
 
 test('shows login when the chat host has no session and opens the chat after signing in', async () => {

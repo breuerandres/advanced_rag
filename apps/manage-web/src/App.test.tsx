@@ -1031,18 +1031,35 @@ describe("management documents", () => {
     expect(
       screen.getByRole("button", { name: "Subrayado" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Titulo 2" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tachado" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Lista con vinetas" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Lista numerada" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cita" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Codigo en linea" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bloque de codigo" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Linea horizontal" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rehacer" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Insertar tabla" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Insertar imagen" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Estilo de bloque" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Parrafo" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Color de texto" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Color de texto")).toHaveAttribute("type", "color");
 
     await user.type(
       screen.getByRole("textbox", { name: "Titulo" }),
@@ -1068,6 +1085,142 @@ describe("management documents", () => {
       "/api/documents",
       expect.objectContaining({ method: "POST" }),
     );
+  }, 15000);
+
+  test("creates an access group from the document editor modal and can select every group", async () => {
+    const newGroup = {
+      id: "33333333-3333-3333-3333-333333333333",
+      name: "Mantenimiento",
+    };
+    const createdDocument = {
+      ...documentDetail,
+      id: "99999999-9999-9999-9999-999999999999",
+      title: "Documento con grupo nuevo",
+      allowedGroupIds: [newGroup.id],
+      currentDraftVersion: {
+        ...documentDetail.currentDraftVersion!,
+        title: "Documento con grupo nuevo",
+        documentType: "Procedimiento",
+        audience: "Mantenimiento",
+        contentHtml: "<p>Contenido operativo.</p>",
+      },
+    };
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, documentsResponse),
+      jsonResponse(200, []),
+      csrfResponse(),
+      jsonResponse(201, newGroup),
+      csrfResponse(),
+      jsonResponse(201, createdDocument),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("link", { name: "Documentos" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Crear documento" }),
+    );
+
+    expect(
+      screen.queryByRole("textbox", { name: "Nombre del grupo" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Seleccionar todos" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Nuevo grupo" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Crear grupo" });
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Nombre del grupo" }),
+      newGroup.name,
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Guardar grupo" }));
+
+    expect(
+      await screen.findByRole("checkbox", { name: newGroup.name }),
+    ).toBeChecked();
+    expect(screen.getByText("Grupo Mantenimiento creado.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Crear grupo" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: newGroup.name }));
+    expect(screen.getByRole("checkbox", { name: newGroup.name })).not.toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Seleccionar todos" }));
+    expect(screen.getByRole("checkbox", { name: newGroup.name })).toBeChecked();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Titulo" }),
+      "Documento con grupo nuevo",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Tipo" }),
+      "Procedimiento",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Audiencia" }),
+      "Mantenimiento",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Contenido del documento" }),
+      "Contenido operativo.",
+    );
+    await user.click(screen.getByRole("button", { name: "Guardar borrador" }));
+
+    expect(await screen.findByText("Documento creado.")).toBeInTheDocument();
+    const [, requestInit] = fetchMock.mock.calls.find(
+      ([path, init]) =>
+        path === "/api/documents" &&
+        typeof init === "object" &&
+        init !== null &&
+        "method" in init &&
+        init.method === "POST",
+    )!;
+    expect(JSON.parse(requestInit!.body as string).allowedGroupIds).toEqual([
+      newGroup.id,
+    ]);
+  }, 15000);
+
+  test("exposes the richer TipTap toolbar", async () => {
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, documentsResponse),
+      jsonResponse(200, []),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("link", { name: "Documentos" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Crear documento" }),
+    );
+
+    expect(screen.getByRole("combobox", { name: "Estilo de bloque" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Color de texto")).toHaveAttribute("type", "color");
+
+    [
+      "Negrita",
+      "Cursiva",
+      "Subrayado",
+      "Tachado",
+      "Lista con vinetas",
+      "Lista numerada",
+      "Cita",
+      "Codigo en linea",
+      "Bloque de codigo",
+      "Linea horizontal",
+      "Deshacer",
+      "Rehacer",
+      "Enlace",
+      "Insertar tabla",
+      "Insertar imagen",
+    ].forEach((label) => {
+      expectActionTooltip(screen.getByRole("button", { name: label }));
+    });
   });
 
   test("opens editor, tracks dirty state, and sends a valid draft to review", async () => {
@@ -1306,7 +1459,7 @@ describe("management documents", () => {
     ).not.toBeInTheDocument();
   });
 
-  test("imports extracted text and shows safe import errors", async () => {
+  test("imports HTML content and shows safe import errors", async () => {
     stubFetch([
       jsonResponse(200, usersResponse),
       jsonResponse(200, []),
@@ -1315,7 +1468,8 @@ describe("management documents", () => {
       jsonResponse(200, documentDetail),
       csrfResponse(),
       jsonResponse(200, {
-        text: "Contenido importado",
+        text: "Contenido importado plano",
+        contentHtml: "<h1>Procedimiento importado</h1><ul><li>Paso importado</li></ul>",
         metadata: {
           originalFilename: "manual.docx",
           mimeType:
@@ -1357,7 +1511,10 @@ describe("management documents", () => {
 
     expect(
       await screen.findByRole("textbox", { name: "Contenido del documento" }),
-    ).toHaveTextContent("Contenido importado");
+    ).toHaveTextContent("Procedimiento importado");
+    expect(
+      screen.getByRole("textbox", { name: "Contenido del documento" }),
+    ).toHaveTextContent("Paso importado");
     expect(
       screen.getByText("Texto importado desde manual.docx."),
     ).toBeInTheDocument();
@@ -1424,6 +1581,8 @@ describe("management documents", () => {
 
   test("opens management document viewer through exchange links", async () => {
     const assign = vi.fn();
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
     Object.defineProperty(window, "location", {
       configurable: true,
       value: { assign },
@@ -1454,8 +1613,11 @@ describe("management documents", () => {
       "/api/viewer/links",
       expect.objectContaining({ method: "POST" }),
     );
-    expect(assign).toHaveBeenCalledWith(
+    expect(assign).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledWith(
       "https://docs.client.com/open?documentId=55555555-5555-5555-5555-555555555555",
+      "_blank",
+      "noopener,noreferrer",
     );
   });
 
@@ -1678,7 +1840,7 @@ interface StubFetchOptions {
 function stubFetch(responses: Response[], options: StubFetchOptions = {}) {
   const setupRequired = options.setupRequired ?? false;
   const session = options.session === undefined ? sessionUser : options.session;
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
     const path =
       typeof input === "string"
         ? input

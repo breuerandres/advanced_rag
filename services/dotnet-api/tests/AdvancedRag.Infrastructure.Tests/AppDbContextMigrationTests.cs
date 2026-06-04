@@ -29,6 +29,7 @@ public sealed class AppDbContextMigrationTests
         "user_groups",
         "user_roles",
         "users",
+        "viewer_session_handoff_codes",
     ];
 
     [Fact]

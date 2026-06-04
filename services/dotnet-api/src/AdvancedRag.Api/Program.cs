@@ -101,14 +101,17 @@ builder.Services.AddScoped<IDocumentImageObjectStorage>(services =>
 builder.Services.AddScoped<IDocumentImportExtractionService, DocumentImportExtractionService>();
 builder.Services.AddScoped<IManagementAuditService, EfManagementAuditService>();
 builder.Services.AddScoped<IViewerAccessRepository, EfViewerAccessRepository>();
+builder.Services.AddScoped<IViewerSessionHandoffRepository, EfViewerAccessRepository>();
 builder.Services.AddScoped<IViewerDocumentCatalogService, ViewerDocumentCatalogService>();
 builder.Services.AddScoped<IViewerDocumentGroupSource, EfViewerDocumentGroupSource>();
 builder.Services.AddScoped<IViewerAccessService>(services =>
 {
     var repository = services.GetRequiredService<IViewerAccessRepository>();
+    var handoffs = services.GetRequiredService<IViewerSessionHandoffRepository>();
+    var timeProvider = services.GetRequiredService<TimeProvider>();
     var configuration = services.GetRequiredService<IConfiguration>();
     var docsBaseUrl = configuration["Viewer:DocsBaseUrl"] ?? "https://docs.client.com";
-    return new ViewerAccessService(repository, docsBaseUrl);
+    return new ViewerAccessService(repository, handoffs, docsBaseUrl, timeProvider);
 });
 builder.Services.AddScoped<IFeedbackReportingService>(services =>
 {

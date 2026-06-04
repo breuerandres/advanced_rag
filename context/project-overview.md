@@ -2,7 +2,7 @@
 
 ## Overview
 
-Advanced RAG Document Platform is a single-tenant corporate document management and RAG product. It lets customer administrators and document managers create, review, publish, archive, and audit internal documents, while viewers use a secure chat frontend and token-gated document viewer to access only the published content allowed by their role, groups, and document attributes.
+Advanced RAG Document Platform is a single-tenant corporate document management and RAG product. It lets customer administrators and document managers create, review, publish, archive, and audit internal documents, while viewers use a secure chat frontend and session-gated document viewer to access only the published content allowed by their role, groups, and document attributes.
 
 ## Goals
 
@@ -16,10 +16,10 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 ## Core User Flow
 
 1. An `Admin` configures users, roles, groups/departments, access attributes, and AI budget limits.
-2. A `DocumentManager` creates an document manually or imports a PDF/DOCX to prefill the editor with extracted text, then edits normalized HTML and metadata, manages groups and user group assignments, and sends the draft to review.
+2. A `DocumentManager` creates an document manually or imports a PDF/DOCX to prefill the editor with safe draft HTML where possible, then edits normalized HTML and metadata, manages groups and user group assignments, and sends the draft to review.
 3. An `Admin` publishes from `In Review`; publication is blocked until FastAPI indexes the document successfully.
 4. A `Viewer` asks questions in `chat.client.com`; FastAPI retrieves only published content matching the viewer's effective access scope.
-5. The viewer opens cited documents through short-lived scoped links to `docs.client.com`.
+5. The viewer opens cited documents through session-authenticated document locators with short-lived one-time handoff when crossing into `docs.client.com`.
 6. The viewer can submit thumbs up/down feedback with an optional comment for each chat answer.
 7. Any authenticated user can use the limited management self-service area to update their own account and inspect their own AI usage balance.
 
@@ -31,7 +31,7 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 - Document creation, import, metadata editing, review transitions, publication, archive, restore, and audit.
 - Document images uploaded from the editor are stored in private S3-compatible object storage and referenced through authorized app-controlled URLs.
 - Document access is assigned by groups/departments and document attributes in the MVP; per-user document exceptions are handled by creating dedicated groups, not by direct user ACLs.
-- Assisted PDF/DOCX import that extracts text into the editor while leaving final formatting and attributes under user control.
+- Assisted PDF/DOCX import that returns safe draft HTML where possible while leaving final formatting and attributes under user control. DOCX imports may preserve common semantic structure; PDF imports remain conservative and do not promise faithful visual reconstruction.
 - Simple formal versioning where every successful publication creates an immutable published version.
 - Pre-publication indexing through FastAPI before content becomes public.
 
@@ -57,9 +57,9 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 
 ### Document Viewer
 
-- Token-gated document viewer at `docs.client.com`.
+- Session-gated document viewer at `docs.client.com`.
 - Viewer links use document-id URL locators; the docs frontend revalidates the authenticated `.NET` session and document permissions before content is returned.
-- Credential-bearing viewer tokens are not used in browser URLs or JavaScript.
+- Credential-bearing viewer access tokens are not used in browser URLs or JavaScript; viewer navigation uses session-authenticated document-id links plus optional short-lived handoff codes.
 - Viewer links from chat limited to `Published` documents; management links may allow draft/review access for authorized users.
 - Chat access uses short-lived tokens signed by .NET and validated locally by FastAPI to preserve chat latency.
 
@@ -81,7 +81,7 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 
 - Three independent React frontends: management, chat, and document viewer.
 - Tailwind CSS, `shadcn/ui`, and `lucide-react` as the MVP UI foundation for all frontends.
-- .NET 8 API for identity, document lifecycle, assisted PDF/DOCX text extraction, viewer access tokens, management audit, and user/group administration.
+- .NET 8 API for identity, document lifecycle, assisted PDF/DOCX import extraction, secure viewer session handoff, management audit, and user/group administration.
 - FastAPI service for public chat, retrieval, embeddings, semantic cache, RAG audit, indexing jobs, and chat feedback.
 - Management configuration for per-user monthly AI usage budgets and read-only budget usage reporting.
 - PostgreSQL with pgvector, EF Core migrations for `app`, and Alembic migrations for `rag`.
@@ -95,7 +95,7 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 - Dedicated `Reviewer` role for the MVP.
 - Retaining original PDF/DOCX import files in the MVP.
 - OCR for scanned PDFs or images in the MVP.
-- One-time-use viewer access tokens; the current browser runtime uses session-authenticated document-id links instead of viewer tokens.
+- Document tags as an exposed product UI/API feature. The dormant `app.document_tags` table remains schema history until a future decision reopens tags or removes the table.
 - Separate soft delete workflow beyond `Archived`.
 
 ## Success Criteria

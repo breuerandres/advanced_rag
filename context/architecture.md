@@ -7,7 +7,7 @@
 | Reverse proxy | Caddy | Public TLS termination, subdomain routing, request IDs, access logs |
 | Management frontend | React | Corporate document management UI |
 | Chat frontend | React | End-user chatbot UI |
-| Document viewer frontend | React | Token-gated document viewer |
+| Document viewer frontend | React | Session-gated document viewer |
 | Management/API backend | .NET 8 | Authentication, users, roles, document lifecycle, session-authenticated document viewing, management audit |
 | RAG backend | FastAPI | Public chat API, retrieval, semantic cache, embeddings, RAG audit, indexing worker |
 | Database | PostgreSQL with pgvector | Relational data, document content, audit, vectors, cache, indexing jobs |
@@ -86,8 +86,8 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - **`rag` schema:** owned by FastAPI. Stores indexing jobs, document chunks with embeddings, semantic cache entries and sources, query audit events with simple feedback, query audit citations, and model pricing.
 - **Document source content:** canonical normalized HTML and metadata are stored in Postgres.
 - **Document image content:** image bytes are stored in private S3-compatible object storage, MinIO in the Docker Compose MVP. Postgres stores only image metadata, document ownership, version references, content type, size, checksum, object key, and audit fields. Canonical document HTML must reference images through stable same-origin application URLs such as `/api/document-images/{imageId}/content`; it must not store base64 image data, raw MinIO URLs, raw AWS S3 URLs, or expiring presigned URLs.
-- **Imported files:** PDF/DOCX originals are not retained in the MVP. Imports are assisted extraction flows owned by the .NET management API: .NET accepts PDF/DOCX uploads up to 10 MB, extracts text from the uploaded file, and returns it to `manage.client.com`, which inserts it into the document editor so the user can correct formatting, structure, and attributes before saving. The system stores the user-edited normalized HTML plus import metadata such as original filename, MIME type, size, hash, importer, timestamp, extraction result, and file size.
-- **Import extraction libraries:** .NET uses `DocumentFormat.OpenXml` for DOCX extraction and `PdfPig` for PDF extraction. These libraries are used only for assisted text extraction into the editor, not for final formatting or publication decisions.
+- **Imported files:** PDF/DOCX originals are not retained in the MVP. Imports are assisted extraction flows owned by the .NET management API: .NET accepts PDF/DOCX uploads up to 10 MB, returns safe draft HTML plus fallback plain text to `manage.client.com`, and the frontend inserts that HTML into the document editor so the user can correct formatting, structure, and attributes before saving. The system stores the user-edited normalized HTML plus import metadata such as original filename, MIME type, size, hash, importer, timestamp, extraction result, and file size.
+- **Import extraction libraries:** .NET uses a structured DOCX-to-HTML converter for DOCX import and `PdfPig` for conservative PDF text/layout extraction. These libraries are used only for assisted import into the editor, not for final formatting or publication decisions. Converted HTML must be sanitized before returning it to the browser and again before persistence.
 
 ## Auth And Access Model
 
@@ -156,9 +156,9 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 
 ## Viewer Document Access
 
-`docs.client.com` is session-gated. Links from `manage.client.com` and `chat.client.com` carry only a `documentId` query value, never a credential-bearing token. `docs.client.com` calls same-origin `.NET` routes with its authenticated `__Host-session` cookie, and `.NET` revalidates the current user, role, groups, document state, and permissions before returning document content.
+`docs.client.com` is session-gated. Links from `manage.client.com` and `chat.client.com` carry only a document locator plus, when needed, a short-lived server-issued session handoff code; they never carry the main session token. Handoff codes are persisted as one-time database records with expiration and consumed/used state. `docs.client.com` validates handoff codes through same-origin `.NET` routes, receives its own host-only `__Host-session` cookie, removes the handoff code from the URL, and calls same-origin `.NET` routes to load document content. `.NET` revalidates the current user, role, groups, document state, and permissions before returning document content.
 
-Chat-created document links are limited to `Published` documents. Management-created links may allow `Draft`, `In Review`, and `Published` when the user has `Admin` or `DocumentManager`. The link itself is not authorization; it is only a document locator.
+Chat-created document links are limited to `Published` documents. Management-created links may allow `Draft`, `In Review`, and `Published` when the user has `Admin` or `DocumentManager`. The link itself is not authorization; it is only a document locator plus an optional short-lived session handoff artifact. Document access authorization is always revalidated server-side.
 
 The main session token and any other credential-bearing token must not be placed in document viewer URLs. Unauthorized or missing-session document requests must return the shared error envelope without exposing document details.
 
@@ -174,17 +174,17 @@ Document states are `Draft`, `In Review`, `Published`, and `Archived`.
 - `Admin` publishes documents directly from `In Review` to `Published`.
 - `DocumentManager` can create, edit, import, update metadata, and send documents to `In Review`, but cannot publish.
 - A separate `Reviewer` role is not part of the MVP.
-- Importing a PDF/DOCX creates or fills a draft editor with extracted text; it does not automatically create publishable formatted content.
+- Importing a PDF/DOCX creates or fills a draft editor with safe draft HTML plus fallback plain text; it does not automatically create publishable formatted content.
 - PDF/DOCX extraction is a management-domain responsibility in the .NET API, not a RAG responsibility in FastAPI.
-- DOCX extraction uses `DocumentFormat.OpenXml`; PDF extraction uses `PdfPig`.
+- DOCX import uses a structured DOCX-to-HTML converter. PDF extraction uses `PdfPig` with conservative reading-order/layout extraction rather than direct `page.Text` concatenation.
 - The initial PDF/DOCX import upload size limit is 10 MB per file and must be enforced by the .NET API. The management UI should validate the size before upload when possible.
 - Files over the import size limit are rejected with the shared error envelope and a stable validation error code.
 - Scanned PDFs or files with no extractable text are rejected in the MVP with a clear extraction error. OCR is out of scope.
 - The stable validation error code for files with no extractable text is `IMPORT_TEXT_NOT_EXTRACTABLE`.
-- If the user abandons the import flow without saving the draft, the extracted text, import metadata, and extraction result are not persisted as business data.
+- If the user abandons the import flow without saving the draft, the imported HTML/text, import metadata, and extraction result are not persisted as business data.
 - Unsaved extraction requests may still appear in normal sanitized technical logs with request ID, status, duration, and safe error code.
-- The user remains responsible for final formatting, title, document type, access attributes, and review readiness after import.
-- Moving a draft to `In Review` requires title, document type, allowed groups/departments, audience/user type, non-empty sanitized HTML content, and valid sanitized content. Tags are optional.
+- The user remains responsible for final formatting, title, document type, access attributes, and review readiness after import. The MVP does not promise high-fidelity PDF-to-HTML reconstruction.
+- Moving a draft to `In Review` requires title, document type, allowed groups/departments, audience/user type, non-empty sanitized HTML content, and valid sanitized content. Document tags are deferred for the MVP and are not exposed through the product UI or public API.
 - Sending a draft to `In Review` may include an optional internal review comment. Returning or rejecting a version from `In Review` back to `Draft` requires an internal comment explaining the reason.
 - Review comments are stored in the `app` schema and included in the management audit trail.
 - `Admin` and `DocumentManager` can return or reject a version from `In Review` back to `Draft` when they provide the required internal comment. This does not grant `DocumentManager` permission to publish.

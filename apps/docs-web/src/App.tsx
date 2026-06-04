@@ -12,6 +12,7 @@ import {
   LanguageSelect,
 } from '@helpcenter/shared-ui'
 import {
+  consumeViewerHandoff,
   createViewerLink,
   getSession,
   getViewerDocument,
@@ -39,11 +40,17 @@ type PortalState =
   | { status: 'ready'; user: SessionUser; catalog: ViewerDocumentCatalog }
 
 export default function App() {
-  const documentId = new URLSearchParams(window.location.search).get('documentId')
-  return documentId ? <ViewerLinkApp documentId={documentId} /> : <DocumentPortalApp />
+  const params = new URLSearchParams(window.location.search)
+  const documentId = params.get('documentId')
+  const handoffCode = params.get('handoff')
+  return documentId ? (
+    <ViewerLinkApp documentId={documentId} handoffCode={handoffCode} />
+  ) : (
+    <DocumentPortalApp />
+  )
 }
 
-function ViewerLinkApp({ documentId }: { documentId: string }) {
+function ViewerLinkApp({ documentId, handoffCode }: { documentId: string; handoffCode: string | null }) {
   const { t, i18n } = useTranslation()
   const [state, setState] = useState<ViewerState>({
     status: 'loading',
@@ -55,6 +62,11 @@ function ViewerLinkApp({ documentId }: { documentId: string }) {
 
     async function loadViewer() {
       try {
+        if (handoffCode) {
+          await consumeViewerHandoff(handoffCode, documentId)
+          removeHandoffFromUrl()
+        }
+
         const document = await getViewerDocument(documentId)
         if (isMounted) {
           setState({ status: 'ready', document })
@@ -70,7 +82,7 @@ function ViewerLinkApp({ documentId }: { documentId: string }) {
     return () => {
       isMounted = false
     }
-  }, [documentId])
+  }, [documentId, handoffCode])
 
   return (
     <AppShell className="viewer-main">
@@ -126,6 +138,12 @@ function ViewerLinkApp({ documentId }: { documentId: string }) {
       </section>
     </AppShell>
   )
+}
+
+function removeHandoffFromUrl() {
+  const url = new URL(window.location.href)
+  url.searchParams.delete('handoff')
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
 function DocumentPortalApp() {

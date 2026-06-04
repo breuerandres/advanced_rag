@@ -4,6 +4,8 @@ public interface IViewerAccessService
 {
     Task<ViewerLinkResult> CreateLinkAsync(CreateViewerLinkCommand command, CancellationToken ct);
 
+    Task<ViewerSessionHandoffResult> ConsumeHandoffAsync(ConsumeViewerSessionHandoffCommand command, CancellationToken ct);
+
     Task<ViewerDocumentResult> GetDocumentAsync(GetViewerDocumentCommand command, CancellationToken ct);
 }
 
@@ -12,13 +14,44 @@ public interface IViewerAccessRepository
     Task<ViewerDocumentAccess?> FindDocumentAsync(Guid documentId, CancellationToken ct);
 }
 
+public interface IViewerSessionHandoffRepository
+{
+    Task StoreAsync(ViewerSessionHandoffRecord record, CancellationToken ct);
+
+    Task<ViewerSessionHandoffRecord?> FindByCodeHashAsync(string codeHash, CancellationToken ct);
+
+    Task MarkConsumedAsync(Guid id, DateTimeOffset consumedAt, CancellationToken ct);
+}
+
 public sealed record CreateViewerLinkCommand(
     Guid DocumentId,
     Guid UserId,
     IReadOnlyList<string> Roles,
-    string Purpose);
+    string Purpose,
+    string? RequestId = null);
 
 public sealed record ViewerLinkResult(string Url, DateTimeOffset ExpiresAt);
+
+public sealed record ConsumeViewerSessionHandoffCommand(
+    string HandoffCode,
+    Guid DocumentId);
+
+public sealed record ViewerSessionHandoffResult(
+    Guid UserId,
+    IReadOnlyList<string> AllowedStatuses,
+    DateTimeOffset ExpiresAt);
+
+public sealed record ViewerSessionHandoffRecord(
+    Guid Id,
+    string CodeHash,
+    Guid UserId,
+    Guid DocumentId,
+    string Purpose,
+    string AllowedStateScope,
+    DateTimeOffset ExpiresAt,
+    DateTimeOffset? ConsumedAt,
+    DateTimeOffset CreatedAt,
+    string RequestId);
 
 public sealed record GetViewerDocumentCommand(
     Guid DocumentId,

@@ -88,12 +88,14 @@ public sealed record DocumentVersionResponse(
 
 public sealed record ImportExtractionResponse(
     string Text,
+    string? ContentHtml,
     ImportExtractionMetadataResponse Metadata)
 {
     public static ImportExtractionResponse FromResult(ImportExtractionResult result)
     {
         return new ImportExtractionResponse(
             result.Text,
+            result.ContentHtml,
             new ImportExtractionMetadataResponse(
                 result.Metadata.OriginalFilename,
                 result.Metadata.MimeType,

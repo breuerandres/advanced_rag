@@ -14,7 +14,10 @@ public sealed record ImportExtractionMetadata(
     string Sha256Hash,
     string ExtractionStatus);
 
-public sealed record ImportExtractionResult(string Text, ImportExtractionMetadata Metadata);
+public sealed record ImportExtractionResult(
+    string Text,
+    string? ContentHtml,
+    ImportExtractionMetadata Metadata);
 
 public interface IDocumentImportExtractionService
 {

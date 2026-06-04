@@ -78,6 +78,21 @@ export async function createViewerLink(documentId: string, purpose: 'chat' | 'ma
   return response.url
 }
 
+export async function consumeViewerHandoff(
+  handoffCode: string,
+  documentId: string,
+): Promise<SessionResponse> {
+  await ensureCsrfToken()
+  return requestJson<SessionResponse>('/api/viewer/session-handoff', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken ?? '',
+    },
+    body: JSON.stringify({ documentId, handoffCode }),
+  })
+}
+
 export async function getViewerDocument(documentId: string): Promise<ViewerDocument> {
   return requestJson<ViewerDocument>(`/api/viewer/document?documentId=${encodeURIComponent(documentId)}`)
 }
@@ -88,6 +103,9 @@ export function viewerErrorMessage(error: unknown): string {
     AUTH_FORBIDDEN: 'No tenes permiso para abrir este documento.',
     AUTH_REQUIRED: 'Inicia sesion para abrir este documento.',
     NOT_FOUND: 'No encontramos el documento solicitado.',
+    VIEWER_HANDOFF_EXPIRED: 'El enlace de acceso expiro. Volve a abrir el documento desde la app.',
+    VIEWER_HANDOFF_INVALID: 'El enlace de acceso no es valido. Volve a abrir el documento desde la app.',
+    VIEWER_HANDOFF_USED: 'Este enlace de acceso ya fue usado. Volve a abrir el documento desde la app.',
   }
   return messages[code] ?? 'No pudimos abrir el documento.'
 }

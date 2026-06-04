@@ -64,10 +64,10 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - Document lifecycle status badges use distinct semantic colors for `Draft`, `In Review`, `Published`, and `Archived` so reviewers can scan publication readiness quickly.
 - The document list must support filtering across the visible document attributes: search text, lifecycle state, indexing state, document type, audience, access-group coverage, and updated metadata when available.
 - Forms must show field-level validation, server errors, dirty state, disabled submission state, and recovery actions.
-- The document editor supports assisted PDF/DOCX import through the .NET API: upload, extraction loading state, extraction error state, extracted text inserted into the editor, and user-controlled formatting before save/review.
+- The document editor supports assisted PDF/DOCX import through the .NET API: upload, extraction loading state, extraction error state, safe draft HTML inserted into the editor when available, fallback extracted text, and user-controlled formatting before save/review.
 - The import upload control must show the 10 MB per-file limit and validate file size before upload when the browser exposes the size.
 - If extraction fails because no text is extractable, the UI shows a clear error, keeps current editor content unchanged, and lets the user upload another file or enter content manually.
-- If the user cancels or leaves without saving, the UI must treat the extracted text as unsaved editor state and discard it like any other unsaved draft changes.
+- If the user cancels or leaves without saving, the UI must treat imported HTML/text as unsaved editor state and discard it like any other unsaved draft changes.
 
 ## Feedback Review UI
 
@@ -96,7 +96,7 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - Chat bootstraps by validating the `.NET` browser session and relies on the unified session cookie for chat/feedback requests. It must not renew or store a scoped chat-token cookie.
 - Each answer exposes thumbs up/down feedback controls and an optional comment entry after the user chooses a feedback value.
 - Feedback submission must show loading, success, retryable error, and already-submitted states. The same user can update their feedback on an answer in the MVP.
-- Citation links open `docs.client.com` with scoped viewer access tokens.
+- Citation links open `docs.client.com` with document-id locator links and secure viewer session handoff when needed.
 - Citation links use document-id locator URLs. The docs app must revalidate the authenticated session and show safe login, access-denied, or not-found states without exposing credential-bearing URL values.
 
 ## Document Viewer UI
@@ -109,14 +109,14 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 ## Management Document Editor
 
 - The management document editor is a full workspace tab inside `Documentos`, not a modal, because draft creation/review is a complex workflow with metadata, access groups, import, validation, and rich editing.
-- The management editor uses TipTap with the starter kit plus `Link`, `Image`, `Underline`, and table extensions.
+- The management editor uses TipTap with StarterKit plus approved extensions as needed. The toolbar must support paragraph, h1-h3, bold, italic, underline, strike, ordered and unordered lists, blockquote, inline code, code block, horizontal rule, link, table insertion, undo/redo, document image insertion, text color selection, semantic highlight, and paragraph/heading text alignment.
 - Output is HTML stored in `app.document_versions.content_html` after server-side sanitization with `Ganss.Xss`.
 - Document image insertion uses an upload control backed by the `.NET` document image API, not arbitrary URL prompts. The editor inserts stable same-origin `/api/document-images/{imageId}/content` URLs after upload succeeds.
 - New unsaved documents must be saved as a draft before image uploads are available, because image metadata is document-owned.
 - The editor must reject or surface server errors for base64 `data:` images and external image URLs instead of silently saving them.
-- The editor must support headings (h1â€“h3), bold/italic/underline, ordered/unordered lists, links, inline code, code blocks, and tables.
-- Disallow raw `<script>`, `<iframe>`, `<style>`, inline `style` attributes (except sanitizer-approved), and `on*` handlers. The sanitizer strips these regardless of UI controls.
-- The assisted PDF/DOCX import inserts extracted plain-text content as paragraph nodes; the user formats afterwards.
+- The editor must support headings (h1-h3), bold/italic/underline, ordered/unordered lists, links, inline code, code blocks, tables, highlight, and text alignment.
+- Disallow raw `<script>`, `<iframe>`, `<style>`, non-approved inline `style` attributes, and `on*` handlers. The sanitizer preserves only the `color` and `text-align` CSS properties needed by approved TipTap controls, preserves semantic `<mark>` highlight tags, and strips all other inline CSS properties regardless of UI controls.
+- The assisted PDF/DOCX import inserts sanitized draft HTML when available. DOCX imports may preserve common semantic structure; PDF imports use conservative formatting and may still require substantial manual cleanup.
 
 ## Chat Streaming
 

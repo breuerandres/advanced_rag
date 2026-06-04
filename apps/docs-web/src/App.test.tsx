@@ -164,6 +164,78 @@ test('renders document through the unified session and document id', async () =>
   expect(screen.getByText('Publicado')).toBeInTheDocument()
 })
 
+test('consumes handoff code, removes it from the URL, then loads the document', async () => {
+  setLocation(
+    'https://docs.localhost/open?documentId=55555555-5555-5555-5555-555555555555&handoff=one-time-code',
+  )
+  const replaceState = vi.spyOn(window.history, 'replaceState')
+  const fetch = mockFetch([
+    jsonResponse({ status: 'ok' }, { 'X-CSRF-Token': 'csrf-token' }),
+    jsonResponse({
+      user: {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        email: 'viewer@example.com',
+        displayName: 'Viewer User',
+        roles: ['Viewer'],
+        groups: [],
+      },
+    }),
+    jsonResponse({
+      documentId: '55555555-5555-5555-5555-555555555555',
+      documentVersionId: 'version-1',
+      title: 'Procedimiento publicado',
+      state: 'Published',
+      documentType: 'Politica',
+      audience: 'Operaciones',
+      contentHtml: '<p>Contenido publicado.</p>',
+      tokenExpiresAt: '2026-05-18T12:15:00Z',
+    }),
+  ])
+
+  render(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Procedimiento publicado' })).toBeInTheDocument()
+  expect(fetch).toHaveBeenNthCalledWith(
+    1,
+    '/api/csrf',
+    expect.objectContaining({ credentials: 'include' }),
+  )
+  expect(fetch).toHaveBeenNthCalledWith(
+    2,
+    '/api/viewer/session-handoff',
+    expect.objectContaining({ method: 'POST' }),
+  )
+  expect(JSON.parse((fetch.mock.calls[1][1] as RequestInit).body as string)).toEqual({
+    documentId: '55555555-5555-5555-5555-555555555555',
+    handoffCode: 'one-time-code',
+  })
+  expect(String(replaceState.mock.calls[0][2])).toBe(
+    '/open?documentId=55555555-5555-5555-5555-555555555555',
+  )
+})
+
+test('renders list content inside the document content surface', async () => {
+  mockFetch([
+    jsonResponse({
+      documentId: '55555555-5555-5555-5555-555555555555',
+      documentVersionId: 'version-1',
+      title: 'Procedimiento publicado',
+      state: 'Published',
+      documentType: 'Politica',
+      audience: 'Operaciones',
+      contentHtml: '<ul><li>Paso uno</li></ul><ol><li>Paso dos</li></ol>',
+      tokenExpiresAt: '2026-05-18T12:15:00Z',
+    }),
+  ])
+
+  render(<App />)
+
+  expect(await screen.findByText('Paso uno')).toBeInTheDocument()
+  expect(screen.getByText('Paso dos')).toBeInTheDocument()
+  expect(document.querySelector('.document-content ul')).not.toBeNull()
+  expect(document.querySelector('.document-content ol')).not.toBeNull()
+})
+
 function setLocation(url: string) {
   Object.defineProperty(window, 'location', {
     configurable: true,
@@ -176,12 +248,13 @@ function mockFetch(responses: Response[]) {
   for (const response of responses) {
     fetch.mockResolvedValueOnce(response)
   }
+  return fetch
 }
 
-function jsonResponse(body: unknown) {
+function jsonResponse(body: unknown, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
   })
 }
 

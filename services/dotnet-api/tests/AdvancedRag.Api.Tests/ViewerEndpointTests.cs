@@ -38,7 +38,8 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         ViewerLinkResponse? body = await response.Content.ReadFromJsonAsync<ViewerLinkResponse>();
-        body!.Url.Should().Be($"https://docs.client.com/open?documentId={FakeViewerAccessService.PublishedDocumentId}");
+        body!.Url.Should().Contain($"documentId={FakeViewerAccessService.PublishedDocumentId}");
+        body.Url.Should().Contain("handoff=");
         _factory.Viewer.LastCreateCommand!.Purpose.Should().Be("chat");
     }
 
@@ -104,6 +105,50 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
             DocumentId = FakeViewerAccessService.PublishedDocumentId,
             UserId = ViewerFakeAuthService.TargetUserId,
         });
+    }
+
+    [Fact]
+    public async Task ConsumeHandoff_WithValidCodeSignsInUserOnDocsHost()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        CsrfState csrf = await GetCsrfAsync(client, "docs.localhost");
+
+        using HttpResponseMessage response = await SendJsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/viewer/session-handoff",
+            new { documentId = FakeViewerAccessService.PublishedDocumentId, handoffCode = FakeViewerAccessService.ValidHandoffCode },
+            "docs.localhost",
+            csrf);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        SessionResponse? body = await response.Content.ReadFromJsonAsync<SessionResponse>();
+        body!.User.Email.Should().Be(ViewerFakeAuthService.TargetEmail);
+        _factory.Viewer.LastConsumeCommand.Should().BeEquivalentTo(new
+        {
+            DocumentId = FakeViewerAccessService.PublishedDocumentId,
+            HandoffCode = FakeViewerAccessService.ValidHandoffCode,
+        });
+        GetSetCookie(response, "__Host-session").ToLowerInvariant().Should().Contain("samesite=strict");
+    }
+
+    [Fact]
+    public async Task ConsumeHandoff_WithExpiredCodeReturnsStableViewerError()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        CsrfState csrf = await GetCsrfAsync(client, "docs.localhost");
+
+        using HttpResponseMessage response = await SendJsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/viewer/session-handoff",
+            new { documentId = FakeViewerAccessService.PublishedDocumentId, handoffCode = FakeViewerAccessService.ExpiredHandoffCode },
+            "docs.localhost",
+            csrf);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Gone);
+        ApiErrorEnvelope? body = await response.Content.ReadFromJsonAsync<ApiErrorEnvelope>();
+        body!.Error.Code.Should().Be("VIEWER_HANDOFF_EXPIRED");
     }
 
     private static async Task<LoginSession> LoginAsync(HttpClient client, string email, string host)
@@ -176,6 +221,17 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
         string ContentHtml,
         DateTimeOffset TokenExpiresAt);
 
+    private sealed record SessionResponse(SessionUser User);
+
+    private sealed record SessionUser(
+        Guid Id,
+        string Email,
+        string DisplayName,
+        IReadOnlyList<string> Roles,
+        IReadOnlyList<SessionGroup> Groups);
+
+    private sealed record SessionGroup(Guid Id, string Name);
+
     private sealed record ApiErrorEnvelope(ApiErrorBody Error);
 
     private sealed record ApiErrorBody(string Code, string Message, Dictionary<string, object> Details, string RequestId);
@@ -212,7 +268,10 @@ public sealed class FakeViewerAccessService : IViewerAccessService
 {
     public static readonly Guid PublishedDocumentId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     public static readonly Guid DraftDocumentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    public const string ValidHandoffCode = "valid-handoff-code";
+    public const string ExpiredHandoffCode = "expired-handoff-code";
     public CreateViewerLinkCommand? LastCreateCommand { get; private set; }
+    public ConsumeViewerSessionHandoffCommand? LastConsumeCommand { get; private set; }
     public GetViewerDocumentCommand? LastGetCommand { get; private set; }
 
     public Task<ViewerLinkResult> CreateLinkAsync(CreateViewerLinkCommand command, CancellationToken ct)
@@ -232,8 +291,30 @@ public sealed class FakeViewerAccessService : IViewerAccessService
         }
 
         return Task.FromResult(new ViewerLinkResult(
-            $"https://docs.client.com/open?documentId={command.DocumentId}",
-            DateTimeOffset.MaxValue));
+            $"https://docs.client.com/open?documentId={command.DocumentId}&handoff={ValidHandoffCode}",
+            DateTimeOffset.UtcNow.AddMinutes(1)));
+    }
+
+    public Task<ViewerSessionHandoffResult> ConsumeHandoffAsync(
+        ConsumeViewerSessionHandoffCommand command,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        LastConsumeCommand = command;
+        if (command.HandoffCode == ExpiredHandoffCode)
+        {
+            throw new ViewerAccessException("VIEWER_HANDOFF_EXPIRED", 410, "Viewer handoff code has expired.");
+        }
+
+        if (command.HandoffCode != ValidHandoffCode || command.DocumentId != PublishedDocumentId)
+        {
+            throw new ViewerAccessException("VIEWER_HANDOFF_INVALID", 401, "Viewer handoff code is invalid.");
+        }
+
+        return Task.FromResult(new ViewerSessionHandoffResult(
+            ViewerFakeAuthService.TargetUserId,
+            ["Published"],
+            DateTimeOffset.UtcNow.AddMinutes(1)));
     }
 
     public Task<ViewerDocumentResult> GetDocumentAsync(GetViewerDocumentCommand command, CancellationToken ct)

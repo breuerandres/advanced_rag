@@ -194,7 +194,7 @@ export default function App() {
     setError(null)
     try {
       const url = await createViewerLink(citation.documentId)
-      window.location.assign(url)
+      window.open(url, '_blank', 'noopener,noreferrer')
     } catch (caught) {
       setError(toCitationError(caught))
     }

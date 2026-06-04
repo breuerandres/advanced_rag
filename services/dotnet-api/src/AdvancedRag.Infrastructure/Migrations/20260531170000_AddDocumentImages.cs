@@ -14,24 +14,31 @@ public partial class AddDocumentImages : Migration
     {
         migrationBuilder.Sql(
             """
-            create table if not exists app.document_images (
-                "Id"                uuid primary key,
-                document_id         uuid not null references app.documents("Id") on delete cascade,
-                object_key          varchar(512) not null,
-                original_filename   varchar(260) not null,
-                content_type        varchar(120) not null,
-                size_bytes          bigint not null,
-                sha256_hash         varchar(64) not null,
-                alt_text            varchar(500) not null,
-                uploaded_by_user_id uuid not null references app.users("Id") on delete restrict,
-                created_at          timestamptz not null default now()
-            );
+            do $$
+            begin
+                if to_regclass('app.users') is null or to_regclass('app.documents') is null then
+                    return;
+                end if;
 
-            create index if not exists "IX_document_images_document_id"
-                on app.document_images (document_id);
+                create table if not exists app.document_images (
+                    "Id"                uuid primary key,
+                    document_id         uuid not null references app.documents("Id") on delete cascade,
+                    object_key          varchar(512) not null,
+                    original_filename   varchar(260) not null,
+                    content_type        varchar(120) not null,
+                    size_bytes          bigint not null,
+                    sha256_hash         varchar(64) not null,
+                    alt_text            varchar(500) not null,
+                    uploaded_by_user_id uuid not null references app.users("Id") on delete restrict,
+                    created_at          timestamptz not null default now()
+                );
 
-            create unique index if not exists "IX_document_images_object_key"
-                on app.document_images (object_key);
+                create index if not exists "IX_document_images_document_id"
+                    on app.document_images (document_id);
+
+                create unique index if not exists "IX_document_images_object_key"
+                    on app.document_images (object_key);
+            end $$;
             """);
     }
 

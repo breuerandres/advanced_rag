@@ -23,6 +23,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<DocumentImage> DocumentImages => Set<DocumentImage>();
     public DbSet<ReviewComment> ReviewComments => Set<ReviewComment>();
     public DbSet<ImportMetadata> ImportMetadata => Set<ImportMetadata>();
+    public DbSet<ViewerSessionHandoffCode> ViewerSessionHandoffCodes => Set<ViewerSessionHandoffCode>();
     public DbSet<UserAiBudgetLimit> UserAiBudgetLimits => Set<UserAiBudgetLimit>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<TenantConfig> TenantConfigs => Set<TenantConfig>();
@@ -190,6 +191,27 @@ public sealed class AppDbContext : DbContext
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
             entity.HasOne<DocumentVersion>().WithMany().HasForeignKey(item => item.DocumentVersionId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.ImportedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ViewerSessionHandoffCode>(entity =>
+        {
+            entity.ToTable("viewer_session_handoff_codes", Schema);
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.CodeHash).HasColumnName("code_hash").HasMaxLength(64).IsRequired();
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.DocumentId).HasColumnName("document_id");
+            entity.Property(item => item.Purpose).HasColumnName("purpose").HasMaxLength(32).IsRequired();
+            entity.Property(item => item.AllowedStateScope).HasColumnName("allowed_state_scope").HasMaxLength(120).IsRequired();
+            entity.Property(item => item.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(item => item.ConsumedAt).HasColumnName("consumed_at");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+            entity.Property(item => item.RequestId).HasColumnName("request_id").HasMaxLength(128).IsRequired();
+            entity.HasOne<User>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Document>().WithMany().HasForeignKey(item => item.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(item => item.CodeHash).IsUnique();
+            entity.HasIndex(item => item.ExpiresAt);
+            entity.HasIndex(item => item.UserId);
+            entity.HasIndex(item => item.DocumentId);
         });
 
         modelBuilder.Entity<UserAiBudgetLimit>(entity =>

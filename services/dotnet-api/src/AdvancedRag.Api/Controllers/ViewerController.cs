@@ -1,7 +1,10 @@
 using System.Security.Claims;
+using AdvancedRag.Api.Models.Auth;
 using AdvancedRag.Api.Models.Viewer;
 using AdvancedRag.App.Auth;
 using AdvancedRag.App.Viewer;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -38,7 +41,8 @@ public sealed class ViewerController : ApiControllerBase
                     request.DocumentId,
                     ActorUserId(),
                     ActorRoles(),
-                    request.Purpose),
+                    request.Purpose,
+                    HttpContext.TraceIdentifier),
                 ct);
             return Ok(ViewerLinkResponse.FromResult(result));
         }
@@ -46,6 +50,43 @@ public sealed class ViewerController : ApiControllerBase
         {
             return Error(exception.HttpStatus, exception.Code, exception.Message, exception.Details);
         }
+    }
+
+    [HttpPost("session-handoff")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ConsumeSessionHandoffAsync(
+        [FromBody] ConsumeViewerSessionHandoffRequest request,
+        CancellationToken ct)
+    {
+        ViewerSessionHandoffResult handoff;
+        try
+        {
+            handoff = await _viewer.ConsumeHandoffAsync(
+                new ConsumeViewerSessionHandoffCommand(request.HandoffCode, request.DocumentId),
+                ct);
+        }
+        catch (ViewerAccessException exception)
+        {
+            return Error(exception.HttpStatus, exception.Code, exception.Message, exception.Details);
+        }
+
+        AuthenticatedUser? user = await _auth.GetActiveUserAsync(handoff.UserId, ct);
+        if (user is null)
+        {
+            return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.");
+        }
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            CreatePrincipal(user),
+            new AuthenticationProperties
+            {
+                IsPersistent = false,
+                IssuedUtc = DateTimeOffset.UtcNow,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8),
+            });
+
+        return Ok(SessionResponse.FromUser(user));
     }
 
     [HttpGet("document")]
@@ -96,5 +137,19 @@ public sealed class ViewerController : ApiControllerBase
         return Guid.TryParse(userIdValue, out var userId)
             ? await _auth.GetActiveUserAsync(userId, ct)
             : null;
+    }
+
+    private static ClaimsPrincipal CreatePrincipal(AuthenticatedUser user)
+    {
+        List<Claim> claims =
+        [
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Email, user.Email),
+            new(ClaimTypes.Name, user.DisplayName),
+        ];
+        claims.AddRange(user.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
+        claims.AddRange(user.Groups.Select(group => new Claim("group", group.Id.ToString())));
+
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
     }
 }

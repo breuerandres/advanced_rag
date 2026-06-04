@@ -1,23 +1,38 @@
-import { EditorContent, useEditor } from '@tiptap/react'
+import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import { Image as TiptapImage } from '@tiptap/extension-image'
 import { Link as TiptapLink } from '@tiptap/extension-link'
+import { Color } from '@tiptap/extension-color'
+import { Highlight } from '@tiptap/extension-highlight'
 import { Table } from '@tiptap/extension-table'
 import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import { TableRow } from '@tiptap/extension-table-row'
+import { TextAlign } from '@tiptap/extension-text-align'
+import { TextStyle } from '@tiptap/extension-text-style'
 import { Underline } from '@tiptap/extension-underline'
 import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
   Bold,
+  Code as CodeIcon,
   Code2,
-  Heading2,
+  Eraser,
+  Highlighter,
   Image as ImageIcon,
   Italic,
   Link as LinkIcon,
   List,
   ListOrdered,
+  Minus,
+  Quote,
+  Redo2,
+  Strikethrough,
   Table2,
   Underline as UnderlineIcon,
+  Undo2,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -32,6 +47,9 @@ interface RichTextEditorProps {
 }
 
 const MaxDocumentImageSizeBytes = 5 * 1024 * 1024
+const DefaultTextColor = '#1f1b17'
+type BlockStyle = 'paragraph' | 'heading-1' | 'heading-2' | 'heading-3'
+type TextAlignment = 'left' | 'center' | 'right' | 'justify'
 
 export function RichTextEditor({ documentId, value, onChange, onUploadImage }: RichTextEditorProps) {
   const { t } = useTranslation()
@@ -46,8 +64,16 @@ export function RichTextEditor({ documentId, value, onChange, onUploadImage }: R
         heading: {
           levels: [1, 2, 3],
         },
+        link: false,
+        underline: false,
       }),
       Underline,
+      TextStyle,
+      Color.configure({ types: [TextStyle.name] }),
+      Highlight,
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+      }),
       TiptapLink.configure({
         autolink: true,
         defaultProtocol: 'https',
@@ -148,82 +174,273 @@ export function RichTextEditor({ documentId, value, onChange, onUploadImage }: R
     }
   }
 
+  function setBlockStyle(style: BlockStyle) {
+    if (!editor) {
+      return
+    }
+
+    const command = editor.chain().focus()
+    if (style === 'paragraph') {
+      command.setParagraph().run()
+      return
+    }
+
+    const level = Number(style.replace('heading-', '')) as 1 | 2 | 3
+    command.toggleHeading({ level }).run()
+  }
+
+  function setTextColor(color: string) {
+    if (!editor) {
+      return
+    }
+
+    editor.chain().focus().setColor(color).run()
+  }
+
+  function unsetTextColor() {
+    editor?.chain().focus().unsetColor().run()
+  }
+
+  function toggleHighlight() {
+    editor?.chain().focus().toggleHighlight().run()
+  }
+
+  function setTextAlignment(alignment: TextAlignment) {
+    editor?.chain().focus().setTextAlign(alignment).run()
+  }
+
+  const currentTextColor = normalizeTextColor(editor?.getAttributes('textStyle').color)
+  const currentBlockStyle = getCurrentBlockStyle(editor)
+  const currentTextAlignment = getCurrentTextAlignment(editor)
+
   return (
     <section className="html-editor" aria-label={t('documents.rich_editor_label')}>
       <div className="editor-toolbar" aria-label={t('documents.editor_toolbar')}>
-        <ToolbarButton
-          label={t('documents.toolbar_bold')}
-          active={editor?.isActive('bold') ?? false}
-          disabled={!editor}
-          onClick={() => editor?.chain().focus().toggleBold().run()}
-        >
-          <Bold size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label={t('documents.toolbar_italic')}
-          active={editor?.isActive('italic') ?? false}
-          disabled={!editor}
-          onClick={() => editor?.chain().focus().toggleItalic().run()}
-        >
-          <Italic size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label={t('documents.toolbar_underline')}
-          active={editor?.isActive('underline') ?? false}
-          disabled={!editor}
-          onClick={() => editor?.chain().focus().toggleUnderline().run()}
-        >
-          <UnderlineIcon size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label={t('documents.toolbar_heading_2')}
-          active={editor?.isActive('heading', { level: 2 }) ?? false}
-          disabled={!editor}
-          onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-        >
-          <Heading2 size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label={t('documents.toolbar_bullet_list')}
-          active={editor?.isActive('bulletList') ?? false}
-          disabled={!editor}
-          onClick={() => editor?.chain().focus().toggleBulletList().run()}
-        >
-          <List size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label={t('documents.toolbar_ordered_list')}
-          active={editor?.isActive('orderedList') ?? false}
-          disabled={!editor}
-          onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-        >
-          <ListOrdered size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label={t('documents.toolbar_code')}
-          active={editor?.isActive('codeBlock') ?? false}
-          disabled={!editor}
-          onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-        >
-          <Code2 size={16} />
-        </ToolbarButton>
-        <ToolbarButton label={t('documents.toolbar_link')} disabled={!editor} onClick={runLinkCommand}>
-          <LinkIcon size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label={t('documents.toolbar_insert_table')}
-          disabled={!editor}
-          onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-        >
-          <Table2 size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label={t('documents.toolbar_insert_image')}
-          disabled={!editor || isUploadingImage}
-          onClick={runImageCommand}
-        >
-          <ImageIcon size={16} />
-        </ToolbarButton>
+        <div className="toolbar-group">
+          <ToolbarButton
+            label={t('documents.toolbar_undo')}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().undo().run()}
+          >
+            <Undo2 size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_redo')}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().redo().run()}
+          >
+            <Redo2 size={16} />
+          </ToolbarButton>
+        </div>
+
+        <div className="toolbar-group">
+          <ToolbarButton
+            className="toolbar-text-button toolbar-heading-button"
+            label={t('documents.toolbar_paragraph')}
+            active={currentBlockStyle === 'paragraph'}
+            disabled={!editor}
+            onClick={() => setBlockStyle('paragraph')}
+          >
+            P
+          </ToolbarButton>
+          <ToolbarButton
+            className="toolbar-text-button toolbar-heading-button"
+            label={t('documents.toolbar_heading_1')}
+            active={currentBlockStyle === 'heading-1'}
+            disabled={!editor}
+            onClick={() => setBlockStyle('heading-1')}
+          >
+            H1
+          </ToolbarButton>
+          <ToolbarButton
+            className="toolbar-text-button toolbar-heading-button"
+            label={t('documents.toolbar_heading_2')}
+            active={currentBlockStyle === 'heading-2'}
+            disabled={!editor}
+            onClick={() => setBlockStyle('heading-2')}
+          >
+            H2
+          </ToolbarButton>
+          <ToolbarButton
+            className="toolbar-text-button toolbar-heading-button"
+            label={t('documents.toolbar_heading_3')}
+            active={currentBlockStyle === 'heading-3'}
+            disabled={!editor}
+            onClick={() => setBlockStyle('heading-3')}
+          >
+            H3
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_bullet_list')}
+            active={editor?.isActive('bulletList') ?? false}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().toggleBulletList().run()}
+          >
+            <List size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_ordered_list')}
+            active={editor?.isActive('orderedList') ?? false}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+          >
+            <ListOrdered size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_blockquote')}
+            active={editor?.isActive('blockquote') ?? false}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+          >
+            <Quote size={16} />
+          </ToolbarButton>
+        </div>
+
+        <div className="toolbar-group">
+          <ToolbarButton
+            label={t('documents.toolbar_bold')}
+            active={editor?.isActive('bold') ?? false}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().toggleBold().run()}
+          >
+            <Bold size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_italic')}
+            active={editor?.isActive('italic') ?? false}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().toggleItalic().run()}
+          >
+            <Italic size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_strike')}
+            active={editor?.isActive('strike') ?? false}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().toggleStrike().run()}
+          >
+            <Strikethrough size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_inline_code')}
+            active={editor?.isActive('code') ?? false}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().toggleCode().run()}
+          >
+            <CodeIcon size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_underline')}
+            active={editor?.isActive('underline') ?? false}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().toggleUnderline().run()}
+          >
+            <UnderlineIcon size={16} />
+          </ToolbarButton>
+        </div>
+
+        <div className="toolbar-group">
+          <ToolbarButton
+            label={t('documents.toolbar_align_left')}
+            active={currentTextAlignment === 'left'}
+            disabled={!editor}
+            onClick={() => setTextAlignment('left')}
+          >
+            <AlignLeft size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_align_center')}
+            active={currentTextAlignment === 'center'}
+            disabled={!editor}
+            onClick={() => setTextAlignment('center')}
+          >
+            <AlignCenter size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_align_right')}
+            active={currentTextAlignment === 'right'}
+            disabled={!editor}
+            onClick={() => setTextAlignment('right')}
+          >
+            <AlignRight size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_align_justify')}
+            active={currentTextAlignment === 'justify'}
+            disabled={!editor}
+            onClick={() => setTextAlignment('justify')}
+          >
+            <AlignJustify size={16} />
+          </ToolbarButton>
+        </div>
+
+        <div className="toolbar-group">
+          <ToolbarButton
+            label={t('documents.toolbar_code_block')}
+            active={editor?.isActive('codeBlock') ?? false}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
+          >
+            <Code2 size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_horizontal_rule')}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().setHorizontalRule().run()}
+          >
+            <Minus size={16} />
+          </ToolbarButton>
+          <ToolbarButton label={t('documents.toolbar_link')} disabled={!editor} onClick={runLinkCommand}>
+            <LinkIcon size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_insert_table')}
+            disabled={!editor}
+            onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+          >
+            <Table2 size={16} />
+          </ToolbarButton>
+        </div>
+
+        <div className="toolbar-group">
+          <label className="toolbar-color-picker">
+            <span className="sr-only">{t('documents.toolbar_text_color')}</span>
+            <input
+              aria-label={t('documents.toolbar_text_color')}
+              type="color"
+              value={currentTextColor ?? DefaultTextColor}
+              disabled={!editor}
+              onChange={(event) => setTextColor(event.target.value)}
+            />
+          </label>
+          <ToolbarButton
+            className="toolbar-highlight-button"
+            label={t('documents.toolbar_highlight')}
+            active={editor?.isActive('highlight') ?? false}
+            disabled={!editor}
+            onClick={toggleHighlight}
+          >
+            <Highlighter size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label={t('documents.toolbar_clear_text_color')}
+            active={Boolean(currentTextColor)}
+            disabled={!editor || !currentTextColor}
+            onClick={unsetTextColor}
+          >
+            <Eraser size={16} />
+          </ToolbarButton>
+        </div>
+
+        <div className="toolbar-group">
+          <ToolbarButton
+            label={t('documents.toolbar_insert_image')}
+            disabled={!editor || isUploadingImage}
+            onClick={runImageCommand}
+          >
+            <ImageIcon size={16} />
+          </ToolbarButton>
+        </div>
       </div>
       <input
         ref={imageInputRef}
@@ -256,15 +473,61 @@ export function RichTextEditor({ documentId, value, onChange, onUploadImage }: R
   )
 }
 
+function getCurrentBlockStyle(editor: Editor | null | undefined): BlockStyle {
+  if (!editor) {
+    return 'paragraph'
+  }
+
+  if (editor.isActive('heading', { level: 1 })) {
+    return 'heading-1'
+  }
+
+  if (editor.isActive('heading', { level: 2 })) {
+    return 'heading-2'
+  }
+
+  if (editor.isActive('heading', { level: 3 })) {
+    return 'heading-3'
+  }
+
+  return 'paragraph'
+}
+
+function normalizeTextColor(value: unknown) {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const normalized = value.trim()
+  return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : null
+}
+
+function getCurrentTextAlignment(editor: Editor | null | undefined): TextAlignment {
+  if (!editor) {
+    return 'left'
+  }
+
+  const textAlign =
+    editor.getAttributes('heading').textAlign ?? editor.getAttributes('paragraph').textAlign
+
+  if (textAlign === 'center' || textAlign === 'right' || textAlign === 'justify') {
+    return textAlign
+  }
+
+  return 'left'
+}
+
 function ToolbarButton({
   active = false,
   children,
+  className,
   disabled = false,
   label,
   onClick,
 }: {
   active?: boolean
   children: ReactNode
+  className?: string
   disabled?: boolean
   label: string
   onClick: () => void
@@ -272,7 +535,7 @@ function ToolbarButton({
   return (
     <Button
       aria-label={label}
-      className="icon-button"
+      className={['icon-button', className].filter(Boolean).join(' ')}
       data-state={active ? 'active' : 'inactive'}
       disabled={disabled}
       type="button"

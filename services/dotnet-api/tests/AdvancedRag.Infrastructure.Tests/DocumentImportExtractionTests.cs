@@ -10,21 +10,26 @@ public sealed class DocumentImportExtractionTests
     private static readonly Guid ActorId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     [Fact]
-    public async Task ExtractAsync_DocxReturnsTextAndSafeMetadata()
+    public async Task ExtractAsync_DocxReturnsTextHtmlAndSafeMetadata()
     {
         var service = new DocumentImportExtractionService();
-        var bytes = CreateDocx("Primera instruccion", "Segunda linea");
+        var bytes = CreateStructuredDocx();
 
         var result = await service.ExtractAsync(
             new ImportExtractionCommand(
                 "policy.docx",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 bytes,
-                ActorId),
+            ActorId),
             CancellationToken.None);
 
-        result.Text.Should().Contain("Primera instruccion");
-        result.Text.Should().Contain("Segunda linea");
+        result.Text.Should().Contain("Safety policy");
+        result.Text.Should().Contain("Use helmet");
+        result.ContentHtml.Should().NotBeNullOrWhiteSpace();
+        result.ContentHtml.Should().Contain("<h1>Safety policy</h1>");
+        result.ContentHtml.Should().Contain("<strong>Use helmet</strong>");
+        result.ContentHtml!.ToLowerInvariant().Should().NotContain("<img");
+        result.ContentHtml.ToLowerInvariant().Should().NotContain("data:image");
         result.Metadata.OriginalFilename.Should().Be("policy.docx");
         result.Metadata.MimeType.Should().Be("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
         result.Metadata.SizeBytes.Should().Be(bytes.Length);
@@ -43,6 +48,7 @@ public sealed class DocumentImportExtractionTests
             CancellationToken.None);
 
         result.Text.Should().Contain("Texto de politica interna");
+        result.ContentHtml.Should().Be("<p>Texto de politica interna</p>");
         result.Metadata.OriginalFilename.Should().Be("policy.pdf");
         result.Metadata.MimeType.Should().Be("application/pdf");
     }
@@ -135,6 +141,103 @@ public sealed class DocumentImportExtractionTests
                   <w:body>{body}</w:body>
                 </w:document>
                 """);
+        }
+
+        return output.ToArray();
+    }
+
+    private static byte[] CreateStructuredDocx()
+    {
+        using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            WriteZipEntry(
+                archive,
+                "[Content_Types].xml",
+                """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="png" ContentType="image/png"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+                </Types>
+                """);
+            WriteZipEntry(
+                archive,
+                "_rels/.rels",
+                """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+            WriteZipEntry(
+                archive,
+                "word/_rels/document.xml.rels",
+                """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                  <Relationship Id="rIdImage1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+                </Relationships>
+                """);
+            WriteZipEntry(
+                archive,
+                "word/styles.xml",
+                """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:styleId="Heading1">
+                    <w:name w:val="Heading 1"/>
+                  </w:style>
+                </w:styles>
+                """);
+            WriteZipEntry(
+                archive,
+                "word/document.xml",
+                """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <w:document
+                  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+                  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <w:body>
+                    <w:p>
+                      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+                      <w:r><w:t>Safety policy</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:r><w:rPr><w:b/></w:rPr><w:t>Use helmet</w:t></w:r>
+                    </w:p>
+                    <w:p>
+                      <w:r>
+                        <w:drawing>
+                          <wp:inline>
+                            <wp:docPr id="1" name="Embedded image" descr="Embedded image"/>
+                            <a:graphic>
+                              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                                <pic:pic>
+                                  <pic:blipFill>
+                                    <a:blip r:embed="rIdImage1"/>
+                                  </pic:blipFill>
+                                </pic:pic>
+                              </a:graphicData>
+                            </a:graphic>
+                          </wp:inline>
+                        </w:drawing>
+                      </w:r>
+                    </w:p>
+                  </w:body>
+                </w:document>
+                """);
+            var image = archive.CreateEntry("word/media/image1.png");
+            using var imageStream = image.Open();
+            imageStream.Write(
+                Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="));
         }
 
         return output.ToArray();

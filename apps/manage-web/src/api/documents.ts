@@ -44,6 +44,7 @@ export interface SaveDocumentDraftRequest {
 
 export interface ImportExtractionResult {
   text: string
+  contentHtml?: string | null
   metadata: {
     originalFilename: string
     mimeType: string

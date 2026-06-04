@@ -9,7 +9,7 @@
 
 ## .NET API
 
-- .NET owns identity, users, roles, groups/departments, document lifecycle, assisted import extraction, viewer access tokens, management audit, and read-only management reporting.
+- .NET owns identity, users, roles, groups/departments, document lifecycle, assisted import extraction, secure viewer session handoff, management audit, and read-only management reporting.
 - Use MVC controllers as the default HTTP boundary for application routes. Minimal APIs are allowed only for very small infrastructure endpoints when they materially reduce ceremony, such as health checks, and should not be used for feature modules.
 - Keep controllers thin and move lifecycle, authorization, import extraction, and token logic into testable services/use cases.
 - Put browser-facing request/response DTOs under `AdvancedRag.Api/Models/<Feature>/`. Do not define feature DTOs inside controller files.
@@ -17,14 +17,14 @@
 - Prefer explicit local variable types in new or refactored `.NET` code when the concrete type is clear and improves readability. Do not ban `var`: use `var` when the explicit type is unavailable or noisier than the initializer, such as anonymous types, LINQ projections, deconstruction, pattern-driven code, or cases where the initializer already makes the type obvious and an explicit type would reduce clarity.
 - Apply the explicit-type preference to production code and to tests that are newly written or actively refactored. Do not perform unrelated mechanical `var` churn inside existing files unless that refactor is the task.
 - Use EF Core migrations for the `app` schema.
-- Use `DocumentFormat.OpenXml` for DOCX text extraction.
-- Use `PdfPig` for PDF text extraction.
-- Import extraction adapters must return extracted text plus safe extraction metadata, not final publishable HTML.
+- Use an approved DOCX-to-HTML converter for DOCX assisted import. Converted DOCX HTML must be sanitized before returning it to the browser.
+- Use `PdfPig` for conservative PDF text/layout extraction. Do not rely on direct `page.Text` concatenation for user-facing imports.
+- Import extraction adapters must return safe draft HTML, fallback extracted text, and safe extraction metadata. The returned HTML is editor prefill only, not final publishable content.
 - Do not persist imported file bytes in the MVP.
 - Enforce the 10 MB PDF/DOCX import limit server-side.
 - Return stable code `IMPORT_TEXT_NOT_EXTRACTABLE` when a PDF/DOCX has no extractable text.
-- Issue viewer links as `documentId` locators only. The docs API must revalidate the authenticated `__Host-session` and document permissions before returning content.
-- Do not place session tokens, viewer tokens, or other credential-bearing values in document viewer URLs.
+- Issue viewer links as document locators plus, when cross-subdomain SSO is needed, a short-lived server-issued handoff code. Handoff codes must be persisted as one-time database records with expiration and consumed/used state. The docs API must establish its own host-only `__Host-session` after validating the handoff and must revalidate document permissions before returning content.
+- Do not place main session tokens, viewer tokens, or other long-lived credential-bearing values in document viewer URLs.
 
 ## FastAPI RAG Service
 
@@ -109,8 +109,8 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | Logging | `Serilog` + `Serilog.Sinks.File` (JSON formatter) + `Serilog.AspNetCore` | Daily rolling JSON files mounted on volume. Use `Serilog.Enrichers.CorrelationId` for `X-Request-ID`. |
 | HTTP client | `HttpClient` via `IHttpClientFactory` + `Microsoft.Extensions.Http.Polly` | Retry with jitter and circuit breaker for `.NET â†’ FastAPI` internal calls. |
 | OpenAI | Not used directly from .NET in the MVP | All AI provider calls live in FastAPI. |
-| PDF extraction | `PdfPig` `0.1.14` | Assisted import only. |
-| DOCX extraction | `DocumentFormat.OpenXml` `3.5.1` | Assisted import only. |
+| PDF extraction | `PdfPig` `0.1.14` | Assisted import only. Use conservative reading-order/layout extraction; do not use direct `page.Text` as the final user-facing import output. |
+| DOCX import conversion | `Mammoth` `1.11.0` | Assisted import only. Output must be sanitized and must not persist inline base64 images or external file references. Embedded DOCX images are not imported in the current slice. |
 | HTML sanitization | `Ganss.Xss` via `HtmlSanitizer` `9.0.892` | Sanitize stored normalized document HTML and any review comment input that may render HTML. |
 | Object storage | `AWSSDK.S3` | S3-compatible client for document image bytes. Configure `ServiceURL` for MinIO in Compose and normal AWS S3 settings for a later migration. |
 | Authentication | Cookie authentication plus local users in `app.users`; hand-rolled PBKDF2-SHA256 password hashing using `Rfc2898DeriveBytes` | Session cookies are host-only `__Host-session` cookies. The legacy chat-token and viewer-token browser flows are removed. |
@@ -159,7 +159,7 @@ All three React frontends share the same stack. Each app has its own `package.js
 | Server state | `@tanstack/react-query` v5 | Caches, retries, suspense-ready. All API calls go through it. |
 | Client state | `zustand` | Use sparingly; prefer URL state and react-query cache. |
 | Forms | `react-hook-form` + `zod` + `@hookform/resolvers` | Schemas mirror backend DTOs; no duplicate validation logic. |
-| Rich text editor (management) | `@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/extension-link` + `@tiptap/extension-image` + `@tiptap/extension-underline` + TipTap table extensions | Output is sanitized HTML stored in `app.document_versions`. |
+| Rich text editor (management) | `@tiptap/react` + `@tiptap/starter-kit` + `@tiptap/extension-link` + `@tiptap/extension-image` + `@tiptap/extension-underline` + `@tiptap/extension-color` + `@tiptap/extension-text-style` + `@tiptap/extension-highlight` + `@tiptap/extension-text-align` + TipTap table extensions, pinned at `3.25.0` | Output is sanitized HTML stored in `app.document_versions`. Text color and text alignment are the only approved persisted inline CSS styles; highlight uses semantic `<mark>`. |
 | HTML sanitization | `dompurify` | Sanitize HTML before rendering document content in the viewer and before submitting from the editor. |
 | Routing | `react-router-dom` v6 | Server-side rendering is out of scope for the MVP. |
 | Testing (unit/component) | `vitest` + `@testing-library/react` + `@testing-library/user-event` + `msw` for API mocks | Mock at the network boundary, not at the hook level. |
@@ -171,7 +171,7 @@ All three React frontends share the same stack. Each app has its own `package.js
 - All API calls go through the per-app typed `apiClient`. Components and hooks never call `fetch` directly.
 - TanStack Query keys follow the convention `[domain, resource, params]`, e.g. `["documents", "list", { status: "Published" }]`.
 - Use `zod` schemas for both form validation and API response parsing; the same schema can validate both ends.
-- The TipTap editor emits HTML that is sanitized server-side by `Ganss.Xss` before persistence; the frontend also runs `DOMPurify` on render.
+- The TipTap editor emits HTML that is sanitized server-side by `Ganss.Xss` before persistence; the frontend also runs `DOMPurify` on render. The document sanitizer allows only the `color` and `text-align` CSS properties for approved TipTap controls, preserves semantic `<mark>` highlight tags, and strips all other inline CSS properties.
 - The chat frontend handles answer streaming via Server-Sent Events; the `apiClient` exposes a typed `streamChat()` helper.
 
 ## Language Policy
