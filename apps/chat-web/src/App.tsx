@@ -24,6 +24,7 @@ import {
   Textarea,
 } from '@helpcenter/shared-ui'
 import {
+  consumeSessionHandoff,
   createViewerLink,
   getChatSession,
   getSession,
@@ -136,7 +137,11 @@ export default function App() {
 
     async function boot() {
       try {
-        const session = await getSession()
+        const handoffCode = new URLSearchParams(window.location.search).get('handoff')
+        const session = handoffCode ? await consumeSessionHandoff(handoffCode) : await getSession()
+        if (handoffCode) {
+          removeHandoffFromUrl()
+        }
         const sessionList = await listChatSessions()
         if (cancelled) {
           return
@@ -821,6 +826,12 @@ function createConversationId(): string {
   }
 
   return `session-${Date.now()}`
+}
+
+function removeHandoffFromUrl() {
+  const url = new URL(window.location.href)
+  url.searchParams.delete('handoff')
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
 function ChatAuthFrame({

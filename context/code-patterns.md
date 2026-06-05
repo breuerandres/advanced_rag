@@ -127,6 +127,9 @@ Codes are stable strings, UPPER_SNAKE_CASE. Document new codes in this file when
 | `INDEXING_NO_CONTENT` | 422 | Content produced zero indexable chunks. |
 | `RAG_PROVIDER_UNAVAILABLE` | 503 | OpenAI returned a retryable error after exhausting retries. |
 | `RAG_PROVIDER_MISCONFIGURED` | 500 | OpenAI configuration is invalid (model id, auth, etc.). |
+| `SESSION_HANDOFF_INVALID` | 401 | Cross-app session handoff code is missing, unknown, or for a different target surface. |
+| `SESSION_HANDOFF_EXPIRED` | 410 | Cross-app session handoff code expired before consumption. |
+| `SESSION_HANDOFF_USED` | 410 | Cross-app session handoff code was already consumed. |
 | `VIEWER_CODE_EXPIRED` | 410 | Viewer exchange code expired. |
 | `VIEWER_CODE_USED` | 410 | Viewer exchange code already consumed. |
 | `VIEWER_CODE_INVALID` | 400 | Viewer exchange code malformed or unknown. |

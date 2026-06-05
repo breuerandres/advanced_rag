@@ -128,6 +128,84 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
         body.Corpus.Should().Be("published");
     }
 
+    [Fact]
+    public async Task SessionHandoff_CreatedOnManage_CanBeConsumedOnChatHost()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var manageSession = await LoginAsync(client, "manage.localhost");
+
+        using var createResponse = await SendJsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/auth/session-handoffs",
+            new { target = "chat" },
+            "manage.localhost",
+            manageSession.Csrf,
+            manageSession.SessionCookie);
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var createBody = await createResponse.Content.ReadFromJsonAsync<SessionHandoffResponse>();
+        createBody!.Target.Should().Be("chat");
+        createBody.HandoffCode.Should().NotBeNullOrWhiteSpace();
+
+        var chatCsrf = await GetCsrfAsync(client, "chat.localhost");
+        using var consumeResponse = await SendJsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/auth/session-handoffs/consume",
+            new { handoffCode = createBody.HandoffCode, target = "chat" },
+            "chat.localhost",
+            chatCsrf);
+
+        consumeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var sessionCookie = GetSetCookie(consumeResponse, "__Host-session");
+        sessionCookie.ToLowerInvariant().Should().Contain("samesite=strict");
+        var sessionBody = await consumeResponse.Content.ReadFromJsonAsync<SessionResponse>();
+        sessionBody!.User.Email.Should().Be(AuthWebApplicationFactory.TestUserEmail);
+    }
+
+    [Fact]
+    public async Task SessionHandoff_CannotBeConsumedTwice()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var manageSession = await LoginAsync(client, "manage.localhost");
+
+        using var createResponse = await SendJsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/auth/session-handoffs",
+            new { target = "docs" },
+            "manage.localhost",
+            manageSession.Csrf,
+            manageSession.SessionCookie);
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var createBody = await createResponse.Content.ReadFromJsonAsync<SessionHandoffResponse>();
+
+        var docsCsrf = await GetCsrfAsync(client, "docs.localhost");
+        using var firstConsume = await SendJsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/auth/session-handoffs/consume",
+            new { handoffCode = createBody!.HandoffCode, target = "docs" },
+            "docs.localhost",
+            docsCsrf);
+        firstConsume.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var secondDocsCsrf = await GetCsrfAsync(client, "docs.localhost");
+        using var secondConsume = await SendJsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/auth/session-handoffs/consume",
+            new { handoffCode = createBody.HandoffCode, target = "docs" },
+            "docs.localhost",
+            secondDocsCsrf);
+
+        secondConsume.StatusCode.Should().Be(HttpStatusCode.Gone);
+        var error = await secondConsume.Content.ReadFromJsonAsync<ApiErrorEnvelope>();
+        error!.Error.Code.Should().Be("SESSION_HANDOFF_USED");
+    }
+
     private static async Task<LoginSession> LoginAsync(HttpClient client, string host)
     {
         var csrf = await GetCsrfAsync(client, host);
@@ -211,6 +289,11 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
     private sealed record ApiErrorBody(string Code, string Message, Dictionary<string, object> Details, string RequestId);
 
     private sealed record SessionResponse(SessionUser User);
+
+    private sealed record SessionHandoffResponse(
+        string Target,
+        string HandoffCode,
+        DateTimeOffset ExpiresAt);
 
     private sealed record SessionUser(
         Guid Id,

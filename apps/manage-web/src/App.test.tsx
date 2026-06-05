@@ -363,7 +363,61 @@ describe("management users and budgets", () => {
       screen.queryByRole("link", { name: "Presupuestos IA" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Mi cuenta" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Chat" })).toHaveAttribute(
+      "href",
+      "https://chat.localhost/",
+    );
+    expect(screen.getByRole("link", { name: "Chat" })).toHaveAttribute(
+      "target",
+      "_blank",
+    );
+    expect(screen.getByRole("link", { name: "Chat" })).toHaveAttribute(
+      "rel",
+      "noopener noreferrer",
+    );
+    expect(screen.getByRole("link", { name: "Docs" })).toHaveAttribute(
+      "href",
+      "https://docs.localhost/",
+    );
+    expect(screen.getByRole("link", { name: "Docs" })).toHaveAttribute(
+      "target",
+      "_blank",
+    );
     expect(screen.queryByText("Consola de gestión")).not.toBeInTheDocument();
+  });
+
+  test("opens product surfaces in a new tab with a one-time session handoff", async () => {
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      csrfResponse(),
+      jsonResponse(200, {
+        target: "chat",
+        handoffCode: "handoff-code",
+        expiresAt: "2026-06-05T13:00:00Z",
+      }),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Usuarios y grupos" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Chat" }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/session-handoffs",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(open).toHaveBeenCalledWith(
+      "https://chat.localhost/?handoff=handoff-code",
+      "_blank",
+      "noopener,noreferrer",
+    );
   });
 
   test("renders only self-service navigation for viewers", async () => {

@@ -132,6 +132,18 @@ public sealed class ViewerSessionHandoffCode
     public required string RequestId { get; set; }
 }
 
+public sealed class SessionHandoffCode
+{
+    public Guid Id { get; set; }
+    public required string CodeHash { get; set; }
+    public Guid UserId { get; set; }
+    public required string Target { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset? ConsumedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public required string RequestId { get; set; }
+}
+
 public sealed class UserAiBudgetLimit
 {
     public Guid UserId { get; set; }

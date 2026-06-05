@@ -1925,3 +1925,17 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** `chat-web` owns this shell locally rather than using the shared `AppShell`, because the shared sidebar behavior hides sidebars at smaller breakpoints and does not match the approved fixed chat drawer. Cache-hit citation reconstruction and frontend rendering should deduplicate citations by document/version before showing them in the drawer.
 
 **Evidence:** Updated on 2026-06-05 with chat UI polish for right-drawer citations, fixed viewport drawers, deselectable feedback buttons, single-line autosizing composer, chat login parity with management auth controls, cache-hit citation deduplication, and mojibake fixes. Verification passed with focused `chat-web`, shared-ui, and RAG tests, chat/shared typechecks, chat production build, and `git diff --check` with Windows line-ending warnings only.
+
+## 2026-06-05 - Cross-App Product Links Use One-Time Session Handoff
+
+**Context:** The management sidebar needs direct links to Chat and Docs. Users should not pass through the target login page when they already have an active Manage session, but the MVP still requires host-only `__Host-session` cookies and must avoid broad parent-domain cookies or credential-bearing URLs.
+
+**Options Considered:** Share cookies with `Domain=.client.com`, pass the session token in the URL, use browser storage, or issue a short-lived one-time handoff code that the target host consumes through same-origin `.NET`.
+
+**Decision:** Use a separate general session handoff flow for product-surface navigation. Manage creates a one-time code scoped to `chat` or `docs`; the target app consumes it through `POST /api/auth/session-handoffs/consume`, receives its own host-only session cookie, removes the handoff code from the URL, and then loads normally.
+
+**Rationale:** This preserves the current host-only cookie security model, avoids persistent browser-accessible credentials, and matches the existing document-viewer handoff pattern without mixing document authorization state into root product navigation.
+
+**Tradeoffs:** Navigation requires an API request before opening the target app, and the code is briefly visible in the target tab URL until consumption. The code is short-lived, one-time, target-scoped, and not the main session token.
+
+**Consequences:** Root links from Manage to Chat/Docs open in a new tab with `noopener,noreferrer`. Chat and Docs must attempt handoff consumption on boot before showing login when a `handoff` query parameter is present.

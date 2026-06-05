@@ -14,16 +14,20 @@ import {
 } from '@helpcenter/shared-ui'
 import {
   createFirstAdmin,
+  createSessionHandoff,
   getSession,
   getSetupStatus,
   login,
   logout,
   type SessionUser,
+  type SessionHandoffTarget,
   type SetupStatus,
 } from './api/auth'
 import {
   ManagementNav,
   allowedManagementSections,
+  buildProductSurfaceUrl,
+  type ProductSurface,
   type ManagementSection,
 } from './components/ManagementNav'
 import { AccountPage } from './features/account/AccountPage'
@@ -46,6 +50,7 @@ export default function App() {
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [bootError, setBootError] = useState<string | null>(null)
+  const [productNavError, setProductNavError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -144,6 +149,19 @@ export default function App() {
     setMode('login')
   }
 
+  async function handleOpenProductSurface(surface: ProductSurface) {
+    setProductNavError(null)
+
+    try {
+      const handoff = await createSessionHandoff(surface as SessionHandoffTarget)
+      const url = new URL(buildProductSurfaceUrl(surface))
+      url.searchParams.set('handoff', handoff.handoffCode)
+      window.open(url.toString(), '_blank', 'noopener,noreferrer')
+    } catch (error) {
+      setProductNavError(formatApiError(error, 'No se pudo abrir la aplicacion seleccionada.'))
+    }
+  }
+
   const allowedSections = allowedManagementSections(sessionUser.roles)
   const isViewerOnly =
     sessionUser.roles.includes('Viewer') &&
@@ -190,13 +208,23 @@ export default function App() {
               </section>
             }
           >
-            <ManagementNav active={activeView} onNavigate={setView} userRoles={sessionUser.roles} />
+            <ManagementNav
+              active={activeView}
+              onNavigate={setView}
+              onOpenProductSurface={(surface) => void handleOpenProductSurface(surface)}
+              userRoles={sessionUser.roles}
+            />
           </Sidebar>
         </section>
       }
       className="app-workspace"
     >
       <section className="app-workspace">
+        {productNavError ? (
+          <p className="status-message error" role="alert">
+            {productNavError}
+          </p>
+        ) : null}
         {activeView === 'documents' ? <DocumentsPage userRoles={sessionUser.roles} /> : null}
         {activeView === 'users' ? <UsersBudgetPage userRoles={sessionUser.roles} /> : null}
         {activeView === 'audit' ? <AuditPage /> : null}

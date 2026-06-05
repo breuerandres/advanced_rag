@@ -12,6 +12,7 @@ import {
   LanguageSelect,
 } from '@helpcenter/shared-ui'
 import {
+  consumeSessionHandoff,
   consumeViewerHandoff,
   createViewerLink,
   getSession,
@@ -46,7 +47,7 @@ export default function App() {
   return documentId ? (
     <ViewerLinkApp documentId={documentId} handoffCode={handoffCode} />
   ) : (
-    <DocumentPortalApp />
+    <DocumentPortalApp handoffCode={handoffCode} />
   )
 }
 
@@ -146,7 +147,7 @@ function removeHandoffFromUrl() {
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
-function DocumentPortalApp() {
+function DocumentPortalApp({ handoffCode }: { handoffCode: string | null }) {
   const { t, i18n } = useTranslation()
   const [state, setState] = useState<PortalState>({ status: 'loading' })
 
@@ -155,7 +156,10 @@ function DocumentPortalApp() {
 
     async function loadPortal() {
       try {
-        const session = await getSession()
+        const session = handoffCode ? await consumeSessionHandoff(handoffCode) : await getSession()
+        if (handoffCode) {
+          removeHandoffFromUrl()
+        }
         const catalog = await listViewerDocuments()
         if (isMounted) {
           setState({ status: 'ready', user: session.user, catalog })
@@ -178,7 +182,7 @@ function DocumentPortalApp() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [handoffCode])
 
   async function loadAfterLogin(user: SessionUser) {
     const catalog = await listViewerDocuments()

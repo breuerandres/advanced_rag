@@ -30,16 +30,30 @@
 .management-sidebar {
   display: flex;
   min-height: 0;
-  height: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
 }
 
 .management-sidebar > div {
   width: 100%;
+  overflow: hidden;
+}
+
+.management-sidebar .overflow-y-auto {
+  overflow-y: hidden;
 }
 
 .sidebar-nav {
   display: grid;
+  align-content: start;
   gap: 4px;
+}
+
+.sidebar-nav-separator {
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--border);
 }
 
 .header-section-label {

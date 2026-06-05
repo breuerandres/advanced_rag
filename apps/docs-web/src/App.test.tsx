@@ -64,6 +64,46 @@ test('renders the independent document portal grouped by category', async () => 
   expect(screen.queryByRole('navigation', { name: /Navegacion del visor/i })).not.toBeInTheDocument()
 })
 
+test('consumes manage session handoff before loading the document portal', async () => {
+  setLocation('https://docs.localhost/?handoff=docs-code')
+  const replaceState = vi.spyOn(window.history, 'replaceState')
+  const fetch = mockFetch([
+    jsonResponse({ status: 'ok' }, { 'X-CSRF-Token': 'csrf-token' }),
+    jsonResponse({
+      user: {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        email: 'viewer@example.com',
+        displayName: 'Viewer User',
+        roles: ['Viewer'],
+        groups: [],
+      },
+    }),
+    jsonResponse({
+      groups: [],
+      documents: [],
+    }),
+  ])
+
+  render(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Sin documentos para mostrar' })).toBeInTheDocument()
+  expect(fetch).toHaveBeenNthCalledWith(
+    1,
+    '/api/csrf',
+    expect.objectContaining({ credentials: 'include' }),
+  )
+  expect(fetch).toHaveBeenNthCalledWith(
+    2,
+    '/api/auth/session-handoffs/consume',
+    expect.objectContaining({ method: 'POST' }),
+  )
+  expect(JSON.parse((fetch.mock.calls[1][1] as RequestInit).body as string)).toEqual({
+    handoffCode: 'docs-code',
+    target: 'docs',
+  })
+  expect(String(replaceState.mock.calls[0][2])).toBe('/')
+})
+
 test('changes the document portal language and hides Portuguese', async () => {
   setLocation('https://docs.localhost/')
   mockFetch([

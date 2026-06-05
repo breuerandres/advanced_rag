@@ -7,6 +7,7 @@ import i18n from './i18n'
 afterEach(() => {
   cleanup()
   void i18n.changeLanguage('es-AR')
+  window.history.pushState(null, '', '/')
   vi.unstubAllGlobals()
 })
 
@@ -26,6 +27,35 @@ test('shows the simplified chat workspace with a fixed left conversation drawer'
   expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeEnabled()
   expect(screen.getByText('0 / 4000')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Enviar pregunta' })).toBeDisabled()
+})
+
+test('consumes manage session handoff before loading the chat workspace', async () => {
+  window.history.pushState(null, '', '/?handoff=chat-code')
+  const replaceState = vi.spyOn(window.history, 'replaceState')
+  const fetchMock = stubFetch([
+    csrfResponse(),
+    sessionResponse(),
+    jsonResponse(200, { sessions: [] }),
+  ])
+
+  render(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    1,
+    '/api/csrf',
+    expect.objectContaining({ credentials: 'include' }),
+  )
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    2,
+    '/api/auth/session-handoffs/consume',
+    expect.objectContaining({ method: 'POST' }),
+  )
+  expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({
+    handoffCode: 'chat-code',
+    target: 'chat',
+  })
+  expect(String(replaceState.mock.calls[0][2])).toBe('/')
 })
 
 test('logs out from the fixed chat drawer and returns to login', async () => {
@@ -619,7 +649,7 @@ function sessionResponse() {
 }
 
 function stubFetch(responses: Array<Response | Promise<Response>>) {
-  const fetchMock = vi.fn(async () => {
+  const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
     const response = responses.shift()
     if (!response) {
       throw new Error('Unexpected fetch call.')

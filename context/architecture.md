@@ -101,6 +101,7 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 - Unified auth uses `__Host-session` as the only browser auth cookie. FastAPI chat/feedback read the `__Host-session` cookie and validate it through `.NET` internal `GET /internal/session/validate` on cache miss with `X-Internal-Service-Token`.
 - FastAPI caches safe session claims in process for 60 seconds keyed by a SHA-256 hash of the session cookie value. Raw session cookies must not be logged.
 - .NET remains the authority for login, session issuance, user state, role/group assignment, internal session validation, and token signing key management.
+- Cross-app navigation from `manage.client.com` to `chat.client.com` or `docs.client.com` must use short-lived, one-time session handoff codes rather than parent-domain cookies, browser storage, or credential-bearing URLs. The source host creates the code through same-origin `.NET`; the target host consumes it through same-origin `.NET`, receives its own host-only `__Host-session` cookie, and removes the handoff code from the URL.
 - Legacy `POST /api/auth/chat-token`, `__Host-chat-token`, `/api/viewer/exchange`, and `__Host-viewer-token` runtime flows have been removed. The deprecated viewer exchange/audit tables are not part of the current EF model or initial app-schema migration.
 - Roles define system capabilities.
 - Groups/departments and document attributes define content access.
@@ -156,7 +157,9 @@ Management and docs frontends call the .NET-owned contract groups. The chat fron
 
 ## Viewer Document Access
 
-`docs.client.com` is session-gated. Links from `manage.client.com` and `chat.client.com` carry only a document locator plus, when needed, a short-lived server-issued session handoff code; they never carry the main session token. Handoff codes are persisted as one-time database records with expiration and consumed/used state. `docs.client.com` validates handoff codes through same-origin `.NET` routes, receives its own host-only `__Host-session` cookie, removes the handoff code from the URL, and calls same-origin `.NET` routes to load document content. `.NET` revalidates the current user, role, groups, document state, and permissions before returning document content.
+`docs.client.com` is session-gated. Links from `manage.client.com` and `chat.client.com` carry only a document locator plus, when needed, a short-lived server-issued session handoff code; they never carry the main session token. Document viewer handoff codes are persisted as one-time database records with expiration and consumed/used state. `docs.client.com` validates handoff codes through same-origin `.NET` routes, receives its own host-only `__Host-session` cookie, removes the handoff code from the URL, and calls same-origin `.NET` routes to load document content. `.NET` revalidates the current user, role, groups, document state, and permissions before returning document content.
+
+Root-level product links from `manage.client.com` to `chat.client.com` and `docs.client.com` use a separate general session handoff table scoped to `chat` or `docs`, also one-time and short-lived. These links open in a new tab from the management sidebar and are consumed before the target app falls back to its login surface.
 
 Chat-created document links are limited to `Published` documents. Management-created links may allow `Draft`, `In Review`, and `Published` when the user has `Admin` or `DocumentManager`. The link itself is not authorization; it is only a document locator plus an optional short-lived session handoff artifact. Document access authorization is always revalidated server-side.
 

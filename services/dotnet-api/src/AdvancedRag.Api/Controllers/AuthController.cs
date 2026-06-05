@@ -14,11 +14,13 @@ namespace AdvancedRag.Api.Controllers;
 public sealed class AuthController : ApiControllerBase
 {
     private readonly IAuthService _auth;
+    private readonly ISessionHandoffService _handoffs;
     private readonly ICsrfTokenService _csrf;
 
-    public AuthController(IAuthService auth, ICsrfTokenService csrf)
+    public AuthController(IAuthService auth, ISessionHandoffService handoffs, ICsrfTokenService csrf)
     {
         _auth = auth;
+        _handoffs = handoffs;
         _csrf = csrf;
     }
 
@@ -71,6 +73,62 @@ public sealed class AuthController : ApiControllerBase
         ct.ThrowIfCancellationRequested();
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return Ok(new LogoutResponse("ok"));
+    }
+
+    [HttpPost("session-handoffs")]
+    [Authorize]
+    public async Task<IActionResult> CreateSessionHandoffAsync(
+        [FromBody] CreateSessionHandoffRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            SessionHandoffResult result = await _handoffs.CreateAsync(
+                new CreateSessionHandoffCommand(ActorUserId(), request.Target, RequestId()),
+                ct);
+            return Ok(new SessionHandoffResponse(result.Target, result.HandoffCode, result.ExpiresAt));
+        }
+        catch (SessionHandoffException exception)
+        {
+            return Error(exception.HttpStatus, exception.Code, exception.Message, exception.Details);
+        }
+    }
+
+    [HttpPost("session-handoffs/consume")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ConsumeSessionHandoffAsync(
+        [FromBody] ConsumeSessionHandoffRequest request,
+        CancellationToken ct)
+    {
+        SessionHandoffConsumeResult handoff;
+        try
+        {
+            handoff = await _handoffs.ConsumeAsync(
+                new ConsumeSessionHandoffCommand(request.HandoffCode, request.Target),
+                ct);
+        }
+        catch (SessionHandoffException exception)
+        {
+            return Error(exception.HttpStatus, exception.Code, exception.Message, exception.Details);
+        }
+
+        AuthenticatedUser? user = await _auth.GetActiveUserAsync(handoff.UserId, ct);
+        if (user is null)
+        {
+            return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.");
+        }
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            CreatePrincipal(user),
+            new AuthenticationProperties
+            {
+                IsPersistent = false,
+                IssuedUtc = DateTimeOffset.UtcNow,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8),
+            });
+
+        return Ok(SessionResponse.FromUser(user));
     }
 
     [HttpGet("/api/session")]

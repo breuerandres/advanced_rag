@@ -24,6 +24,7 @@ public sealed class AppDbContextMigrationTests
         "documents",
         "review_comments",
         "roles",
+        "session_handoff_codes",
         "tenant_config",
         "user_ai_budget_limits",
         "user_groups",

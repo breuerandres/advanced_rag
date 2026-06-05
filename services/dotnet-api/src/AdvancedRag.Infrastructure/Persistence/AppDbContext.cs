@@ -24,6 +24,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<ReviewComment> ReviewComments => Set<ReviewComment>();
     public DbSet<ImportMetadata> ImportMetadata => Set<ImportMetadata>();
     public DbSet<ViewerSessionHandoffCode> ViewerSessionHandoffCodes => Set<ViewerSessionHandoffCode>();
+    public DbSet<SessionHandoffCode> SessionHandoffCodes => Set<SessionHandoffCode>();
     public DbSet<UserAiBudgetLimit> UserAiBudgetLimits => Set<UserAiBudgetLimit>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<TenantConfig> TenantConfigs => Set<TenantConfig>();
@@ -212,6 +213,23 @@ public sealed class AppDbContext : DbContext
             entity.HasIndex(item => item.ExpiresAt);
             entity.HasIndex(item => item.UserId);
             entity.HasIndex(item => item.DocumentId);
+        });
+
+        modelBuilder.Entity<SessionHandoffCode>(entity =>
+        {
+            entity.ToTable("session_handoff_codes", Schema);
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.CodeHash).HasColumnName("code_hash").HasMaxLength(64).IsRequired();
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.Target).HasColumnName("target").HasMaxLength(16).IsRequired();
+            entity.Property(item => item.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(item => item.ConsumedAt).HasColumnName("consumed_at");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+            entity.Property(item => item.RequestId).HasColumnName("request_id").HasMaxLength(128).IsRequired();
+            entity.HasOne<User>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(item => item.CodeHash).IsUnique();
+            entity.HasIndex(item => item.ExpiresAt);
+            entity.HasIndex(item => item.UserId);
         });
 
         modelBuilder.Entity<UserAiBudgetLimit>(entity =>

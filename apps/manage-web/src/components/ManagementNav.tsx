@@ -1,6 +1,8 @@
 import {
+  BookOpen,
   ClipboardList,
   FileText,
+  MessageSquare,
   MessageSquareWarning,
   Settings,
   ShieldCheck,
@@ -17,9 +19,12 @@ export type ManagementSection =
   | 'configuration'
   | 'account'
 
+export type ProductSurface = 'chat' | 'docs'
+
 interface ManagementNavProps {
   active: ManagementSection
   onNavigate: (section: ManagementSection) => void
+  onOpenProductSurface: (surface: ProductSurface) => void
   userRoles: string[]
 }
 
@@ -36,7 +41,21 @@ const links = [
   icon: typeof ShieldCheck
 }>
 
-export function ManagementNav({ active, onNavigate, userRoles }: ManagementNavProps) {
+const productLinks = [
+  { id: 'chat', labelKey: 'nav.chat', icon: MessageSquare },
+  { id: 'docs', labelKey: 'nav.docs', icon: BookOpen },
+] satisfies Array<{
+  id: ProductSurface
+  labelKey: string
+  icon: typeof ShieldCheck
+}>
+
+export function ManagementNav({
+  active,
+  onNavigate,
+  onOpenProductSurface,
+  userRoles,
+}: ManagementNavProps) {
   const { t } = useTranslation()
   const visibleLinks = links.filter((link) => canAccessSection(link.id, userRoles))
 
@@ -52,6 +71,26 @@ export function ManagementNav({ active, onNavigate, userRoles }: ManagementNavPr
             onClick={(event) => {
               event.preventDefault()
               onNavigate(link.id)
+            }}
+          >
+            <Icon size={18} />
+            <span>{t(link.labelKey)}</span>
+          </a>
+        )
+      })}
+      <div className="sidebar-nav-separator" aria-hidden="true" />
+      {productLinks.map((link) => {
+        const Icon = link.icon
+        return (
+          <a
+            key={link.id}
+            className="nav-link"
+            href={buildProductSurfaceUrl(link.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(event) => {
+              event.preventDefault()
+              onOpenProductSurface(link.id)
             }}
           >
             <Icon size={18} />
@@ -83,4 +122,30 @@ function canAccessSection(section: ManagementSection, userRoles: string[]) {
   }
 
   return false
+}
+
+export function buildProductSurfaceUrl(surface: ProductSurface): string {
+  const origin =
+    typeof window.location.origin === 'string' && window.location.origin.length > 0
+      ? window.location.origin
+      : 'https://manage.localhost'
+  const url = new URL(origin)
+  const labels = url.hostname.split('.')
+
+  if (labels[0] === 'manage') {
+    labels[0] = surface
+    url.hostname = labels.join('.')
+  } else if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+    url.protocol = 'https:'
+    url.hostname = `${surface}.localhost`
+    url.port = ''
+  } else {
+    url.hostname = `${surface}.${url.hostname}`
+  }
+
+  url.pathname = '/'
+  url.search = ''
+  url.hash = ''
+
+  return url.toString()
 }

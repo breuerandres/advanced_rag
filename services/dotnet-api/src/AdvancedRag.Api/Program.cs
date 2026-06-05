@@ -61,6 +61,13 @@ builder.Services.AddSingleton<FixedWindowRateLimiter>();
 builder.Services.AddScoped<IOperationalReadinessChecker, OperationalReadinessChecker>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserAuthRepository, EfUserAuthRepository>();
+builder.Services.AddScoped<ISessionHandoffRepository, EfSessionHandoffRepository>();
+builder.Services.AddScoped<ISessionHandoffService>(services =>
+{
+    var repository = services.GetRequiredService<ISessionHandoffRepository>();
+    var timeProvider = services.GetRequiredService<TimeProvider>();
+    return new SessionHandoffService(repository, timeProvider);
+});
 builder.Services.AddScoped<IUserAccountService, UserAccountService>();
 builder.Services.AddScoped<IUserAccountRepository, EfUserAccountRepository>();
 builder.Services.AddScoped<ISetupService, SetupService>();

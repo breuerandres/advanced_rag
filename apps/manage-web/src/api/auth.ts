@@ -30,6 +30,14 @@ export interface LoginRequest {
   password: string
 }
 
+export type SessionHandoffTarget = 'chat' | 'docs'
+
+export interface SessionHandoffResponse {
+  target: SessionHandoffTarget
+  handoffCode: string
+  expiresAt: string
+}
+
 let csrfToken: string | null = null
 
 export async function getSetupStatus(): Promise<SetupStatus> {
@@ -53,6 +61,16 @@ export async function login(request: LoginRequest): Promise<SessionResponse> {
 export async function logout(): Promise<void> {
   await ensureCsrfToken()
   await requestJson('/api/auth/logout', jsonInit('POST', {}))
+}
+
+export async function createSessionHandoff(
+  target: SessionHandoffTarget,
+): Promise<SessionHandoffResponse> {
+  await ensureCsrfToken()
+  return requestJson<SessionHandoffResponse>(
+    '/api/auth/session-handoffs',
+    jsonInit('POST', { target }),
+  )
 }
 
 async function ensureCsrfToken(): Promise<void> {

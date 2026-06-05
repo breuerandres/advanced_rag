@@ -101,6 +101,18 @@ export async function login(email: string, password: string): Promise<SessionRes
   })
 }
 
+export async function consumeSessionHandoff(handoffCode: string): Promise<SessionResponse> {
+  await ensureCsrfToken()
+  return requestJson<SessionResponse>('/api/auth/session-handoffs/consume', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken ?? '',
+    },
+    body: JSON.stringify({ handoffCode, target: 'chat' }),
+  })
+}
+
 export async function logout(): Promise<void> {
   await ensureCsrfToken()
   await requestJson('/api/auth/logout', {

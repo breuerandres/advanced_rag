@@ -93,6 +93,18 @@ export async function consumeViewerHandoff(
   })
 }
 
+export async function consumeSessionHandoff(handoffCode: string): Promise<SessionResponse> {
+  await ensureCsrfToken()
+  return requestJson<SessionResponse>('/api/auth/session-handoffs/consume', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken ?? '',
+    },
+    body: JSON.stringify({ handoffCode, target: 'docs' }),
+  })
+}
+
 export async function getViewerDocument(documentId: string): Promise<ViewerDocument> {
   return requestJson<ViewerDocument>(`/api/viewer/document?documentId=${encodeURIComponent(documentId)}`)
 }
