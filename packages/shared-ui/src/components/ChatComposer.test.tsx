@@ -38,4 +38,13 @@ describe('ChatComposer', () => {
     expect(onSubmit).toHaveBeenCalledWith('Como ingreso?');
     expect(screen.getByText('0 / 20')).toBeInTheDocument();
   });
+
+  it('starts with a single-line autosizing textarea', () => {
+    render(<ChatComposer onSubmit={vi.fn()} />);
+
+    const textbox = screen.getByRole('textbox', { name: 'Pregunta' });
+
+    expect(textbox).toHaveAttribute('rows', '1');
+    expect(textbox).toHaveClass('chat-composer-textarea');
+  });
 });

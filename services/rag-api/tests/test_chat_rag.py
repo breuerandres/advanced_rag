@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import re
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,7 @@ POSTGRES_DB = "advanced_rag_chat_test"
 USER_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 ALLOWED_GROUP_ID = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
 DENIED_GROUP_ID = UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
+OTHER_USER_ID = UUID("dddddddd-dddd-dddd-dddd-dddddddddddd")
 
 EMBEDDING_DIMENSIONS = 1024
 EMBEDDING_MODEL = "text-embedding-3-large"
@@ -185,6 +187,63 @@ def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated
     assert llm_provider.calls == 2
 
 
+def test_semantic_cache_hit_returns_one_citation_per_source_document() -> None:
+    with _postgres() as database:
+        document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        embedding_provider = FakeEmbeddingProvider()
+        llm_provider = FakeLlmProvider()
+        app = create_app(
+            Settings(
+                rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+                customer_timezone="UTC",
+                rag_semantic_cache_similarity_threshold=0.90,
+                rag_semantic_cache_ttl_hours=24,
+                enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+            ),
+            embedding_provider=embedding_provider,
+            llm_provider=llm_provider,
+            session_validator=FakeSessionValidator(
+                ChatTokenClaims(
+                    user_id=str(USER_ID),
+                    role="Viewer",
+                    groups=[str(ALLOWED_GROUP_ID)],
+                    access_scope_hash="scope-allowed",
+                    corpus="published",
+                )
+            ),
+        )
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        first = client.post(
+            "/api/chat",
+            json={"question": "What credential rule applies?"},
+        )
+        asyncio.run(database.seed_additional_active_chunk_for_document(document_id))
+        second = client.post(
+            "/api/chat",
+            json={"question": "What credential rule applies?"},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert "event: cache-hit" in second.text
+    assert second.text.count(f'"document_id":"{document_id}"') == 1
+
+
 def test_chat_filters_by_dimension_partitions_cache_separately() -> None:
     """Same question + same user + different filters → no cache hit between them."""
     with _postgres() as database:
@@ -244,6 +303,159 @@ def test_chat_filters_by_dimension_partitions_cache_separately() -> None:
     assert filtered.status_code == 200
     # Both went all the way to the LLM (no cross-filter cache hit).
     assert llm_provider.calls == 2
+
+
+def test_chat_persists_session_id_and_rewritten_question_for_follow_up() -> None:
+    with _postgres() as database:
+        document_id = uuid4()
+        session_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        embedding_provider = FakeEmbeddingProvider()
+        llm_provider = CondensingFakeLlmProvider(
+            rewritten_question="What credential rule applies for contractors?"
+        )
+        app = create_app(
+            Settings(
+                rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+                customer_timezone="UTC",
+                enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+            ),
+            embedding_provider=embedding_provider,
+            llm_provider=llm_provider,
+            session_validator=FakeSessionValidator(
+                ChatTokenClaims(
+                    user_id=str(USER_ID),
+                    role="Viewer",
+                    groups=[str(ALLOWED_GROUP_ID)],
+                    access_scope_hash="scope-allowed",
+                    corpus="published",
+                )
+            ),
+        )
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        first = client.post(
+            "/api/chat",
+            json={
+                "question": "What credential rule applies?",
+                "sessionId": str(session_id),
+            },
+        )
+        second = client.post(
+            "/api/chat",
+            json={
+                "question": "And what about contractors?",
+                "sessionId": str(session_id),
+            },
+        )
+        audit_rows = asyncio.run(database.read_session_audit_events(session_id))
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert [row["question"] for row in audit_rows] == [
+        "What credential rule applies?",
+        "And what about contractors?",
+    ]
+    assert audit_rows[0]["session_id"] == session_id
+    assert audit_rows[0]["rewritten_question"] is None
+    assert audit_rows[1]["session_id"] == session_id
+    assert audit_rows[1]["rewritten_question"] == "What credential rule applies for contractors?"
+    assert embedding_provider.calls[-1] == ["What credential rule applies for contractors?"]
+    assert len(llm_provider.condense_calls) == 1
+
+
+def test_chat_session_list_and_history_are_user_scoped() -> None:
+    with _postgres() as database:
+        document_id = uuid4()
+        session_id = uuid4()
+        other_session_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        seeded = asyncio.run(
+            database.seed_session_history(
+                session_id=session_id,
+                other_session_id=other_session_id,
+                document_id=document_id,
+            )
+        )
+        app = create_app(
+            Settings(
+                rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+                customer_timezone="UTC",
+                enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+            llm_provider=FakeLlmProvider(),
+            session_validator=FakeSessionValidator(
+                ChatTokenClaims(
+                    user_id=str(USER_ID),
+                    role="Viewer",
+                    groups=[str(ALLOWED_GROUP_ID)],
+                    access_scope_hash="scope-allowed",
+                    corpus="published",
+                )
+            ),
+        )
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        sessions_response = client.get("/api/chat/sessions")
+        history_response = client.get(f"/api/chat/sessions/{session_id}")
+        other_history_response = client.get(f"/api/chat/sessions/{other_session_id}")
+
+    assert sessions_response.status_code == 200
+    sessions = sessions_response.json()["sessions"]
+    assert [session["sessionId"] for session in sessions] == [str(session_id)]
+    assert sessions[0]["title"] == "How do credentials work?"
+    assert sessions[0]["lastQuestion"] == "And contractors?"
+    assert sessions[0]["lastAnswer"] == "Contractors wear visitor badges."
+    assert sessions[0]["turnCount"] == 2
+
+    assert history_response.status_code == 200
+    history = history_response.json()
+    assert history["sessionId"] == str(session_id)
+    assert [turn["question"] for turn in history["turns"]] == [
+        "How do credentials work?",
+        "And contractors?",
+    ]
+    assert history["turns"][0]["queryAuditEventId"] == str(seeded["first_event_id"])
+    assert history["turns"][0]["cacheHit"] is False
+    assert history["turns"][0]["citations"] == [
+        {
+            "chunkId": str(seeded["chunk_id"]),
+            "documentId": str(document_id),
+            "documentVersionId": str(seeded["document_version_id"]),
+            "headingPath": ["Policy"],
+        }
+    ]
+    assert history["turns"][1]["feedbackValue"] == "up"
+    assert history["turns"][1]["feedbackComment"] == "Useful answer."
+    assert other_history_response.status_code == 404
+    assert other_history_response.json()["error"]["code"] == "CHAT_SESSION_NOT_FOUND"
 
 
 def test_budget_exhaustion_blocks_before_paid_provider_calls() -> None:
@@ -551,6 +763,40 @@ class ChatDatabase:
         finally:
             await connection.close()
 
+    async def seed_additional_active_chunk_for_document(self, document_id: UUID) -> None:
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            existing = await connection.fetchrow(
+                """
+                SELECT indexing_job_id, document_version_id, embedding_model
+                FROM rag.document_chunks
+                WHERE document_id = $1
+                LIMIT 1
+                """,
+                document_id,
+            )
+            assert existing is not None
+            await connection.execute(
+                f"""
+                INSERT INTO rag.document_chunks (
+                    id, indexing_job_id, document_id, document_version_id,
+                    corpus, chunk_index, heading_path, token_count, char_count,
+                    content, content_html, embedding, embedding_model, is_active
+                )
+                VALUES ($1, $2, $3, $4, 'published', 1, ARRAY['Policy', 'Details'], 4, 26,
+                        'Extra citation source.', '<p>Extra citation source.</p>',
+                        ('[' || repeat('0.01,', {EMBEDDING_DIMENSIONS - 1}) || '0.01]')::vector,
+                        $5, true)
+                """,
+                uuid4(),
+                existing["indexing_job_id"],
+                document_id,
+                existing["document_version_id"],
+                existing["embedding_model"],
+            )
+        finally:
+            await connection.close()
+
     async def _insert_chunk(
         self,
         connection: asyncpg.Connection,
@@ -619,6 +865,161 @@ class ChatDatabase:
             "citation_document_ids": [row["document_id"] for row in citation_ids],
             "audit_count": audit_count,
         }
+
+    async def read_session_audit_events(self, session_id: UUID) -> list[dict[str, Any]]:
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            rows = await connection.fetch(
+                """
+                SELECT question, session_id, rewritten_question
+                FROM rag.query_audit_events
+                WHERE session_id = $1
+                ORDER BY created_at ASC
+                """,
+                session_id,
+            )
+        finally:
+            await connection.close()
+        return [dict(row) for row in rows]
+
+    async def seed_session_history(
+        self,
+        *,
+        session_id: UUID,
+        other_session_id: UUID,
+        document_id: UUID,
+    ) -> dict[str, UUID]:
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            chunk = await connection.fetchrow(
+                """
+                SELECT id, document_version_id
+                FROM rag.document_chunks
+                WHERE document_id = $1
+                LIMIT 1
+                """,
+                document_id,
+            )
+            assert chunk is not None
+            first_event_id = uuid4()
+            second_event_id = uuid4()
+            other_event_id = uuid4()
+            created_at = datetime.now(UTC) - timedelta(minutes=3)
+            await self._insert_audit_turn(
+                connection,
+                event_id=first_event_id,
+                user_id=USER_ID,
+                session_id=session_id,
+                previous_event_id=None,
+                created_at=created_at,
+                question="How do credentials work?",
+                rewritten_question=None,
+                answer="Wear visible credentials.",
+                feedback_value=None,
+                feedback_comment=None,
+            )
+            await connection.execute(
+                """
+                INSERT INTO rag.query_audit_citations (
+                    id, query_audit_event_id, chunk_id, document_id,
+                    document_version_id, heading_path
+                )
+                VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                uuid4(),
+                first_event_id,
+                chunk["id"],
+                document_id,
+                chunk["document_version_id"],
+                ["Policy"],
+            )
+            await self._insert_audit_turn(
+                connection,
+                event_id=second_event_id,
+                user_id=USER_ID,
+                session_id=session_id,
+                previous_event_id=first_event_id,
+                created_at=created_at + timedelta(minutes=1),
+                question="And contractors?",
+                rewritten_question="How do credentials work for contractors?",
+                answer="Contractors wear visitor badges.",
+                feedback_value="up",
+                feedback_comment="Useful answer.",
+            )
+            await self._insert_audit_turn(
+                connection,
+                event_id=other_event_id,
+                user_id=OTHER_USER_ID,
+                session_id=other_session_id,
+                previous_event_id=None,
+                created_at=created_at + timedelta(minutes=2),
+                question="Other user question",
+                rewritten_question=None,
+                answer="Other user answer.",
+                feedback_value=None,
+                feedback_comment=None,
+            )
+            return {
+                "first_event_id": first_event_id,
+                "second_event_id": second_event_id,
+                "other_event_id": other_event_id,
+                "chunk_id": chunk["id"],
+                "document_version_id": chunk["document_version_id"],
+            }
+        finally:
+            await connection.close()
+
+    async def _insert_audit_turn(
+        self,
+        connection: asyncpg.Connection,
+        *,
+        event_id: UUID,
+        user_id: UUID,
+        session_id: UUID,
+        previous_event_id: UUID | None,
+        created_at: datetime,
+        question: str,
+        rewritten_question: str | None,
+        answer: str,
+        feedback_value: str | None,
+        feedback_comment: str | None,
+    ) -> None:
+        feedback_updated_at = created_at + timedelta(seconds=5) if feedback_value else None
+        await connection.execute(
+            """
+            INSERT INTO rag.query_audit_events (
+                id, user_id, request_id, created_at, question, answer,
+                cache_hit, chat_model, embedding_model, embedding_dimensions,
+                input_tokens, cached_tokens, output_tokens, estimated_cost_usd,
+                latency_ms, access_scope_hash, corpus, prompt_version,
+                chunker_version, session_id, previous_event_id, rewritten_question,
+                feedback_value, feedback_comment, feedback_updated_at
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6,
+                false, $7, $8, $9,
+                10, 0, 5, 0.00000100,
+                25, 'scope-allowed', 'published', 1,
+                1, $10, $11, $12,
+                $13, $14, $15
+            )
+            """,
+            event_id,
+            user_id,
+            f"req-{event_id}",
+            created_at,
+            question,
+            answer,
+            CHAT_MODEL,
+            EMBEDDING_MODEL,
+            EMBEDDING_DIMENSIONS,
+            session_id,
+            previous_event_id,
+            rewritten_question,
+            feedback_value,
+            feedback_comment,
+            feedback_updated_at,
+        )
 
     async def count_cache_entries_for_document(self, document_id: UUID) -> int:
         connection = await asyncpg.connect(self.dsn)
@@ -708,6 +1109,21 @@ class FakeLlmProvider:
             json.dumps({"answer": "", "cited_chunk_ids": []}),
             ChatUsage(input_tokens=20, output_tokens=10),
         )
+
+
+class CondensingFakeLlmProvider(FakeLlmProvider):
+    def __init__(self, *, rewritten_question: str) -> None:
+        super().__init__()
+        self.rewritten_question = rewritten_question
+        self.condense_calls: list[ChatCompletionRequest] = []
+
+    async def chat_complete(
+        self, req: ChatCompletionRequest
+    ) -> tuple[str, ChatUsage]:
+        if req.response_format is None:
+            self.condense_calls.append(req)
+            return self.rewritten_question, ChatUsage(input_tokens=8, output_tokens=4)
+        return await super().chat_complete(req)
 
 
 class FakeSessionValidator:

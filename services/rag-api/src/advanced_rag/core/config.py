@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     rag_rrf_k: int = 60
     rag_hybrid_top_k: int = 30
     rag_final_top_k: int = 8
+    conversation_history_turns: int = 5
 
     default_locale: str = "es-AR"
 

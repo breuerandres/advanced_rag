@@ -40,12 +40,16 @@ def _load_condenser_prompt(locale: str) -> str:
 
 HISTORY_SQL = text(
     """
-SELECT question, rewritten_question, answer, created_at
-FROM rag.query_audit_events
-WHERE session_id = :session_id
-  AND user_id = :user_id
-ORDER BY created_at ASC
-LIMIT :limit
+SELECT id, question, rewritten_question, answer, created_at
+FROM (
+    SELECT id, question, rewritten_question, answer, created_at
+    FROM rag.query_audit_events
+    WHERE session_id = :session_id
+      AND user_id = :user_id
+    ORDER BY created_at DESC, id DESC
+    LIMIT :limit
+) recent
+ORDER BY created_at ASC, id ASC
 """
 )
 
@@ -68,6 +72,7 @@ async def load_session_history(
     )
     return [
         {
+            "id": row.id,
             "question": row.question,
             "rewritten_question": row.rewritten_question,
             "answer": row.answer,

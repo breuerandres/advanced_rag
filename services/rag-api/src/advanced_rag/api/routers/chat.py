@@ -4,9 +4,10 @@ import json
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Header, Query, Request
 from starlette.responses import StreamingResponse
 
+from advanced_rag.auth.chat_tokens import ChatTokenClaims
 from advanced_rag.auth.session_validation import SessionValidatorProtocol
 from advanced_rag.core.csrf import validate_csrf_request
 from advanced_rag.core.errors import ApiException
@@ -17,6 +18,11 @@ from advanced_rag.schemas.chat import (
     CacheInvalidationRequest,
     CacheInvalidationResponse,
     ChatRequest,
+    ChatSessionHistoryResponse,
+    ChatSessionListResponse,
+    ChatSessionSummary,
+    ChatSessionTurn,
+    CitationSchema,
     FeedbackRequest,
     FeedbackResponse,
 )
@@ -29,12 +35,7 @@ router = APIRouter(tags=["chat"])
 async def post_chat(body: ChatRequest, request: Request) -> StreamingResponse:
     request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
     validate_csrf_request(request)
-    session_cookie = request.cookies.get(request.app.state.settings.session_cookie_name)
-    if not session_cookie:
-        raise ApiException("AUTH_REQUIRED", 401, "Session required.")
-
-    validator: SessionValidatorProtocol = request.app.state.session_validator
-    claims = await validator.validate(session_cookie, request_id=request_id)
+    claims = await _validate_session(request, request_id)
     if not request.app.state.rate_limiter.allow(f"chat:user:{claims.user_id}", 30, 60):
         raise ApiException(
             "CHAT_RATE_LIMITED",
@@ -63,6 +64,73 @@ async def post_chat(body: ChatRequest, request: Request) -> StreamingResponse:
     )
 
 
+@router.get(
+    "/api/chat/sessions",
+    response_model=ChatSessionListResponse,
+    response_model_by_alias=True,
+)
+async def list_chat_sessions(
+    request: Request,
+    limit: int = Query(default=30, ge=1, le=100),
+) -> ChatSessionListResponse:
+    request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
+    claims = await _validate_session(request, request_id)
+    service: ChatService = request.app.state.chat_service
+    sessions = await service.list_sessions(user_id=UUID(claims.user_id), limit=limit)
+    return ChatSessionListResponse(
+        sessions=[
+            ChatSessionSummary(
+                sessionId=row["session_id"],
+                title=row["title"],
+                lastQuestion=row["last_question"],
+                lastAnswer=row["last_answer"],
+                lastActivityAt=row["last_activity_at"],
+                turnCount=row["turn_count"],
+            )
+            for row in sessions
+        ]
+    )
+
+
+@router.get(
+    "/api/chat/sessions/{session_id}",
+    response_model=ChatSessionHistoryResponse,
+    response_model_by_alias=True,
+)
+async def get_chat_session_history(
+    session_id: UUID,
+    request: Request,
+) -> ChatSessionHistoryResponse:
+    request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
+    claims = await _validate_session(request, request_id)
+    service: ChatService = request.app.state.chat_service
+    turns = await service.get_session_history(user_id=UUID(claims.user_id), session_id=session_id)
+    return ChatSessionHistoryResponse(
+        sessionId=session_id,
+        turns=[
+            ChatSessionTurn(
+                queryAuditEventId=turn["id"],
+                question=turn["question"],
+                answer=turn["answer"],
+                createdAt=turn["created_at"],
+                cacheHit=turn["cache_hit"],
+                feedbackValue=turn["feedback_value"],
+                feedbackComment=turn["feedback_comment"],
+                citations=[
+                    CitationSchema(
+                        chunkId=str(citation["chunk_id"]),
+                        documentId=str(citation["document_id"]),
+                        documentVersionId=str(citation["document_version_id"]),
+                        headingPath=list(citation["heading_path"]),
+                    )
+                    for citation in turn["citations"]
+                ],
+            )
+            for turn in turns
+        ],
+    )
+
+
 @router.post(
     "/api/feedback/{query_audit_event_id}",
     response_model=FeedbackResponse,
@@ -75,12 +143,7 @@ async def post_feedback(
 ) -> FeedbackResponse:
     request_id = getattr(request.state, "request_id", "") or request.headers.get(REQUEST_ID_HEADER, "")
     validate_csrf_request(request)
-    session_cookie = request.cookies.get(request.app.state.settings.session_cookie_name)
-    if not session_cookie:
-        raise ApiException("AUTH_REQUIRED", 401, "Session required.")
-
-    validator: SessionValidatorProtocol = request.app.state.session_validator
-    claims = await validator.validate(session_cookie, request_id=request_id)
+    claims = await _validate_session(request, request_id)
     service: FeedbackService = request.app.state.feedback_service
     comment = await service.submit_feedback(
         query_audit_event_id=query_audit_event_id,
@@ -152,6 +215,15 @@ async def _stream_answer(answer: ChatAnswer, request_id: str):
 
 def _event(name: str, payload: dict[str, object]) -> str:
     return f"event: {name}\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
+
+
+async def _validate_session(request: Request, request_id: str) -> ChatTokenClaims:
+    session_cookie = request.cookies.get(request.app.state.settings.session_cookie_name)
+    if not session_cookie:
+        raise ApiException("AUTH_REQUIRED", 401, "Session required.")
+
+    validator: SessionValidatorProtocol = request.app.state.session_validator
+    return await validator.validate(session_cookie, request_id=request_id)
 
 
 def _decimal_to_float(value: Decimal) -> float:

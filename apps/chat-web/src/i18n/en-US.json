@@ -6,7 +6,8 @@
     "error_with_id": "An unexpected error occurred. (ID {{requestId}})"
   },
   "common": {
-    "language": "Language"
+    "language": "Language",
+    "toggle_theme": "Toggle theme"
   },
   "chat": {
     "page_title": "Instruction chat",

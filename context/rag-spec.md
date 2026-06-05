@@ -101,6 +101,9 @@ Rules:
 
 ## Generation
 
+- When a request includes `session_id`, FastAPI may load the latest bounded set of audited turns for the same `user_id` and same `session_id` before retrieval. The service rewrites follow-up questions into a standalone retrieval query, stores that value as `rewritten_question`, and preserves the original user text in `question`.
+- Conversation memory is session-scoped and user-scoped. FastAPI must not use turns from another user or another `session_id`, and it must not use OpenAI-hosted conversation state for MVP memory.
+- Retrieval, semantic cache lookup/write, and generation context use the standalone `rewritten_question` when one is produced. User-visible transcript history and audit review continue to show the original `question`.
 - Chat completion is called with `temperature=0.1`, `top_p=1.0`, `presence_penalty=0`, `frequency_penalty=0`, `max_tokens=900` for the MVP. All configurable via environment.
 - Streaming is **on** for chat completions. The FastAPI endpoint returns Server-Sent Events.
 - Citations are produced via OpenAI **structured outputs** (`response_format={"type": "json_schema", ...}`) using this schema:
@@ -173,6 +176,7 @@ Rules:
 - For every chat request (cache hit or miss), `rag.query_audit_events` records:
   - `user_id`, `request_id`, `created_at`
   - `question`, `answer`
+  - `session_id`, `previous_event_id`, `rewritten_question`
   - `cache_hit` (boolean), `cached_at` (nullable)
   - `chat_model`, `embedding_model`, `embedding_dimensions`
   - `input_tokens`, `cached_tokens`, `output_tokens`
@@ -209,6 +213,6 @@ Rules:
 - Visual embeddings or image-vector search.
 - Offline visual caption generation during publication.
 - Multi-embedding per chunk (e.g., title embedding + body embedding).
-- Conversation memory across user sessions; each chat question is independent in the MVP.
+- Cross-session memory, cross-user memory, and OpenAI-hosted conversation state. The MVP only supports bounded same-user memory within an explicit `session_id`.
 - Tool/function calling beyond the structured-output schema.
 - Exact (no-cost) cache lookup for over-budget users. Deferred until needed.

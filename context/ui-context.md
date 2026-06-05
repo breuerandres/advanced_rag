@@ -93,9 +93,15 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 ## Chat UI
 
 - Chat runs as an independent product surface without the shared global management header.
+- Chat uses a simplified ChatGPT-like layout with a fixed management-style left drawer. The drawer owns conversation history, the new-conversation action, language selection, dark-mode toggle, active-session user context, and logout. The center workspace owns only the active transcript, answer-level citation summary buttons, usage, feedback, error states, and the bottom composer.
 - Chat bootstraps by validating the `.NET` browser session and relies on the unified session cookie for chat/feedback requests. It must not renew or store a scoped chat-token cookie.
+- The left drawer lists persisted same-user conversations loaded from FastAPI, not local-only browser state. Reloading the page must preserve visible conversation history once the server has stored at least one turn.
+- The center panel renders the selected conversation as a transcript with user and assistant turns. A new conversation creates a stable client `sessionId`; it appears in the persisted list after the first successful answer is audited.
+- Selecting a conversation reloads its ordered transcript from FastAPI. Each assistant turn owns its citations, feedback value/comment, cache state, and usage state so feedback and citations stay attached to the answer that produced them.
 - Each answer exposes thumbs up/down feedback controls and an optional comment entry after the user chooses a feedback value.
+- Feedback value buttons are selectable and deselectable before submission; clicking the selected value again clears the local selection.
 - Feedback submission must show loading, success, retryable error, and already-submitted states. The same user can update their feedback on an answer in the MVP.
+- Citations do not render as inline cards below answers. Each completed answer exposes a deduplicated `Ver citas (n)` control that opens a collapsible right drawer. The right drawer stays fixed to the viewport height while the conversation transcript scrolls independently.
 - Citation links open `docs.client.com` with document-id locator links and secure viewer session handoff when needed.
 - Citation links use document-id locator URLs. The docs app must revalidate the authenticated session and show safe login, access-denied, or not-found states without exposing credential-bearing URL values.
 
@@ -121,8 +127,9 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 ## Chat Streaming
 
 - The chat frontend consumes Server-Sent Events from FastAPI to render the answer progressively.
-- Streaming UI must display: typing indicator before the first token, progressive answer body, citations panel populated once the answer terminates, feedback controls enabled only after stream completion.
-- If the SSE connection drops mid-stream, the UI shows a retryable error state. Partial answers are not committed to chat history.
+- Streaming UI must display: typing indicator before the first token, progressive answer body, citation summary control populated once the answer terminates, feedback controls enabled only after stream completion.
+- If the SSE connection drops mid-stream, the UI shows a retryable error state. Partial answers are not committed to persisted chat history or the session list.
+- Chat Conversation Slice B implements progressive SSE parsing in `chat-web`: `answer-token` events update only the pending transcript turn, while citations, usage, feedback controls, and session-list refresh remain gated on stream completion.
 
 ## Open UI Decisions
 

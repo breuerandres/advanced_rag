@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,6 +35,41 @@ class CitationSchema(BaseModel):
     document_id: str = Field(alias="documentId")
     document_version_id: str = Field(alias="documentVersionId")
     heading_path: list[str] = Field(alias="headingPath")
+
+
+class ChatSessionSummary(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    session_id: UUID = Field(alias="sessionId")
+    title: str
+    last_question: str = Field(alias="lastQuestion")
+    last_answer: str = Field(alias="lastAnswer")
+    last_activity_at: datetime = Field(alias="lastActivityAt")
+    turn_count: int = Field(alias="turnCount")
+
+
+class ChatSessionListResponse(BaseModel):
+    sessions: list[ChatSessionSummary]
+
+
+class ChatSessionTurn(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    query_audit_event_id: UUID = Field(alias="queryAuditEventId")
+    question: str
+    answer: str
+    created_at: datetime = Field(alias="createdAt")
+    cache_hit: bool = Field(alias="cacheHit")
+    feedback_value: str | None = Field(default=None, alias="feedbackValue")
+    feedback_comment: str | None = Field(default=None, alias="feedbackComment")
+    citations: list[CitationSchema] = Field(default_factory=list)
+
+
+class ChatSessionHistoryResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    session_id: UUID = Field(alias="sessionId")
+    turns: list[ChatSessionTurn]
 
 
 class CacheInvalidationRequest(BaseModel):

@@ -136,6 +136,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 ### UI Foundation
 
 - [MVP UI Foundation](#2026-05-11---mvp-ui-foundation)
+- [Chat UI Simplifies To Left Drawer Layout](#2026-06-05---chat-ui-simplifies-to-left-drawer-layout)
 
 ---
 
@@ -1892,3 +1893,35 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Tradeoffs:** The handoff URL is created after an API request, so real-browser acceptance should confirm the browser does not block the popup in the deployed flow.
 
 **Evidence:** Implemented on 2026-06-04 in manage-web document viewer links and chat-web citation links. Verified with focused App tests for both apps, full manage-web and chat-web App test files, typechecks, production builds, and `git diff --check` with line-ending warnings only.
+
+## 2026-06-04 - Persisted Chat Sessions And Bounded Conversation Memory
+
+**Context:** User review found that chat conversations were stored only in frontend React state, so the left conversation rail disappeared after page reload. The chat also behaved as independent one-shot questions, which made follow-up questions brittle and prevented a conversational product experience.
+
+**Options Considered:** Keep chat history local-only, store a separate `chat_sessions` table now, use OpenAI-hosted conversation state, or reuse FastAPI-owned RAG query audit rows as the persisted source of chat turns.
+
+**Decision:** Use `rag.query_audit_events` as the MVP source for persisted chat sessions. The chat frontend creates and sends a stable `sessionId`; FastAPI stores it on each audit row, exposes user-scoped read-only session list/history endpoints, and performs bounded same-user question condensation from prior audited turns in that `session_id`. The original question remains in `question`, and the standalone retrieval query is stored in `rewritten_question`.
+
+**Rationale:** RAG query audit already owns chat questions, answers, citations, feedback, cost, cache state, and request evidence. Reusing it keeps the Slice A data model small, makes reloadable history align with audit, and avoids adding a second source of truth before the MVP proves the conversation workflow.
+
+**Tradeoffs:** A dedicated chat-session table would support richer titles, archival, pinning, and empty draft sessions more cleanly. Those features are deferred. Audit-backed history also means a new conversation appears in the server list only after the first successful audited answer.
+
+**Consequences:** Conversation memory is strictly scoped to the same authenticated user and explicit `session_id`; cross-user memory, cross-session memory, and provider-hosted conversation state remain out of scope. Retrieval and cache use `rewritten_question` when available, while transcript UI and reporting show the original user wording.
+
+**Evidence:** Implemented on 2026-06-04 with FastAPI session list/history endpoints, bounded `conversation_memory` integration in `ChatService`, `rewritten_question`/`previous_event_id` audit persistence, and transcript-oriented `chat-web` state. Verification passed with focused RAG chat/locale tests, FastAPI ruff, chat-web typecheck, chat-web App tests, chat-web production build, and `git diff --check` with line-ending warnings only.
+
+## 2026-06-05 - Chat UI Simplifies To Left Drawer Layout
+
+**Context:** User review found the current chat UI too visually complex. The approved direction is closer to ChatGPT, but with a management-style fixed drawer on the left instead of a right-side history rail.
+
+**Options Considered:** Keep the previous three-pane layout with left history and right citations, move history to the right, hide history in a drawer, or use a fixed left drawer aligned with the management app.
+
+**Decision:** Redesign `chat-web` around a fixed left drawer. The drawer owns conversation history, the new-conversation action, language selection, dark-mode toggle, active-session user context, and logout. The main area focuses on the active transcript, answer-level citation summary buttons, usage, feedback, error states, and the bottom composer. Citation cards live in a collapsible right drawer opened from each answer instead of rendering inline below the answer.
+
+**Rationale:** This reduces visual noise, keeps the product aligned with the management app's navigation model, and preserves fast access to conversation history without adding a third panel.
+
+**Tradeoffs:** Citations are one interaction away instead of always visible below each answer, but this keeps the transcript cleaner and avoids repeated source cards dominating short answers.
+
+**Consequences:** `chat-web` owns this shell locally rather than using the shared `AppShell`, because the shared sidebar behavior hides sidebars at smaller breakpoints and does not match the approved fixed chat drawer. Cache-hit citation reconstruction and frontend rendering should deduplicate citations by document/version before showing them in the drawer.
+
+**Evidence:** Updated on 2026-06-05 with chat UI polish for right-drawer citations, fixed viewport drawers, deselectable feedback buttons, single-line autosizing composer, chat login parity with management auth controls, cache-hit citation deduplication, and mojibake fixes. Verification passed with focused `chat-web`, shared-ui, and RAG tests, chat/shared typechecks, chat production build, and `git diff --check` with Windows line-ending warnings only.

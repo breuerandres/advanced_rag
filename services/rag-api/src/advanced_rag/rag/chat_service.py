@@ -23,6 +23,7 @@ from advanced_rag.providers.base import (
 )
 from advanced_rag.rag.answer_generator import AnswerGeneration, generate_answer
 from advanced_rag.rag.chunking import CHUNKER_VERSION
+from advanced_rag.rag.conversation_memory import condense_question, load_session_history
 from advanced_rag.rag.hybrid_retrieval import (
     HybridCandidate,
     HybridRetrievalParams,
@@ -134,7 +135,31 @@ class ChatService:
         async with self._session_factory() as session:
             await self._ensure_pricing_configured(session)
             await self._enforce_budget(session, UUID(claims.user_id), started_at)
-            question_embedding = await self._embed_question(normalized_question)
+            retrieval_question = normalized_question
+            rewritten_question: str | None = None
+            previous_event_id: UUID | None = None
+            if session_id is not None:
+                connection = await session.connection()
+                history = await load_session_history(
+                    connection,
+                    session_id=session_id,
+                    user_id=UUID(claims.user_id),
+                    limit=self._settings.conversation_history_turns,
+                )
+                if history:
+                    previous_event_id = UUID(str(history[-1]["id"]))
+                    condensed = await condense_question(
+                        llm=self._llm_provider,
+                        history=history,
+                        new_question=normalized_question,
+                        locale=active_locale,
+                        condenser_model=self._settings.resolved_chat_model,
+                    )
+                    retrieval_question = condensed.strip() or normalized_question
+                    if retrieval_question != normalized_question:
+                        rewritten_question = retrieval_question
+
+            question_embedding = await self._embed_question(retrieval_question)
 
             cache_hit = await self._lookup_cache(
                 session,
@@ -148,11 +173,13 @@ class ChatService:
                     session,
                     cache_hit=cache_hit,
                     question=normalized_question,
+                    rewritten_question=rewritten_question,
                     claims=claims,
                     corpus=corpus,
                     filters=filters,
                     filters_hash=filters_hash,
                     session_id=session_id,
+                    previous_event_id=previous_event_id,
                     request_id=request_id,
                     latency_ms=_latency_ms(started_at),
                 )
@@ -163,12 +190,12 @@ class ChatService:
                 session,
                 corpus=corpus,
                 groups=[UUID(group_id) for group_id in claims.groups],
-                question=normalized_question,
+                question=retrieval_question,
                 question_embedding=question_embedding,
                 filters=filters,
             )
 
-            embedding_tokens = _estimate_tokens(normalized_question)
+            embedding_tokens = _estimate_tokens(retrieval_question)
             if not chunks:
                 completion = AnswerGeneration(
                     answer=_no_results_message(active_locale),
@@ -180,7 +207,7 @@ class ChatService:
             else:
                 completion = await generate_answer(
                     llm=self._llm_provider,
-                    question=normalized_question,
+                    question=retrieval_question,
                     chunks=chunks,
                     locale=active_locale,
                     model=self._settings.resolved_chat_model,
@@ -220,6 +247,7 @@ class ChatService:
                 user_id=UUID(claims.user_id),
                 request_id=request_id,
                 question=normalized_question,
+                rewritten_question=rewritten_question,
                 answer=completion.answer,
                 cache_hit=False,
                 cached_at=None,
@@ -232,6 +260,7 @@ class ChatService:
                 access_scope_hash=claims.access_scope_hash,
                 corpus=corpus,
                 session_id=session_id,
+                previous_event_id=previous_event_id,
                 filters=filters,
                 filters_hash=filters_hash,
                 rerank_audit=rerank_audit,
@@ -244,7 +273,7 @@ class ChatService:
                     corpus=corpus,
                     access_scope_hash=claims.access_scope_hash,
                     filters_hash=filters_hash,
-                    question=normalized_question,
+                    question=retrieval_question,
                     answer=completion.answer,
                     question_embedding=question_embedding,
                     citations=citations,
@@ -279,6 +308,107 @@ class ChatService:
             )
             await session.commit()
             return int(getattr(result, "rowcount", 0) or 0)
+
+    async def list_sessions(self, *, user_id: UUID, limit: int = 30) -> list[dict[str, Any]]:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                text(
+                    """
+                    with ranked as (
+                        select
+                            session_id,
+                            question,
+                            answer,
+                            created_at,
+                            row_number() over (
+                                partition by session_id
+                                order by created_at asc, id asc
+                            ) as first_rank,
+                            row_number() over (
+                                partition by session_id
+                                order by created_at desc, id desc
+                            ) as last_rank,
+                            count(*) over (partition by session_id) as turn_count
+                        from rag.query_audit_events
+                        where user_id = :user_id
+                          and session_id is not null
+                    )
+                    select
+                        session_id,
+                        max(question) filter (where first_rank = 1) as title,
+                        max(question) filter (where last_rank = 1) as last_question,
+                        max(answer) filter (where last_rank = 1) as last_answer,
+                        max(created_at) as last_activity_at,
+                        max(turn_count) as turn_count
+                    from ranked
+                    group by session_id
+                    order by last_activity_at desc
+                    limit :limit
+                    """
+                ),
+                {"user_id": user_id, "limit": limit},
+            )
+            return [dict(row._mapping) for row in result]
+
+    async def get_session_history(
+        self,
+        *,
+        user_id: UUID,
+        session_id: UUID,
+    ) -> list[dict[str, Any]]:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                text(
+                    """
+                    select
+                        id,
+                        question,
+                        answer,
+                        created_at,
+                        cache_hit,
+                        feedback_value,
+                        feedback_comment
+                    from rag.query_audit_events
+                    where user_id = :user_id
+                      and session_id = :session_id
+                    order by created_at asc, id asc
+                    """
+                ),
+                {"user_id": user_id, "session_id": session_id},
+            )
+            turns = [dict(row._mapping) for row in result]
+            if not turns:
+                raise ApiException(
+                    "CHAT_SESSION_NOT_FOUND",
+                    404,
+                    "Chat session was not found.",
+                )
+
+            event_ids = [turn["id"] for turn in turns]
+            citation_result = await session.execute(
+                text(
+                    """
+                    select
+                        query_audit_event_id,
+                        chunk_id,
+                        document_id,
+                        document_version_id,
+                        heading_path
+                    from rag.query_audit_citations
+                    where query_audit_event_id = any(:event_ids)
+                    order by created_at asc, id asc
+                    """
+                ),
+                {"event_ids": event_ids},
+            )
+            citations_by_event: dict[UUID, list[dict[str, Any]]] = {}
+            for row in citation_result:
+                row_dict = dict(row._mapping)
+                citations_by_event.setdefault(row_dict["query_audit_event_id"], []).append(row_dict)
+
+            for turn in turns:
+                turn["citations"] = citations_by_event.get(turn["id"], [])
+            return turns
 
     async def _embed_question(self, question: str) -> list[float]:
         vectors, _usage = await self._embedding_provider.embed([question])
@@ -373,20 +503,25 @@ class ChatService:
                 citations = await session.execute(
                     text(
                         """
-                        select
-                            source.document_id,
-                            source.document_version_id,
-                            chunk.id as chunk_id,
-                            chunk.heading_path
-                        from rag.semantic_cache_sources source
-                        join rag.document_chunks chunk
-                          on chunk.document_id = source.document_id
-                         and chunk.document_version_id = source.document_version_id
-                         and chunk.is_active = true
-                        where source.cache_entry_id = :cache_entry_id
-                        order by chunk.chunk_index
-                        """
-                    ),
+                          select
+                              source.document_id,
+                              source.document_version_id,
+                              chunk.id as chunk_id,
+                              chunk.heading_path
+                          from rag.semantic_cache_sources source
+                          join lateral (
+                              select chunk.id, chunk.heading_path
+                              from rag.document_chunks chunk
+                              where chunk.document_id = source.document_id
+                                and chunk.document_version_id = source.document_version_id
+                                and chunk.is_active = true
+                              order by chunk.chunk_index
+                              limit 1
+                          ) chunk on true
+                          where source.cache_entry_id = :cache_entry_id
+                          order by source.document_id, source.document_version_id
+                          """
+                      ),
                     {"cache_entry_id": row.id},
                 )
                 return {
@@ -411,11 +546,13 @@ class ChatService:
         *,
         cache_hit: dict[str, Any],
         question: str,
+        rewritten_question: str | None,
         claims: ChatTokenClaims,
         corpus: str,
         filters: list[UUID] | None,
         filters_hash: str | None,
         session_id: UUID | None,
+        previous_event_id: UUID | None,
         request_id: str,
         latency_ms: int,
     ) -> ChatAnswer:
@@ -430,6 +567,7 @@ class ChatService:
             user_id=UUID(claims.user_id),
             request_id=request_id,
             question=question,
+            rewritten_question=rewritten_question,
             answer=cache_hit["answer"],
             cache_hit=True,
             cached_at=cache_hit["cached_at"],
@@ -442,6 +580,7 @@ class ChatService:
             access_scope_hash=claims.access_scope_hash,
             corpus=corpus,
             session_id=session_id,
+            previous_event_id=previous_event_id,
             filters=filters,
             filters_hash=filters_hash,
             rerank_audit=None,
@@ -534,6 +673,7 @@ class ChatService:
         user_id: UUID,
         request_id: str,
         question: str,
+        rewritten_question: str | None,
         answer: str,
         cache_hit: bool,
         cached_at: datetime | None,
@@ -546,6 +686,7 @@ class ChatService:
         access_scope_hash: str,
         corpus: str,
         session_id: UUID | None,
+        previous_event_id: UUID | None,
         filters: list[UUID] | None,
         filters_hash: str | None,
         rerank_audit: dict | None,
@@ -559,7 +700,7 @@ class ChatService:
                     input_tokens, cached_tokens, output_tokens, pricing_snapshot_id,
                     estimated_cost_usd, latency_ms, access_scope_hash, corpus,
                     prompt_version, chunker_version,
-                    session_id, filters, filters_hash,
+                    session_id, previous_event_id, rewritten_question, filters, filters_hash,
                     vector_top_k, bm25_top_k, rerank_top_k,
                     reranker_model, reranker_score
                 )
@@ -569,7 +710,7 @@ class ChatService:
                     :input_tokens, :cached_tokens, :output_tokens, :pricing_snapshot_id,
                     :estimated_cost_usd, :latency_ms, :access_scope_hash, :corpus,
                     :prompt_version, :chunker_version,
-                    :session_id, cast(:filters as jsonb), :filters_hash,
+                    :session_id, :previous_event_id, :rewritten_question, cast(:filters as jsonb), :filters_hash,
                     :vector_top_k, :bm25_top_k, :rerank_top_k,
                     :reranker_model, :reranker_score
                 )
@@ -580,6 +721,7 @@ class ChatService:
                 "user_id": user_id,
                 "request_id": request_id,
                 "question": question,
+                "rewritten_question": rewritten_question,
                 "answer": answer,
                 "cache_hit": cache_hit,
                 "cached_at": cached_at,
@@ -597,6 +739,7 @@ class ChatService:
                 "prompt_version": PROMPT_VERSION,
                 "chunker_version": CHUNKER_VERSION,
                 "session_id": session_id,
+                "previous_event_id": previous_event_id,
                 "filters": json.dumps([str(f) for f in filters]) if filters else None,
                 "filters_hash": filters_hash,
                 "vector_top_k": self._settings.rag_vector_top_k,

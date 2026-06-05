@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 import i18n from './i18n'
@@ -10,19 +10,38 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-test('shows the three-pane chat workspace with local conversations and citation rail', async () => {
+test('shows the simplified chat workspace with a fixed left conversation drawer', async () => {
   renderAuthenticatedChat([])
 
   expect(await screen.findByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
-  expect(screen.getByRole('navigation', { name: 'Conversaciones' })).toBeInTheDocument()
-  expect(screen.getByRole('complementary', { name: 'Contexto de respuesta' })).toBeInTheDocument()
-  expect(screen.getByText('Nueva conversación')).toBeInTheDocument()
-  expect(screen.getByText('Sin citas todavía')).toBeInTheDocument()
-  expect(screen.getByText('Sesion unificada')).toBeInTheDocument()
+  const drawer = screen.getByRole('complementary', { name: 'Menu de chat' })
+  expect(drawer).toHaveTextContent('Advanced RAG')
+  expect(drawer).toHaveTextContent('viewer@example.com')
+  expect(drawer).toHaveTextContent('Viewer')
+  expect(screen.getByRole('navigation', { name: 'Historial de conversaciones' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Nueva conversación' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Cambiar tema' })).toBeInTheDocument()
   expect(screen.getByText('Hacé una pregunta sobre las instrucciones publicadas.')).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'Pregunta' })).toBeEnabled()
   expect(screen.getByText('0 / 4000')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Enviar pregunta' })).toBeDisabled()
+})
+
+test('logs out from the fixed chat drawer and returns to login', async () => {
+  const fetchMock = renderAuthenticatedChat([
+    csrfResponse(),
+    jsonResponse(200, { message: 'Logged out.' }),
+  ])
+  const user = userEvent.setup()
+
+  await user.click(await screen.findByRole('button', { name: 'Cerrar sesión' }))
+
+  expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    '/api/auth/logout',
+    expect.objectContaining({ method: 'POST' }),
+  )
 })
 
 test('disables the question input while submitting', async () => {
@@ -69,6 +88,7 @@ test('submits feedback after a chat answer and allows updating it', async () => 
       ],
       ['done', {}],
     ]),
+    jsonResponse(200, { sessions: [] }),
     jsonResponse(200, {
       queryAuditEventId: '33333333-3333-3333-3333-333333333333',
       value: 'down',
@@ -100,6 +120,29 @@ test('submits feedback after a chat answer and allows updating it', async () => 
   )
 })
 
+test('allows clearing a selected feedback button before submitting', async () => {
+  renderAuthenticatedChat([
+    csrfResponse(),
+    sseResponse([
+      ['answer-token', { delta: 'Usa credencial visible.' }],
+      ['citations', { query_audit_event_id: '33333333-3333-3333-3333-333333333333', citations: [] }],
+      ['done', {}],
+    ]),
+    jsonResponse(200, { sessions: [] }),
+  ])
+  const user = userEvent.setup()
+
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+  await user.click(await screen.findByRole('button', { name: 'Me sirvió' }))
+  expect(screen.getByRole('textbox', { name: 'Comentario opcional' })).toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Me sirvió' }))
+
+  expect(screen.queryByRole('textbox', { name: 'Comentario opcional' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Enviar feedback' })).not.toBeInTheDocument()
+})
+
 test('shows a successful answer with citations and cache hit indicator', async () => {
   renderAuthenticatedChat([
     csrfResponse(),
@@ -122,6 +165,7 @@ test('shows a successful answer with citations and cache hit indicator', async (
       ['usage', { input_tokens: 42, cached_tokens: 10, output_tokens: 18, cost_usd: 0.000001 }],
       ['done', {}],
     ]),
+    jsonResponse(200, { sessions: [] }),
   ])
   const user = userEvent.setup()
 
@@ -131,8 +175,51 @@ test('shows a successful answer with citations and cache hit indicator', async (
   expect(await screen.findByText('Consultá el procedimiento de seguridad.')).toBeInTheDocument()
   expect(screen.getByText('Respuesta desde caché semántico')).toBeInTheDocument()
   expect(screen.getByText('Costo estimado: USD 0.000001')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Abrir cita Seguridad' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Ver citas (1)' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Me sirvió' })).toBeInTheDocument()
+})
+
+test('deduplicates citations and keeps them in the right drawer', async () => {
+  renderAuthenticatedChat([
+    csrfResponse(),
+    sseResponse([
+      ['answer-token', { delta: 'Consultá el procedimiento de seguridad.' }],
+      [
+        'citations',
+        {
+          query_audit_event_id: '33333333-3333-3333-3333-333333333333',
+          citations: [
+            {
+              chunk_id: '44444444-4444-4444-4444-444444444444',
+              document_id: '55555555-5555-5555-5555-555555555555',
+              document_version_id: '66666666-6666-6666-6666-666666666666',
+              heading_path: ['Seguridad'],
+            },
+            {
+              chunk_id: '77777777-7777-7777-7777-777777777777',
+              document_id: '55555555-5555-5555-5555-555555555555',
+              document_version_id: '66666666-6666-6666-6666-666666666666',
+              heading_path: ['Seguridad', 'Ingreso'],
+            },
+          ],
+        },
+      ],
+      ['done', {}],
+    ]),
+    jsonResponse(200, { sessions: [] }),
+  ])
+  const user = userEvent.setup()
+
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+
+  expect(await screen.findByText('Consultá el procedimiento de seguridad.')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Abrir cita Seguridad' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Ver citas (1)' }))
+
+  const drawer = screen.getByRole('dialog', { name: 'Citas' })
+  expect(drawer).toHaveTextContent('Seguridad')
+  expect(screen.getAllByText('Seguridad')).toHaveLength(1)
 })
 
 test('adds the latest question to the local conversation list', async () => {
@@ -149,12 +236,183 @@ test('adds the latest question to the local conversation list', async () => {
   await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
 
-  const conversations = screen.getByRole('navigation', { name: 'Conversaciones' })
+  const conversations = screen.getByRole('navigation', { name: 'Historial de conversaciones' })
   expect(await screen.findByText('ConsultÃ¡ el procedimiento de seguridad.')).toBeInTheDocument()
   expect(conversations).toHaveTextContent('Que regla aplica?')
 })
 
-test('opens citation drawer from the citation rail', async () => {
+test('loads persisted conversations and renders the selected transcript after reload', async () => {
+  const sessionId = '77777777-7777-7777-7777-777777777777'
+  stubFetch([
+    sessionResponse(),
+    jsonResponse(200, {
+      sessions: [
+        {
+          sessionId,
+          title: 'Credenciales de contratistas',
+          lastQuestion: 'Y contratistas?',
+          lastAnswer: 'Los contratistas usan credencial visitante.',
+          lastActivityAt: '2026-06-04T12:00:00Z',
+          turnCount: 2,
+        },
+      ],
+    }),
+    jsonResponse(200, {
+      sessionId,
+      turns: [
+        {
+          queryAuditEventId: '11111111-1111-1111-1111-111111111111',
+          question: 'Como funcionan las credenciales?',
+          answer: 'Usa credencial visible.',
+          createdAt: '2026-06-04T11:59:00Z',
+          cacheHit: false,
+          feedbackValue: null,
+          feedbackComment: null,
+          citations: [
+            {
+              chunkId: '44444444-4444-4444-4444-444444444444',
+              documentId: '55555555-5555-5555-5555-555555555555',
+              documentVersionId: '66666666-6666-6666-6666-666666666666',
+              headingPath: ['Seguridad'],
+            },
+          ],
+        },
+        {
+          queryAuditEventId: '22222222-2222-2222-2222-222222222222',
+          question: 'Y contratistas?',
+          answer: 'Los contratistas usan credencial visitante.',
+          createdAt: '2026-06-04T12:00:00Z',
+          cacheHit: false,
+          feedbackValue: 'up',
+          feedbackComment: 'Claro',
+          citations: [],
+        },
+      ],
+    }),
+  ])
+
+  render(<App />)
+
+  expect(await screen.findByText('Credenciales de contratistas')).toBeInTheDocument()
+  expect(screen.getByText('Como funcionan las credenciales?')).toBeInTheDocument()
+  expect(screen.getByText('Usa credencial visible.')).toBeInTheDocument()
+  expect(screen.getByText('Y contratistas?')).toBeInTheDocument()
+  expect(screen.getByText('Los contratistas usan credencial visitante.')).toBeInTheDocument()
+})
+
+test('sends a stable sessionId for follow-up questions in the active conversation', async () => {
+  const fetchMock = stubFetch([
+    sessionResponse(),
+    jsonResponse(200, { sessions: [] }),
+    csrfResponse(),
+    sseResponse([
+      ['answer-token', { delta: 'Primera respuesta.' }],
+      ['citations', { query_audit_event_id: '33333333-3333-3333-3333-333333333333', citations: [] }],
+      ['done', {}],
+    ]),
+    jsonResponse(200, {
+      sessions: [
+        {
+          sessionId: 'client-session',
+          title: 'Que regla aplica?',
+          lastQuestion: 'Que regla aplica?',
+          lastAnswer: 'Primera respuesta.',
+          lastActivityAt: '2026-06-04T12:00:00Z',
+          turnCount: 1,
+        },
+      ],
+    }),
+    sseResponse([
+      ['answer-token', { delta: 'Segunda respuesta.' }],
+      ['citations', { query_audit_event_id: '44444444-4444-4444-4444-444444444444', citations: [] }],
+      ['done', {}],
+    ]),
+    jsonResponse(200, {
+      sessions: [
+        {
+          sessionId: 'client-session',
+          title: 'Que regla aplica?',
+          lastQuestion: 'Y contratistas?',
+          lastAnswer: 'Segunda respuesta.',
+          lastActivityAt: '2026-06-04T12:01:00Z',
+          turnCount: 2,
+        },
+      ],
+    }),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+  expect(await screen.findByText('Primera respuesta.')).toBeInTheDocument()
+
+  await user.type(screen.getByRole('textbox', { name: 'Pregunta' }), 'Y contratistas?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+  expect(await screen.findByText('Segunda respuesta.')).toBeInTheDocument()
+
+  const chatBodies = fetchMock.mock.calls.reduce<Array<Record<string, unknown>>>((bodies, call) => {
+    const [path, init] = call as unknown as [string, RequestInit]
+    if (path === '/api/chat') {
+      bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>)
+    }
+    return bodies
+  }, [])
+
+  expect(chatBodies).toHaveLength(2)
+  expect(chatBodies[0].question).toBe('Que regla aplica?')
+  expect(chatBodies[1].question).toBe('Y contratistas?')
+  expect(chatBodies[0].sessionId).toBeTruthy()
+  expect(chatBodies[1].sessionId).toBe(chatBodies[0].sessionId)
+})
+
+test('renders answer tokens as the SSE stream arrives before completion', async () => {
+  const stream = controllableSseStream()
+  renderAuthenticatedChat([csrfResponse(), stream.response, jsonResponse(200, { sessions: [] })])
+  const user = userEvent.setup()
+
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+
+  stream.send('answer-token', { delta: 'Primera parte' })
+
+  expect(await screen.findByText('Primera parte')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /^Me sirvi/i })).not.toBeInTheDocument()
+
+  stream.send('answer-token', { delta: ' y final.' })
+  stream.send('citations', {
+    query_audit_event_id: '33333333-3333-3333-3333-333333333333',
+    citations: [],
+  })
+  stream.send('usage', { input_tokens: 42, cached_tokens: 0, output_tokens: 12, cost_usd: 0.000001 })
+  stream.send('done', {})
+  stream.close()
+
+  expect(await screen.findByText('Primera parte y final.')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /^Me sirvi/i })).toBeInTheDocument()
+})
+
+test('drops the pending partial answer when the SSE stream fails before done', async () => {
+  const stream = controllableSseStream()
+  renderAuthenticatedChat([csrfResponse(), stream.response])
+  const user = userEvent.setup()
+
+  await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
+  await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+
+  stream.send('answer-token', { delta: 'Respuesta parcial' })
+  expect(await screen.findByText('Respuesta parcial')).toBeInTheDocument()
+
+  stream.fail(new Error('stream interrupted'))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo responder la pregunta.')
+  await waitFor(() => {
+    expect(screen.queryByText('Respuesta parcial')).not.toBeInTheDocument()
+  })
+})
+
+test('opens citation drawer from the command palette', async () => {
   renderAuthenticatedChat([
     csrfResponse(),
     sseResponse([
@@ -179,7 +437,8 @@ test('opens citation drawer from the citation rail', async () => {
 
   await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
-  await user.click(await screen.findByRole('button', { name: 'Ver citas' }))
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
+  await user.click(await screen.findByText('Ver citas'))
 
   expect(screen.getByRole('dialog', { name: 'Citas' })).toHaveTextContent('Seguridad')
 })
@@ -269,12 +528,14 @@ test('opens citations through session-based viewer links', async () => {
       ],
       ['done', {}],
     ]),
+    jsonResponse(200, { sessions: [] }),
     jsonResponse(200, { url: 'https://docs.client.com/open?documentId=55555555-5555-5555-5555-555555555555' }),
   ])
   const user = userEvent.setup()
 
   await user.type(await screen.findByRole('textbox', { name: 'Pregunta' }), 'Que regla aplica?')
   await user.click(screen.getByRole('button', { name: 'Enviar pregunta' }))
+  await user.click(await screen.findByRole('button', { name: 'Ver citas (1)' }))
   await user.click(await screen.findByRole('button', { name: 'Abrir cita Seguridad' }))
 
   expect(fetchMock).toHaveBeenLastCalledWith(
@@ -307,11 +568,14 @@ test('shows login when the chat host has no session and opens the chat after sig
 
   render(<App />)
 
-  const heading = await screen.findByRole('heading', { name: 'Iniciar sesion' })
+  const heading = await screen.findByRole('heading', { name: 'Iniciar sesión' })
   expect(heading.closest('main')).toHaveClass('auth-shell')
+  expect(heading.closest('.auth-card-stack')).toHaveClass('auth-card-stack')
   expect(heading.closest('form')).toHaveClass('auth-card')
+  expect(screen.getByLabelText('Idioma')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Cambiar tema' })).toBeInTheDocument()
   await user.type(screen.getByRole('textbox', { name: 'Email' }), 'viewer@example.com')
-  await user.type(screen.getByLabelText('Contrasena'), 'password')
+  await user.type(screen.getByLabelText('Contraseña'), 'password')
   await user.click(screen.getByRole('button', { name: 'Entrar al chat' }))
 
   expect(await screen.findByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
@@ -334,19 +598,24 @@ test('changes language from the visible language selector', async () => {
 
 function renderAuthenticatedChat(responses: Array<Response | Promise<Response>>) {
   const fetchMock = stubFetch([
-    jsonResponse(200, {
-      user: {
-        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-        email: 'viewer@example.com',
-        displayName: 'Viewer User',
-        roles: ['Viewer'],
-        groups: [],
-      },
-    }),
+    sessionResponse(),
+    jsonResponse(200, { sessions: [] }),
     ...responses,
   ])
   render(<App />)
   return fetchMock
+}
+
+function sessionResponse() {
+  return jsonResponse(200, {
+    user: {
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      email: 'viewer@example.com',
+      displayName: 'Viewer User',
+      roles: ['Viewer'],
+      groups: [],
+    },
+  })
 }
 
 function stubFetch(responses: Array<Response | Promise<Response>>) {
@@ -385,6 +654,32 @@ function sseResponse(events: [string, unknown][]) {
     status: 200,
     headers: { 'Content-Type': 'text/event-stream' },
   })
+}
+
+function controllableSseStream() {
+  const encoder = new TextEncoder()
+  let controller: ReadableStreamDefaultController<Uint8Array>
+  const body = new ReadableStream<Uint8Array>({
+    start(nextController) {
+      controller = nextController
+    },
+  })
+
+  return {
+    response: new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    }),
+    send(event: string, data: unknown) {
+      controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+    },
+    close() {
+      controller.close()
+    },
+    fail(reason: unknown) {
+      controller.error(reason)
+    },
+  }
 }
 
 function apiError(code: string, message: string, requestId: string) {

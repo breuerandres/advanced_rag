@@ -1,4 +1,4 @@
-import { parseApiError } from '../lib/api-error'
+import { ApiError, parseApiError } from '../lib/api-error'
 
 export interface ChatResult {
   answer: string
@@ -18,6 +18,7 @@ export interface FeedbackResult {
 export type FeedbackValue = 'up' | 'down'
 
 export interface ChatCitation {
+  chunkId?: string
   documentId: string
   documentVersionId: string
   headingPath: string[]
@@ -42,6 +43,45 @@ export interface SessionResponse {
   user: SessionUser
 }
 
+export interface ChatSessionSummary {
+  sessionId: string
+  title: string
+  lastQuestion: string
+  lastAnswer: string
+  lastActivityAt: string
+  turnCount: number
+}
+
+export interface ChatSessionListResponse {
+  sessions: ChatSessionSummary[]
+}
+
+export interface ChatSessionTurn {
+  queryAuditEventId: string
+  question: string
+  answer: string
+  createdAt: string
+  cacheHit: boolean
+  feedbackValue: FeedbackValue | null
+  feedbackComment: string | null
+  citations: ChatCitation[]
+}
+
+export interface ChatSessionHistoryResponse {
+  sessionId: string
+  turns: ChatSessionTurn[]
+}
+
+export interface SubmitQuestionInput {
+  question: string
+  sessionId: string
+  locale?: string
+}
+
+export interface ChatStreamHandlers {
+  onAnswerToken?: (delta: string) => void
+}
+
 let csrfToken: string | null = null
 
 export async function getSession(): Promise<SessionResponse> {
@@ -61,7 +101,29 @@ export async function login(email: string, password: string): Promise<SessionRes
   })
 }
 
-export async function submitQuestion(question: string): Promise<ChatResult> {
+export async function logout(): Promise<void> {
+  await ensureCsrfToken()
+  await requestJson('/api/auth/logout', {
+    method: 'POST',
+    headers: {
+      'X-CSRF-Token': csrfToken ?? '',
+    },
+  })
+  csrfToken = null
+}
+
+export async function listChatSessions(): Promise<ChatSessionListResponse> {
+  return requestJson<ChatSessionListResponse>('/api/chat/sessions')
+}
+
+export async function getChatSession(sessionId: string): Promise<ChatSessionHistoryResponse> {
+  return requestJson<ChatSessionHistoryResponse>(`/api/chat/sessions/${sessionId}`)
+}
+
+export async function submitQuestion(
+  input: SubmitQuestionInput,
+  handlers: ChatStreamHandlers = {},
+): Promise<ChatResult> {
   await ensureCsrfToken()
   const response = await fetch('/api/chat', {
     method: 'POST',
@@ -71,14 +133,22 @@ export async function submitQuestion(question: string): Promise<ChatResult> {
       'X-CSRF-Token': csrfToken ?? '',
       'X-Request-ID': createRequestId(),
     },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({
+      question: input.question,
+      sessionId: input.sessionId,
+      locale: input.locale,
+    }),
   })
-  const text = await response.text()
   if (!response.ok) {
+    const text = await response.text()
     throw parseApiError(response, safeJson(text))
   }
 
-  return parseChatStream(text)
+  if (!response.body) {
+    return parseChatStream(await response.text(), handlers)
+  }
+
+  return parseChatReadableStream(response.body, handlers)
 }
 
 export async function submitFeedback(
@@ -125,68 +195,181 @@ export async function createViewerLink(documentId: string): Promise<string> {
   return (body as { url: string }).url
 }
 
-function parseChatStream(stream: string): ChatResult {
-  let answer = ''
-  let queryAuditEventId: string | null = null
-  let cacheHit = false
-  let requestId: string | null = null
-  let usage: ChatUsage | null = null
-  const citations: ChatCitation[] = []
+async function parseChatReadableStream(
+  stream: ReadableStream<Uint8Array>,
+  handlers: ChatStreamHandlers,
+): Promise<ChatResult> {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  const state = createChatStreamState(handlers)
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) {
+      break
+    }
+
+    buffer += decoder.decode(value, { stream: true })
+    buffer = processSseBuffer(buffer, state)
+  }
+
+  buffer += decoder.decode()
+  buffer = processSseBuffer(buffer, state)
+  if (buffer.trim().length > 0) {
+    processSseEvent(buffer, state)
+  }
+  if (!state.done) {
+    throw new Error('Chat stream ended before the done event.')
+  }
+
+  return toChatResult(state)
+}
+
+function parseChatStream(stream: string, handlers: ChatStreamHandlers = {}): ChatResult {
+  const state = createChatStreamState(handlers)
   const events = stream.split('\n\n').filter(Boolean)
   for (const rawEvent of events) {
-    const eventName = rawEvent.match(/^event: (.+)$/m)?.[1]
-    const dataLine = rawEvent.match(/^data: (.+)$/m)?.[1]
-    if (!eventName || !dataLine) {
-      continue
-    }
-    const payload = JSON.parse(dataLine) as Record<string, unknown>
-    if (eventName === 'request-id' && typeof payload.request_id === 'string') {
-      requestId = payload.request_id
-    }
-    if (eventName === 'cache-hit') {
-      cacheHit = true
-    }
-    if (eventName === 'answer-token' && typeof payload.delta === 'string') {
-      answer += payload.delta
-    }
-    if (eventName === 'citations') {
-      const auditId = payload.query_audit_event_id ?? payload.queryAuditEventId
-      if (typeof auditId === 'string') {
-        queryAuditEventId = auditId
-      } else if (Array.isArray(payload.citations)) {
-        const [first] = payload.citations as Record<string, unknown>[]
-        if (typeof first?.query_audit_event_id === 'string') {
-          queryAuditEventId = first.query_audit_event_id
-        }
-      }
+    processSseEvent(rawEvent, state)
+  }
+  return toChatResult(state)
+}
 
-      if (Array.isArray(payload.citations)) {
-        for (const citation of payload.citations as Record<string, unknown>[]) {
-          if (
-            typeof citation.document_id === 'string' &&
-            typeof citation.document_version_id === 'string'
-          ) {
-            citations.push({
-              documentId: citation.document_id,
-              documentVersionId: citation.document_version_id,
-              headingPath: Array.isArray(citation.heading_path)
-                ? citation.heading_path.filter((item): item is string => typeof item === 'string')
-                : [],
-            })
-          }
-        }
-      }
-    }
-    if (eventName === 'usage') {
-      usage = {
-        inputTokens: numberValue(payload.input_tokens),
-        cachedTokens: numberValue(payload.cached_tokens),
-        outputTokens: numberValue(payload.output_tokens),
-        costUsd: numberValue(payload.cost_usd),
-      }
+interface ChatStreamState extends ChatResult {
+  done: boolean
+  handlers: ChatStreamHandlers
+}
+
+function createChatStreamState(handlers: ChatStreamHandlers): ChatStreamState {
+  return {
+    answer: '',
+    queryAuditEventId: null,
+    citations: [],
+    cacheHit: false,
+    requestId: null,
+    usage: null,
+    done: false,
+    handlers,
+  }
+}
+
+function processSseBuffer(buffer: string, state: ChatStreamState): string {
+  const normalized = buffer.replace(/\r\n/g, '\n')
+  const events = normalized.split('\n\n')
+  const remainder = events.pop() ?? ''
+  for (const rawEvent of events) {
+    processSseEvent(rawEvent, state)
+  }
+
+  return remainder
+}
+
+function processSseEvent(rawEvent: string, state: ChatStreamState): void {
+  const eventName = rawEvent.match(/^event: (.+)$/m)?.[1]
+  const dataLines = rawEvent
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice('data:'.length).trimStart())
+
+  if (!eventName || dataLines.length === 0) {
+    return
+  }
+
+  const payload = safeJson(dataLines.join('\n')) as Record<string, unknown> | null
+  if (!payload) {
+    return
+  }
+
+  if (eventName === 'request-id' && typeof payload.request_id === 'string') {
+    state.requestId = payload.request_id
+  }
+  if (eventName === 'cache-hit') {
+    state.cacheHit = true
+  }
+  if (eventName === 'answer-token' && typeof payload.delta === 'string') {
+    state.answer += payload.delta
+    state.handlers.onAnswerToken?.(payload.delta)
+  }
+  if (eventName === 'citations') {
+    applyCitationsEvent(payload, state)
+  }
+  if (eventName === 'usage') {
+    state.usage = {
+      inputTokens: numberValue(payload.input_tokens),
+      cachedTokens: numberValue(payload.cached_tokens),
+      outputTokens: numberValue(payload.output_tokens),
+      costUsd: numberValue(payload.cost_usd),
     }
   }
-  return { answer, queryAuditEventId, citations, cacheHit, requestId, usage }
+  if (eventName === 'done') {
+    state.done = true
+  }
+  if (eventName === 'error') {
+    throw apiErrorFromSse(payload, state.requestId)
+  }
+}
+
+function applyCitationsEvent(payload: Record<string, unknown>, state: ChatStreamState): void {
+  const auditId = payload.query_audit_event_id ?? payload.queryAuditEventId
+  if (typeof auditId === 'string') {
+    state.queryAuditEventId = auditId
+  } else if (Array.isArray(payload.citations)) {
+    const [first] = payload.citations as Record<string, unknown>[]
+    if (typeof first?.query_audit_event_id === 'string') {
+      state.queryAuditEventId = first.query_audit_event_id
+    }
+  }
+
+  if (!Array.isArray(payload.citations)) {
+    return
+  }
+
+  for (const citation of payload.citations as Record<string, unknown>[]) {
+    const headingPath = citation.heading_path ?? citation.headingPath
+    if (
+      typeof (citation.document_id ?? citation.documentId) === 'string' &&
+      typeof (citation.document_version_id ?? citation.documentVersionId) === 'string'
+    ) {
+      state.citations.push({
+        chunkId:
+          typeof (citation.chunk_id ?? citation.chunkId) === 'string'
+            ? String(citation.chunk_id ?? citation.chunkId)
+            : undefined,
+        documentId: String(citation.document_id ?? citation.documentId),
+        documentVersionId: String(citation.document_version_id ?? citation.documentVersionId),
+        headingPath: Array.isArray(headingPath)
+          ? headingPath.filter((item): item is string => typeof item === 'string')
+          : [],
+      })
+    }
+  }
+}
+
+function apiErrorFromSse(payload: Record<string, unknown>, fallbackRequestId: string | null): ApiError {
+  const error = isRecord(payload.error) ? payload.error : {}
+  return new ApiError({
+    code: typeof error.code === 'string' ? error.code : 'INTERNAL_ERROR',
+    httpStatus: 500,
+    requestId:
+      typeof error.request_id === 'string'
+        ? error.request_id
+        : typeof error.requestId === 'string'
+          ? error.requestId
+          : fallbackRequestId ?? 'unknown',
+    details: isRecord(error.details) ? error.details : null,
+    message: typeof error.message === 'string' ? error.message : 'An unexpected error occurred.',
+  })
+}
+
+function toChatResult(state: ChatStreamState): ChatResult {
+  return {
+    answer: state.answer,
+    queryAuditEventId: state.queryAuditEventId,
+    citations: state.citations,
+    cacheHit: state.cacheHit,
+    requestId: state.requestId,
+    usage: state.usage,
+  }
 }
 
 async function ensureCsrfToken(): Promise<void> {
@@ -234,6 +417,10 @@ function safeJson(text: string): unknown {
   } catch {
     return null
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function createRequestId(): string {
