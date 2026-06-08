@@ -1,4 +1,5 @@
 using AdvancedRag.App.Viewer;
+using AdvancedRag.App.Documents;
 using AdvancedRag.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,13 +31,50 @@ public sealed class EfViewerAccessRepository : IViewerAccessRepository, IViewerS
         ViewerDocumentVersion? published = document.CurrentPublishedVersionId is null
             ? null
             : await FindVersionAsync(document.CurrentPublishedVersionId.Value, ct);
+        IReadOnlyList<DocumentAccessRuleRecord> accessRules = await FindAccessRulesAsync(document.Id, ct);
 
         return new ViewerDocumentAccess(
             document.Id,
             document.Title,
             document.CurrentState,
             draft,
-            published);
+            published,
+            accessRules);
+    }
+
+    private async Task<IReadOnlyList<DocumentAccessRuleRecord>> FindAccessRulesAsync(
+        Guid documentId,
+        CancellationToken ct)
+    {
+        DocumentPermission[] permissions = await _db.DocumentPermissions
+            .AsNoTracking()
+            .Where(permission => permission.DocumentId == documentId)
+            .OrderBy(permission => permission.Id)
+            .ToArrayAsync(ct);
+        Guid[] permissionIds = permissions.Select(permission => permission.Id).ToArray();
+        DocumentPermissionGroup[] permissionGroups = await _db.DocumentPermissionGroups
+            .AsNoTracking()
+            .Where(group => permissionIds.Contains(group.DocumentPermissionId))
+            .ToArrayAsync(ct);
+        ILookup<Guid, Guid> groupsByPermissionId = permissionGroups.ToLookup(
+            group => group.DocumentPermissionId,
+            group => group.GroupId);
+
+        return permissions
+            .Select(permission =>
+            {
+                Guid[] groupIds = groupsByPermissionId[permission.Id]
+                    .Concat(permission.GroupId is null ? [] : [permission.GroupId.Value])
+                    .Distinct()
+                    .Order()
+                    .ToArray();
+                return new DocumentAccessRuleRecord(
+                    permission.Id,
+                    permission.OrganizationalUnitId,
+                    groupIds);
+            })
+            .Where(rule => rule.OrganizationalUnitId is not null || rule.GroupIds.Count > 0)
+            .ToArray();
     }
 
     private async Task<ViewerDocumentVersion?> FindVersionAsync(Guid versionId, CancellationToken ct)

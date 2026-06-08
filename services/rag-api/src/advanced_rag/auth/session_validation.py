@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import time
 from collections.abc import Callable
 from typing import Protocol
@@ -55,22 +54,15 @@ class DotnetSessionValidator:
         self._session_cookie_name = session_cookie_name
         self._client = client or httpx.AsyncClient(timeout=5)
         self._monotonic = monotonic
-        self._cache: dict[str, tuple[float, ChatTokenClaims]] = {}
 
     async def validate(
         self,
         session_cookie: str,
         request_id: str | None = None,
     ) -> ChatTokenClaims:
-        key = hashlib.sha256(session_cookie.encode("utf-8")).hexdigest()
-        now = self._monotonic()
-        cached = self._cache.get(key)
-        if cached is not None and cached[0] > now:
-            return cached[1]
-
-        claims = await self._fetch_claims(session_cookie, request_id)
-        self._cache[key] = (now + self._cache_seconds, claims)
-        return claims
+        _ = self._cache_seconds
+        _ = self._monotonic
+        return await self._fetch_claims(session_cookie, request_id)
 
     async def _fetch_claims(
         self,
@@ -106,7 +98,10 @@ class DotnetSessionValidator:
         return ChatTokenClaims(
             user_id=payload.user_id,
             role=payload.role,
+            is_global_admin=payload.is_global_admin,
+            organizational_unit_id=payload.organizational_unit_id,
             groups=payload.groups,
+            access_scope_version=payload.access_scope_version,
             access_scope_hash=payload.access_scope_hash,
             corpus=payload.corpus,
         )
@@ -117,6 +112,9 @@ class SessionValidationResponse(BaseModel):
 
     user_id: str = Field(alias="userId")
     role: str
+    is_global_admin: bool = Field(alias="isGlobalAdmin")
+    organizational_unit_id: str = Field(alias="organizationalUnitId")
     groups: list[str]
+    access_scope_version: int = Field(alias="accessScopeVersion")
     access_scope_hash: str = Field(alias="accessScopeHash")
     corpus: str

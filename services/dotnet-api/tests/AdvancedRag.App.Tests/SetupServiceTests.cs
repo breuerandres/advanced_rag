@@ -1,5 +1,6 @@
 using AdvancedRag.App.Auth;
 using AdvancedRag.App.Configuration;
+using AdvancedRag.App.Documents;
 using AdvancedRag.App.Setup;
 using AdvancedRag.App.Users;
 using FluentAssertions;
@@ -20,7 +21,7 @@ public sealed class SetupServiceTests
 
         status.SetupRequired.Should().BeTrue();
         status.AdminExists.Should().BeFalse();
-        status.RequiredRoles.Should().Equal("Admin", "DocumentManager", "Viewer");
+        status.RequiredRoles.Should().Equal("Admin", "DocumentEditor", "DocumentPublisher", "Viewer");
     }
 
     [Fact]
@@ -44,7 +45,7 @@ public sealed class SetupServiceTests
         result.User.IsBudgetDisabled.Should().BeFalse();
 
         repository.CreatedUsers.Should().ContainSingle().Which.PasswordHash.Should().Be("hashed:temporary-password");
-        repository.RequiredRoles.Should().Equal("Admin", "DocumentManager", "Viewer");
+        repository.RequiredRoles.Should().Equal("Admin", "DocumentEditor", "DocumentPublisher", "Viewer");
         repository.CreatedTenantConfig.Should().NotBeNull();
         repository.CreatedTenantConfig!.BrandName.Should().Be("Help Center");
         repository.CreatedTenantConfig.DefaultLocale.Should().Be("es-AR");
@@ -152,7 +153,18 @@ public sealed class SetupServiceTests
                     true,
                     ["Admin"],
                     [],
-                    AccessScopeHash.Compute("Admin", []),
+                    new OrganizationalUnitRecord(
+                        DocumentAccessPolicy.RootOrganizationalUnitId,
+                        "Empresa",
+                        null,
+                        0,
+                        true),
+                    AccessScopeHash.ComputeV2(
+                        "Admin",
+                        true,
+                        DocumentAccessPolicy.RootOrganizationalUnitId,
+                        [],
+                        1),
                     budget.MonthlyBudgetUsd,
                     0m,
                     budget.IsDisabled));

@@ -80,16 +80,32 @@ public sealed class EfDocumentRepository : IDocumentRepository
             await UpsertVersionAsync(document.CurrentPublishedVersion, ct);
         }
 
+        Guid[] existingPermissionIds = await _db.DocumentPermissions
+            .Where(permission => permission.DocumentId == document.Id)
+            .Select(permission => permission.Id)
+            .ToArrayAsync(ct);
+        await _db.DocumentPermissionGroups
+            .Where(group => existingPermissionIds.Contains(group.DocumentPermissionId))
+            .ExecuteDeleteAsync(ct);
         await _db.DocumentPermissions
             .Where(permission => permission.DocumentId == document.Id)
             .ExecuteDeleteAsync(ct);
-        _db.DocumentPermissions.AddRange(document.AllowedGroupIds.Select(groupId => new DocumentPermission
+
+        foreach (DocumentAccessRuleRecord rule in document.AccessRules)
         {
-            Id = Guid.NewGuid(),
-            DocumentId = document.Id,
-            GroupId = groupId,
-            CreatedAt = DateTimeOffset.UtcNow,
-        }));
+            _db.DocumentPermissions.Add(new DocumentPermission
+            {
+                Id = rule.Id,
+                DocumentId = document.Id,
+                OrganizationalUnitId = rule.OrganizationalUnitId,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            _db.DocumentPermissionGroups.AddRange(rule.GroupIds.Select(groupId => new DocumentPermissionGroup
+            {
+                DocumentPermissionId = rule.Id,
+                GroupId = groupId,
+            }));
+        }
 
         _db.ReviewComments.AddRange(comments.Select(comment => new ReviewComment
         {
@@ -136,12 +152,34 @@ public sealed class EfDocumentRepository : IDocumentRepository
             published = version is null ? null : ToRecord(version);
         }
 
-        var groupIds = await _db.DocumentPermissions
+        DocumentPermission[] permissions = await _db.DocumentPermissions
             .AsNoTracking()
-            .Where(permission => permission.DocumentId == document.Id && permission.GroupId != null)
-            .OrderBy(permission => permission.GroupId)
-            .Select(permission => permission.GroupId!.Value)
+            .Where(permission => permission.DocumentId == document.Id)
+            .OrderBy(permission => permission.Id)
             .ToArrayAsync(ct);
+        Guid[] permissionIds = permissions.Select(permission => permission.Id).ToArray();
+        DocumentPermissionGroup[] permissionGroups = await _db.DocumentPermissionGroups
+            .AsNoTracking()
+            .Where(group => permissionIds.Contains(group.DocumentPermissionId))
+            .ToArrayAsync(ct);
+        ILookup<Guid, Guid> groupsByPermissionId = permissionGroups.ToLookup(
+            group => group.DocumentPermissionId,
+            group => group.GroupId);
+        DocumentAccessRuleRecord[] accessRules = permissions
+            .Select(permission =>
+            {
+                Guid[] groupIds = groupsByPermissionId[permission.Id]
+                    .Concat(permission.GroupId is null ? [] : [permission.GroupId.Value])
+                    .Distinct()
+                    .Order()
+                    .ToArray();
+                return new DocumentAccessRuleRecord(
+                    permission.Id,
+                    permission.OrganizationalUnitId,
+                    groupIds);
+            })
+            .Where(rule => rule.OrganizationalUnitId is not null || rule.GroupIds.Count > 0)
+            .ToArray();
 
         return new DocumentAggregate(
             document.Id,
@@ -149,7 +187,7 @@ public sealed class EfDocumentRepository : IDocumentRepository
             ParseEnum<DocumentState>(document.CurrentState),
             draft,
             published,
-            groupIds,
+            accessRules,
             document.CreatedByUserId,
             document.CreatedAt,
             document.UpdatedAt);

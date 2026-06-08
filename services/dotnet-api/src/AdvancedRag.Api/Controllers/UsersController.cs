@@ -17,7 +17,7 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin,DocumentManager")]
+    [Authorize(Roles = "Admin,DocumentEditor,DocumentPublisher")]
     public async Task<IActionResult> ListUsersAsync(CancellationToken ct)
     {
         IReadOnlyList<UserManagementUser> users = await _users.ListUsersAsync(ct);
@@ -37,7 +37,8 @@ public sealed class UsersController : ApiControllerBase
                     request.Password,
                     request.Roles ?? [],
                     request.GroupIds ?? [],
-                    ActorUserId()),
+                    ActorUserId(),
+                    request.OrganizationalUnitId),
                 ct);
             return Created($"/api/users/{created.Id}", UserResponse.FromUser(created));
         }
@@ -68,12 +69,17 @@ public sealed class UsersController : ApiControllerBase
     }
 
     [HttpPut("{id:guid}/groups")]
-    [Authorize(Roles = "Admin,DocumentManager")]
+    [Authorize(Roles = "Admin,DocumentEditor,DocumentPublisher")]
     public async Task<IActionResult> SetUserGroupsAsync(
         Guid id,
         [FromBody] SetUserGroupsRequest request,
         CancellationToken ct)
     {
+        if (!ActorRoles().Contains("Admin", StringComparer.Ordinal) && id == ActorUserId())
+        {
+            return Error(403, "AUTH_FORBIDDEN", "Non-admin users cannot broaden their own group scope.");
+        }
+
         try
         {
             UserManagementUser updated = await _users.SetUserGroupsAsync(
@@ -85,6 +91,11 @@ public sealed class UsersController : ApiControllerBase
         {
             return Error(exception.HttpStatus, exception.Code, exception.Message, exception.Details);
         }
+    }
+
+    private IReadOnlyList<string> ActorRoles()
+    {
+        return User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value).ToArray();
     }
 
     [HttpPatch("{id:guid}/status")]

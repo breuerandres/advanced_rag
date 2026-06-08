@@ -2,11 +2,15 @@ namespace AdvancedRag.Infrastructure.Persistence;
 
 public sealed class User
 {
+    public static readonly Guid RootOrganizationalUnitId = Guid.Parse("01000000-0000-0000-0000-000000000001");
+
     public Guid Id { get; set; }
     public required string Email { get; set; }
     public required string DisplayName { get; set; }
     public required string PasswordHash { get; set; }
     public bool IsActive { get; set; } = true;
+    public Guid OrganizationalUnitId { get; set; } = RootOrganizationalUnitId;
+    public long AccessScopeVersion { get; set; } = 1;
     public DateTimeOffset CreatedAt { get; set; }
 }
 
@@ -22,10 +26,29 @@ public sealed class UserRole
     public Guid RoleId { get; set; }
 }
 
+public sealed class OrganizationalUnit
+{
+    public Guid Id { get; set; }
+    public required string Name { get; set; }
+    public Guid? ParentId { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class OrganizationalUnitClosure
+{
+    public Guid AncestorId { get; set; }
+    public Guid DescendantId { get; set; }
+    public int Depth { get; set; }
+}
+
 public sealed class Group
 {
     public Guid Id { get; set; }
     public required string Name { get; set; }
+    public Guid? OwnerOrganizationalUnitId { get; set; }
+    public string PublishingPolicy { get; set; } = "OwnerScope";
 }
 
 public sealed class UserGroup
@@ -69,10 +92,17 @@ public sealed class DocumentPermission
 {
     public Guid Id { get; set; }
     public Guid DocumentId { get; set; }
+    public Guid? OrganizationalUnitId { get; set; }
     public Guid? GroupId { get; set; }
     public string? AttributeKey { get; set; }
     public string? AttributeValue { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class DocumentPermissionGroup
+{
+    public Guid DocumentPermissionId { get; set; }
+    public Guid GroupId { get; set; }
 }
 
 public sealed class DocumentTag
@@ -115,6 +145,14 @@ public sealed class ImportMetadata
     public required string Sha256Hash { get; set; }
     public Guid ImportedByUserId { get; set; }
     public required string ExtractionStatus { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class UserGroupPublishGrant
+{
+    public Guid UserId { get; set; }
+    public Guid GroupId { get; set; }
+    public Guid GrantedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
 

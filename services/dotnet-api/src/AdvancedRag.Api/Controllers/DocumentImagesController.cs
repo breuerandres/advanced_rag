@@ -17,7 +17,7 @@ public sealed class DocumentImagesController : ApiControllerBase
     }
 
     [HttpPost("api/documents/{documentId:guid}/images")]
-    [Authorize(Roles = "Admin,DocumentManager")]
+    [Authorize(Roles = "Admin,DocumentEditor,DocumentPublisher")]
     [RequestSizeLimit(MaxImageUploadSizeBytes)]
     public async Task<IActionResult> UploadAsync(
         Guid documentId,

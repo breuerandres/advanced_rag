@@ -1,3 +1,5 @@
+using AdvancedRag.App.Documents;
+
 namespace AdvancedRag.App.Viewer;
 
 public interface IViewerAccessService
@@ -63,7 +65,8 @@ public sealed record ViewerDocumentAccess(
     string Title,
     string State,
     ViewerDocumentVersion? DraftVersion,
-    ViewerDocumentVersion? PublishedVersion);
+    ViewerDocumentVersion? PublishedVersion,
+    IReadOnlyList<DocumentAccessRuleRecord> AccessRules);
 
 public sealed record ViewerDocumentVersion(
     Guid Id,

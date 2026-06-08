@@ -6,7 +6,8 @@ public sealed record CreateUserCommand(
     string Password,
     IReadOnlyList<string> RoleNames,
     IReadOnlyList<Guid> GroupIds,
-    Guid ActorUserId);
+    Guid ActorUserId,
+    Guid? OrganizationalUnitId = null);
 
 public sealed record SetUserRolesCommand(
     Guid UserId,
@@ -29,9 +30,26 @@ public sealed record SetUserAiBudgetCommand(
     bool IsDisabled,
     Guid ActorUserId);
 
-public sealed record CreateGroupCommand(string Name, Guid ActorUserId);
+public sealed record CreateGroupCommand(
+    string Name,
+    Guid ActorUserId,
+    Guid? OwnerOrganizationalUnitId = null,
+    string PublishingPolicy = "OwnerScope");
 
-public sealed record UpdateGroupCommand(Guid GroupId, string Name, Guid ActorUserId);
+public sealed record UpdateGroupCommand(
+    Guid GroupId,
+    string Name,
+    Guid ActorUserId,
+    Guid? OwnerOrganizationalUnitId = null,
+    string PublishingPolicy = "OwnerScope");
+
+public sealed record CreateOrganizationalUnitCommand(string Name, Guid ParentId, Guid ActorUserId);
+
+public sealed record UpdateOrganizationalUnitCommand(
+    Guid Id,
+    string? Name,
+    bool? IsActive,
+    Guid ActorUserId);
 
 public sealed record UserManagementUser(
     Guid Id,
@@ -40,6 +58,7 @@ public sealed record UserManagementUser(
     bool IsActive,
     IReadOnlyList<string> Roles,
     IReadOnlyList<GroupRecord> Groups,
+    OrganizationalUnitRecord? OrganizationalUnit,
     string AccessScopeHash,
     decimal? MonthlyBudgetUsd,
     decimal CurrentSpendUsd,
@@ -58,7 +77,8 @@ public sealed record UserDraft(
     string PasswordHash,
     bool IsActive,
     IReadOnlyList<string> RoleNames,
-    IReadOnlyList<Guid> GroupIds);
+    IReadOnlyList<Guid> GroupIds,
+    Guid OrganizationalUnitId);
 
 public sealed record UserBudgetDraft(
     Guid UserId,
@@ -68,7 +88,18 @@ public sealed record UserBudgetDraft(
 
 public sealed record RoleRecord(string Name);
 
-public sealed record GroupRecord(Guid Id, string Name);
+public sealed record OrganizationalUnitRecord(
+    Guid Id,
+    string Name,
+    Guid? ParentId,
+    int Depth,
+    bool IsActive);
+
+public sealed record GroupRecord(
+    Guid Id,
+    string Name,
+    OrganizationalUnitRecord? OwnerOrganizationalUnit = null,
+    string PublishingPolicy = "OwnerScope");
 
 public interface IUserAdministrationRepository
 {
@@ -76,15 +107,30 @@ public interface IUserAdministrationRepository
 
     Task<IReadOnlyList<GroupRecord>> ListGroupsAsync(CancellationToken ct);
 
-    Task<GroupRecord> CreateGroupAsync(string name, Guid actorUserId, CancellationToken ct);
+    Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveOrganizationalUnitsAsync(CancellationToken ct);
 
-    Task<GroupRecord?> UpdateGroupAsync(Guid groupId, string name, Guid actorUserId, CancellationToken ct);
+    Task<GroupRecord> CreateGroupAsync(
+        string name,
+        Guid? ownerOrganizationalUnitId,
+        string publishingPolicy,
+        Guid actorUserId,
+        CancellationToken ct);
+
+    Task<GroupRecord?> UpdateGroupAsync(
+        Guid groupId,
+        string name,
+        Guid? ownerOrganizationalUnitId,
+        string publishingPolicy,
+        Guid actorUserId,
+        CancellationToken ct);
 
     Task<bool> EmailExistsAsync(string normalizedEmail, CancellationToken ct);
 
     Task<IReadOnlyList<RoleRecord>> FindRolesAsync(IReadOnlyList<string> roleNames, CancellationToken ct);
 
     Task<IReadOnlyList<GroupRecord>> FindGroupsAsync(IReadOnlyList<Guid> groupIds, CancellationToken ct);
+
+    Task<OrganizationalUnitRecord?> FindOrganizationalUnitAsync(Guid organizationalUnitId, CancellationToken ct);
 
     Task<UserManagementUser> CreateUserAsync(
         UserDraft user,
@@ -117,6 +163,31 @@ public interface IUserAdministrationRepository
         Guid userId,
         decimal? monthlyBudgetUsd,
         bool isDisabled,
+        Guid actorUserId,
+        CancellationToken ct);
+}
+
+public interface IOrganizationalUnitService
+{
+    Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveTreeAsync(CancellationToken ct);
+
+    Task<OrganizationalUnitRecord> CreateAsync(CreateOrganizationalUnitCommand command, CancellationToken ct);
+
+    Task<OrganizationalUnitRecord> UpdateAsync(UpdateOrganizationalUnitCommand command, CancellationToken ct);
+}
+
+public interface IOrganizationalUnitRepository
+{
+    Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveTreeAsync(CancellationToken ct);
+
+    Task<OrganizationalUnitRecord?> FindAsync(Guid id, CancellationToken ct);
+
+    Task<OrganizationalUnitRecord> CreateAsync(string name, Guid parentId, Guid actorUserId, CancellationToken ct);
+
+    Task<OrganizationalUnitRecord?> UpdateAsync(
+        Guid id,
+        string? name,
+        bool? isActive,
         Guid actorUserId,
         CancellationToken ct);
 }

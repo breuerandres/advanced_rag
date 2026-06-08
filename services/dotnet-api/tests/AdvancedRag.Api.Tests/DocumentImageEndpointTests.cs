@@ -30,7 +30,7 @@ public sealed class DocumentImageEndpointTests : IClassFixture<DocumentImageWebA
     public async Task UploadImage_ReturnsStableAppUrl()
     {
         using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        LoginSession session = await LoginAsync(client, DocumentImageFakeAuthService.ManagerEmail, "manage.localhost");
+        LoginSession session = await LoginAsync(client, DocumentImageFakeAuthService.EditorEmail, "manage.localhost");
         using MultipartFormDataContent content = new();
         ByteArrayContent file = new([0x89, 0x50, 0x4e, 0x47]);
         file.Headers.ContentType = new MediaTypeHeaderValue("image/png");
@@ -62,7 +62,7 @@ public sealed class DocumentImageEndpointTests : IClassFixture<DocumentImageWebA
             ContentType = "image/png",
             SizeBytes = 4L,
             AltText = "Architecture diagram",
-            ActorUserId = DocumentImageFakeAuthService.ManagerUserId,
+            ActorUserId = DocumentImageFakeAuthService.EditorUserId,
         });
     }
 
@@ -202,15 +202,15 @@ public sealed class FakeDocumentImageService : IDocumentImageService
 
 public sealed class DocumentImageFakeAuthService : IAuthService
 {
-    public static readonly Guid ManagerUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid EditorUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     public static readonly Guid ViewerUserId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
-    public const string ManagerEmail = "manager@example.com";
+    public const string EditorEmail = "editor@example.com";
     public const string ViewerEmail = "viewer@example.com";
     public const string ValidPassword = "password";
 
     private readonly Dictionary<Guid, AuthenticatedUser> _users = new()
     {
-        [ManagerUserId] = new(ManagerUserId, ManagerEmail, "Manager User", ["DocumentManager"], []),
+        [EditorUserId] = new(EditorUserId, EditorEmail, "Editor User", ["DocumentEditor"], []),
         [ViewerUserId] = new(ViewerUserId, ViewerEmail, "Viewer User", ["Viewer"], []),
     };
 

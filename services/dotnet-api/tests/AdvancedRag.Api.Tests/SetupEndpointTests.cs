@@ -32,7 +32,7 @@ public sealed class SetupEndpointTests : IClassFixture<SetupWebApplicationFactor
         SetupStatusResponse initialStatus = await GetSetupStatusAsync(client);
         initialStatus.SetupRequired.Should().BeFalse();
         initialStatus.AdminExists.Should().BeTrue();
-        initialStatus.RequiredRoles.Should().Equal("Admin", "DocumentManager", "Viewer");
+        initialStatus.RequiredRoles.Should().Equal("Admin", "DocumentEditor", "DocumentPublisher", "Viewer");
 
         CsrfState csrf = await GetCsrfAsync(client);
         Guid defaultAdminId = await AssertDefaultAdminBootstrapRowsAsync();
@@ -98,8 +98,10 @@ public sealed class SetupEndpointTests : IClassFixture<SetupWebApplicationFactor
 
         (await db.Roles.AsNoTracking().Select(role => role.Name).OrderBy(name => name).ToListAsync())
             .Should()
-            .Equal("Admin", "DocumentManager", "Viewer");
+            .Equal("Admin", "DocumentEditor", "DocumentPublisher", "Viewer");
         User defaultAdmin = await db.Users.AsNoTracking().SingleAsync(user => user.Email == "admin@admin.com");
+        defaultAdmin.OrganizationalUnitId.Should().NotBeEmpty();
+        defaultAdmin.AccessScopeVersion.Should().Be(1);
         (await db.UserAiBudgetLimits.AsNoTracking().SingleAsync(budget => budget.UserId == defaultAdmin.Id))
             .MonthlyBudgetUsd.Should().Be(5m);
 

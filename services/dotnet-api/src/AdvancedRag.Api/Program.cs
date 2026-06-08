@@ -61,6 +61,7 @@ builder.Services.AddSingleton<FixedWindowRateLimiter>();
 builder.Services.AddScoped<IOperationalReadinessChecker, OperationalReadinessChecker>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserAuthRepository, EfUserAuthRepository>();
+builder.Services.AddScoped<IEffectiveAccessScopeRepository, EfEffectiveAccessScopeRepository>();
 builder.Services.AddScoped<ISessionHandoffRepository, EfSessionHandoffRepository>();
 builder.Services.AddScoped<ISessionHandoffService>(services =>
 {
@@ -76,8 +77,12 @@ builder.Services.AddScoped<ITenantConfigService, TenantConfigService>();
 builder.Services.AddScoped<ITenantConfigRepository, EfTenantConfigRepository>();
 builder.Services.AddScoped<IUserAdministrationService, UserAdministrationService>();
 builder.Services.AddScoped<IUserAdministrationRepository, EfUserAdministrationRepository>();
+builder.Services.AddScoped<IOrganizationalUnitService, OrganizationalUnitService>();
+builder.Services.AddScoped<IOrganizationalUnitRepository, EfOrganizationalUnitRepository>();
 builder.Services.AddScoped<IDocumentLifecycleService, DocumentLifecycleService>();
 builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
+builder.Services.AddScoped<IDocumentAccessPolicy, DocumentAccessPolicy>();
+builder.Services.AddScoped<IDocumentAccessPolicyDataSource, EfDocumentAccessPolicyDataSource>();
 builder.Services.AddScoped<IDocumentImageService, DocumentImageService>();
 builder.Services.AddScoped<IDocumentImageRepository, EfDocumentImageRepository>();
 builder.Services.AddScoped<IDocumentImageObjectStorage>(services =>
@@ -116,9 +121,11 @@ builder.Services.AddScoped<IViewerAccessService>(services =>
     var repository = services.GetRequiredService<IViewerAccessRepository>();
     var handoffs = services.GetRequiredService<IViewerSessionHandoffRepository>();
     var timeProvider = services.GetRequiredService<TimeProvider>();
+    var accessScopes = services.GetRequiredService<IEffectiveAccessScopeRepository>();
+    var accessPolicy = services.GetRequiredService<IDocumentAccessPolicy>();
     var configuration = services.GetRequiredService<IConfiguration>();
     var docsBaseUrl = configuration["Viewer:DocsBaseUrl"] ?? "https://docs.client.com";
-    return new ViewerAccessService(repository, handoffs, docsBaseUrl, timeProvider);
+    return new ViewerAccessService(repository, handoffs, docsBaseUrl, timeProvider, accessScopes, accessPolicy);
 });
 builder.Services.AddScoped<IFeedbackReportingService>(services =>
 {

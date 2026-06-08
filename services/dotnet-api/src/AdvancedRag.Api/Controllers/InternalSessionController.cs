@@ -16,11 +16,16 @@ public sealed class InternalSessionController : ApiControllerBase
 {
     private const string InternalServiceTokenHeader = "X-Internal-Service-Token";
     private readonly IAuthService _auth;
+    private readonly IEffectiveAccessScopeRepository _effectiveScopes;
     private readonly IConfiguration _configuration;
 
-    public InternalSessionController(IAuthService auth, IConfiguration configuration)
+    public InternalSessionController(
+        IAuthService auth,
+        IEffectiveAccessScopeRepository effectiveScopes,
+        IConfiguration configuration)
     {
         _auth = auth;
+        _effectiveScopes = effectiveScopes;
         _configuration = configuration;
     }
 
@@ -41,14 +46,21 @@ public sealed class InternalSessionController : ApiControllerBase
             return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.");
         }
 
-        Guid[] groupIds = user.Groups.Select(group => group.Id).Order().ToArray();
-        string accessScopeHash = AccessScopeHash.Compute(user.PrimaryRole, groupIds);
+        EffectiveAccessScope? scope = await _effectiveScopes.FindForActiveUserAsync(user.Id, ct);
+        if (scope is null)
+        {
+            return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.");
+        }
+
         return Ok(new InternalSessionValidationResponse(
-            user.Id,
-            user.PrimaryRole,
-            groupIds,
-            accessScopeHash,
-            "published"));
+            scope.UserId,
+            scope.PrimaryRole,
+            scope.IsGlobalAdmin,
+            scope.OrganizationalUnitId,
+            scope.GroupIds,
+            scope.AccessScopeVersion,
+            scope.AccessScopeHash,
+            scope.Corpus));
     }
 
     private async Task<AuthenticatedUser?> ResolveCurrentUserAsync(CancellationToken ct)

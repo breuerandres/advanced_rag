@@ -53,13 +53,26 @@ public sealed class UserAdministrationService : IUserAdministrationService
     public async Task<GroupRecord> CreateGroupAsync(CreateGroupCommand command, CancellationToken ct)
     {
         var name = NormalizeRequired(command.Name, "name");
-        return await _repository.CreateGroupAsync(name, command.ActorUserId, ct);
+        string publishingPolicy = NormalizePublishingPolicy(command.PublishingPolicy);
+        return await _repository.CreateGroupAsync(
+            name,
+            command.OwnerOrganizationalUnitId,
+            publishingPolicy,
+            command.ActorUserId,
+            ct);
     }
 
     public async Task<GroupRecord> UpdateGroupAsync(UpdateGroupCommand command, CancellationToken ct)
     {
         var name = NormalizeRequired(command.Name, "name");
-        var updated = await _repository.UpdateGroupAsync(command.GroupId, name, command.ActorUserId, ct);
+        string publishingPolicy = NormalizePublishingPolicy(command.PublishingPolicy);
+        var updated = await _repository.UpdateGroupAsync(
+            command.GroupId,
+            name,
+            command.OwnerOrganizationalUnitId,
+            publishingPolicy,
+            command.ActorUserId,
+            ct);
         return updated
             ?? throw new UserAdministrationException("NOT_FOUND", 404, "Group not found.");
     }
@@ -71,9 +84,16 @@ public sealed class UserAdministrationService : IUserAdministrationService
         var password = NormalizeRequired(command.Password, "password");
         var roleNames = NormalizeRoleNames(command.RoleNames);
         var groupIds = NormalizeGroupIds(command.GroupIds);
+        Guid organizationalUnitId = command.OrganizationalUnitId
+            ?? throw new UserAdministrationException(
+                "VALIDATION_FAILED",
+                400,
+                "Organizational unit is required.",
+                new Dictionary<string, object?> { ["field"] = "organizationalUnitId" });
 
         await RequireKnownRolesAsync(roleNames, ct);
         await RequireKnownGroupsAsync(groupIds, ct);
+        await RequireKnownOrganizationalUnitAsync(organizationalUnitId, ct);
 
         if (await _repository.EmailExistsAsync(email, ct))
         {
@@ -91,7 +111,8 @@ public sealed class UserAdministrationService : IUserAdministrationService
             _passwords.Hash(password),
             true,
             roleNames,
-            groupIds);
+            groupIds,
+            organizationalUnitId);
         var budget = new UserBudgetDraft(
             user.Id,
             DefaultMonthlyBudgetUsd,
@@ -195,6 +216,19 @@ public sealed class UserAdministrationService : IUserAdministrationService
         }
     }
 
+    private async Task RequireKnownOrganizationalUnitAsync(Guid organizationalUnitId, CancellationToken ct)
+    {
+        OrganizationalUnitRecord? unit = await _repository.FindOrganizationalUnitAsync(organizationalUnitId, ct);
+        if (unit is null || !unit.IsActive)
+        {
+            throw new UserAdministrationException(
+                "VALIDATION_FAILED",
+                400,
+                "Organizational unit is invalid.",
+                new Dictionary<string, object?> { ["field"] = "organizationalUnitId" });
+        }
+    }
+
     private static UserManagementUser RequireFound(UserManagementUser? user)
     {
         return user
@@ -243,5 +277,85 @@ public sealed class UserAdministrationService : IUserAdministrationService
             .Distinct()
             .Order()
             .ToArray();
+    }
+
+    private static string NormalizePublishingPolicy(string publishingPolicy)
+    {
+        string normalized = publishingPolicy.Trim();
+        string[] allowed = ["OwnerScope", "ExplicitGrantOnly", "AdminOnly"];
+        if (!allowed.Contains(normalized, StringComparer.Ordinal))
+        {
+            throw new UserAdministrationException(
+                "VALIDATION_FAILED",
+                400,
+                "Publishing policy is invalid.",
+                new Dictionary<string, object?> { ["field"] = "publishingPolicy" });
+        }
+
+        return normalized;
+    }
+}
+
+public sealed class OrganizationalUnitService : IOrganizationalUnitService
+{
+    private readonly IOrganizationalUnitRepository _repository;
+
+    public OrganizationalUnitService(IOrganizationalUnitRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveTreeAsync(CancellationToken ct)
+    {
+        return _repository.ListActiveTreeAsync(ct);
+    }
+
+    public async Task<OrganizationalUnitRecord> CreateAsync(
+        CreateOrganizationalUnitCommand command,
+        CancellationToken ct)
+    {
+        string name = NormalizeRequired(command.Name, "name");
+        OrganizationalUnitRecord? parent = await _repository.FindAsync(command.ParentId, ct);
+        if (parent is null || !parent.IsActive)
+        {
+            throw new UserAdministrationException(
+                "VALIDATION_FAILED",
+                400,
+                "Parent organizational unit is invalid.",
+                new Dictionary<string, object?> { ["field"] = "parentId" });
+        }
+
+        return await _repository.CreateAsync(name, command.ParentId, command.ActorUserId, ct);
+    }
+
+    public async Task<OrganizationalUnitRecord> UpdateAsync(
+        UpdateOrganizationalUnitCommand command,
+        CancellationToken ct)
+    {
+        string? name = command.Name is null ? null : NormalizeRequired(command.Name, "name");
+        OrganizationalUnitRecord? updated = await _repository.UpdateAsync(
+            command.Id,
+            name,
+            command.IsActive,
+            command.ActorUserId,
+            ct);
+
+        return updated
+            ?? throw new UserAdministrationException("NOT_FOUND", 404, "Organizational unit not found.");
+    }
+
+    private static string NormalizeRequired(string value, string field)
+    {
+        string normalized = value.Trim();
+        if (normalized.Length == 0)
+        {
+            throw new UserAdministrationException(
+                "VALIDATION_FAILED",
+                400,
+                $"{field} is required.",
+                new Dictionary<string, object?> { ["field"] = field });
+        }
+
+        return normalized;
     }
 }

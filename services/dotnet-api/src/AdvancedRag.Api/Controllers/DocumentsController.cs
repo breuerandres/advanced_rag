@@ -8,7 +8,7 @@ namespace AdvancedRag.Api.Controllers;
 
 [ApiController]
 [Route("api/documents")]
-[Authorize(Roles = "Admin,DocumentManager")]
+[Authorize(Roles = "Admin,DocumentEditor,DocumentPublisher")]
 public sealed class DocumentsController : ApiControllerBase
 {
     private readonly IDocumentLifecycleService _documents;
@@ -49,7 +49,7 @@ public sealed class DocumentsController : ApiControllerBase
                     request.DocumentType,
                     request.Audience,
                     request.ContentHtml,
-                    request.AllowedGroupIds ?? [],
+                    ToAccessRules(request),
                     ActorUserId(),
                     RequestId()),
                 ct);
@@ -76,7 +76,7 @@ public sealed class DocumentsController : ApiControllerBase
                     request.DocumentType,
                     request.Audience,
                     request.ContentHtml,
-                    request.AllowedGroupIds ?? [],
+                    ToAccessRules(request),
                     ActorUserId(),
                     RequestId()),
                 ct);
@@ -127,7 +127,7 @@ public sealed class DocumentsController : ApiControllerBase
     }
 
     [HttpPost("{id:guid}/request-publish")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,DocumentPublisher")]
     public async Task<IActionResult> RequestPublishAsync(Guid id, CancellationToken ct)
     {
         try
@@ -210,5 +210,28 @@ public sealed class DocumentsController : ApiControllerBase
     private IReadOnlyList<string> ActorRoles()
     {
         return User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray();
+    }
+
+    private static IReadOnlyList<DocumentAccessRuleDraft> ToAccessRules(SaveDocumentDraftRequest request)
+    {
+        if (request.AccessRules is { Count: > 0 })
+        {
+            return request.AccessRules
+                .Select(rule => new DocumentAccessRuleDraft(
+                    rule.OrganizationalUnitId,
+                    (rule.GroupIds ?? []).Distinct().Order().ToArray()))
+                .ToArray();
+        }
+
+        return ToLegacyGroupRules(request.AllowedGroupIds ?? []);
+    }
+
+    private static IReadOnlyList<DocumentAccessRuleDraft> ToLegacyGroupRules(IReadOnlyList<Guid> groupIds)
+    {
+        return groupIds
+            .Distinct()
+            .Order()
+            .Select(groupId => new DocumentAccessRuleDraft(null, [groupId]))
+            .ToArray();
     }
 }

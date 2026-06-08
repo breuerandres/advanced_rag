@@ -1,3 +1,4 @@
+using AdvancedRag.App.Auth;
 using AdvancedRag.App.Documents;
 using AdvancedRag.App.Viewer;
 
@@ -100,19 +101,25 @@ public sealed class DocumentImageService : IDocumentImageService
     private readonly IDocumentImageObjectStorage _storage;
     private readonly IViewerAccessService _viewerAccess;
     private readonly TimeProvider _timeProvider;
+    private readonly IEffectiveAccessScopeRepository? _accessScopes;
+    private readonly IDocumentAccessPolicy? _accessPolicy;
 
     public DocumentImageService(
         IDocumentRepository documents,
         IDocumentImageRepository images,
         IDocumentImageObjectStorage storage,
         IViewerAccessService viewerAccess,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IEffectiveAccessScopeRepository? accessScopes = null,
+        IDocumentAccessPolicy? accessPolicy = null)
     {
         _documents = documents;
         _images = images;
         _storage = storage;
         _viewerAccess = viewerAccess;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _accessScopes = accessScopes;
+        _accessPolicy = accessPolicy;
     }
 
     public async Task<DocumentImageUploadResult> UploadAsync(UploadDocumentImageCommand command, CancellationToken ct)
@@ -123,6 +130,8 @@ public sealed class DocumentImageService : IDocumentImageService
         {
             throw new DocumentImageException("AUTH_FORBIDDEN", 403, "Cannot upload images to archived documents.");
         }
+
+        await RequireCanManageDocumentAsync(command.ActorUserId, document.AccessRules, ct);
 
         string contentType = NormalizeContentType(command.ContentType);
         if (!ExtensionsByContentType.TryGetValue(contentType, out string? extension))
@@ -203,5 +212,25 @@ public sealed class DocumentImageService : IDocumentImageService
     private static string NormalizeContentType(string contentType)
     {
         return contentType.Split(';', 2)[0].Trim().ToLowerInvariant();
+    }
+
+    private async Task RequireCanManageDocumentAsync(
+        Guid actorUserId,
+        IReadOnlyList<DocumentAccessRuleRecord> rules,
+        CancellationToken ct)
+    {
+        if (_accessPolicy is null)
+        {
+            return;
+        }
+
+        EffectiveAccessScope scope = _accessScopes is null
+            ? throw new DocumentImageException("AUTH_FORBIDDEN", 403, "Actor cannot upload images to this document.")
+            : await _accessScopes.FindForActiveUserAsync(actorUserId, ct)
+                ?? throw new DocumentImageException("AUTH_FORBIDDEN", 403, "Actor cannot upload images to this document.");
+        if (!await _accessPolicy.CanManageDraftAsync(scope, rules, ct))
+        {
+            throw new DocumentImageException("AUTH_FORBIDDEN", 403, "Actor cannot upload images to this document.");
+        }
     }
 }

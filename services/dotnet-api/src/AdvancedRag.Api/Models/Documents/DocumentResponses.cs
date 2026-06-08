@@ -9,6 +9,7 @@ public sealed record DocumentSummaryResponse(
     string DocumentType,
     string Audience,
     IReadOnlyList<Guid> AllowedGroupIds,
+    IReadOnlyList<DocumentAccessRuleResponse> AccessRules,
     int? DraftVersionNumber,
     int? PublishedVersionNumber,
     string IndexingStatus,
@@ -23,6 +24,7 @@ public sealed record DocumentSummaryResponse(
             summary.DocumentType,
             summary.Audience,
             summary.AllowedGroupIds,
+            summary.AccessRules.Select(DocumentAccessRuleResponse.FromRecord).ToArray(),
             summary.DraftVersionNumber,
             summary.PublishedVersionNumber,
             summary.IndexingStatus.ToString(),
@@ -42,6 +44,7 @@ public sealed record DocumentDetailResponse(
     DocumentVersionResponse? CurrentDraftVersion,
     DocumentVersionResponse? CurrentPublishedVersion,
     IReadOnlyList<Guid> AllowedGroupIds,
+    IReadOnlyList<DocumentAccessRuleResponse> AccessRules,
     DateTimeOffset UpdatedAt)
 {
     public static DocumentDetailResponse FromAggregate(DocumentAggregate document)
@@ -53,12 +56,24 @@ public sealed record DocumentDetailResponse(
             document.CurrentDraftVersion is null ? null : DocumentVersionResponse.FromVersion(document.CurrentDraftVersion),
             document.CurrentPublishedVersion is null ? null : DocumentVersionResponse.FromVersion(document.CurrentPublishedVersion),
             document.AllowedGroupIds,
+            document.AccessRules.Select(DocumentAccessRuleResponse.FromRecord).ToArray(),
             document.UpdatedAt);
     }
 
     private static string ToDisplay(DocumentState state)
     {
         return state == DocumentState.InReview ? "In Review" : state.ToString();
+    }
+}
+
+public sealed record DocumentAccessRuleResponse(
+    Guid Id,
+    Guid? OrganizationalUnitId,
+    IReadOnlyList<Guid> GroupIds)
+{
+    public static DocumentAccessRuleResponse FromRecord(DocumentAccessRuleRecord rule)
+    {
+        return new DocumentAccessRuleResponse(rule.Id, rule.OrganizationalUnitId, rule.GroupIds);
     }
 }
 

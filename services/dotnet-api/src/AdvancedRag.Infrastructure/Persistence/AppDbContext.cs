@@ -14,15 +14,19 @@ public sealed class AppDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
+    public DbSet<OrganizationalUnit> OrganizationalUnits => Set<OrganizationalUnit>();
+    public DbSet<OrganizationalUnitClosure> OrganizationalUnitClosure => Set<OrganizationalUnitClosure>();
     public DbSet<Group> Groups => Set<Group>();
     public DbSet<UserGroup> UserGroups => Set<UserGroup>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<DocumentVersion> DocumentVersions => Set<DocumentVersion>();
     public DbSet<DocumentPermission> DocumentPermissions => Set<DocumentPermission>();
+    public DbSet<DocumentPermissionGroup> DocumentPermissionGroups => Set<DocumentPermissionGroup>();
     public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
     public DbSet<DocumentImage> DocumentImages => Set<DocumentImage>();
     public DbSet<ReviewComment> ReviewComments => Set<ReviewComment>();
     public DbSet<ImportMetadata> ImportMetadata => Set<ImportMetadata>();
+    public DbSet<UserGroupPublishGrant> UserGroupPublishGrants => Set<UserGroupPublishGrant>();
     public DbSet<ViewerSessionHandoffCode> ViewerSessionHandoffCodes => Set<ViewerSessionHandoffCode>();
     public DbSet<SessionHandoffCode> SessionHandoffCodes => Set<SessionHandoffCode>();
     public DbSet<UserAiBudgetLimit> UserAiBudgetLimits => Set<UserAiBudgetLimit>();
@@ -41,8 +45,14 @@ public sealed class AppDbContext : DbContext
             entity.Property(item => item.DisplayName).HasColumnName("display_name").HasMaxLength(200).IsRequired();
             entity.Property(item => item.PasswordHash).HasColumnName("password_hash").HasMaxLength(512).IsRequired();
             entity.Property(item => item.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            entity.Property(item => item.OrganizationalUnitId)
+                .HasColumnName("organizational_unit_id")
+                .HasDefaultValue(User.RootOrganizationalUnitId);
+            entity.Property(item => item.AccessScopeVersion).HasColumnName("access_scope_version").HasDefaultValue(1L);
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+            entity.HasOne<OrganizationalUnit>().WithMany().HasForeignKey(item => item.OrganizationalUnitId).OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(item => item.Email).IsUnique();
+            entity.HasIndex(item => item.OrganizationalUnitId);
         });
 
         modelBuilder.Entity<Role>(entity =>
@@ -63,12 +73,42 @@ public sealed class AppDbContext : DbContext
             entity.HasOne<Role>().WithMany().HasForeignKey(item => item.RoleId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<OrganizationalUnit>(entity =>
+        {
+            entity.ToTable("organizational_units", Schema);
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ParentId).HasColumnName("parent_id");
+            entity.Property(item => item.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+            entity.HasOne<OrganizationalUnit>().WithMany().HasForeignKey(item => item.ParentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(item => item.ParentId);
+            entity.HasIndex(item => item.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<OrganizationalUnitClosure>(entity =>
+        {
+            entity.ToTable("organizational_unit_closure", Schema);
+            entity.HasKey(item => new { item.AncestorId, item.DescendantId });
+            entity.Property(item => item.AncestorId).HasColumnName("ancestor_id");
+            entity.Property(item => item.DescendantId).HasColumnName("descendant_id");
+            entity.Property(item => item.Depth).HasColumnName("depth");
+            entity.HasOne<OrganizationalUnit>().WithMany().HasForeignKey(item => item.AncestorId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<OrganizationalUnit>().WithMany().HasForeignKey(item => item.DescendantId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(item => item.DescendantId);
+        });
+
         modelBuilder.Entity<Group>(entity =>
         {
             entity.ToTable("groups", Schema);
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Name).HasColumnName("name").HasMaxLength(160).IsRequired();
+            entity.Property(item => item.OwnerOrganizationalUnitId).HasColumnName("owner_organizational_unit_id");
+            entity.Property(item => item.PublishingPolicy).HasColumnName("publishing_policy").HasMaxLength(32).HasDefaultValue("OwnerScope").IsRequired();
+            entity.HasOne<OrganizationalUnit>().WithMany().HasForeignKey(item => item.OwnerOrganizationalUnitId).OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(item => item.Name).IsUnique();
+            entity.HasIndex(item => item.OwnerOrganizationalUnitId);
         });
 
         modelBuilder.Entity<UserGroup>(entity =>
@@ -126,15 +166,29 @@ public sealed class AppDbContext : DbContext
             entity.ToTable("document_permissions", Schema);
             entity.HasKey(item => item.Id);
             entity.Property(item => item.DocumentId).HasColumnName("document_id");
+            entity.Property(item => item.OrganizationalUnitId).HasColumnName("organizational_unit_id");
             entity.Property(item => item.GroupId).HasColumnName("group_id");
             entity.Property(item => item.AttributeKey).HasColumnName("attribute_key").HasMaxLength(64);
             entity.Property(item => item.AttributeValue).HasColumnName("attribute_value").HasMaxLength(256);
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
             entity.HasOne<Document>().WithMany().HasForeignKey(item => item.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<OrganizationalUnit>().WithMany().HasForeignKey(item => item.OrganizationalUnitId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Group>().WithMany().HasForeignKey(item => item.GroupId).OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(item => item.DocumentId);
+            entity.HasIndex(item => item.OrganizationalUnitId);
             entity.HasIndex(item => item.GroupId);
             entity.HasIndex(item => new { item.AttributeKey, item.AttributeValue });
+        });
+
+        modelBuilder.Entity<DocumentPermissionGroup>(entity =>
+        {
+            entity.ToTable("document_permission_groups", Schema);
+            entity.HasKey(item => new { item.DocumentPermissionId, item.GroupId });
+            entity.Property(item => item.DocumentPermissionId).HasColumnName("document_permission_id");
+            entity.Property(item => item.GroupId).HasColumnName("group_id");
+            entity.HasOne<DocumentPermission>().WithMany().HasForeignKey(item => item.DocumentPermissionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Group>().WithMany().HasForeignKey(item => item.GroupId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(item => item.GroupId);
         });
 
         modelBuilder.Entity<DocumentTag>(entity =>
@@ -192,6 +246,20 @@ public sealed class AppDbContext : DbContext
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
             entity.HasOne<DocumentVersion>().WithMany().HasForeignKey(item => item.DocumentVersionId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.ImportedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UserGroupPublishGrant>(entity =>
+        {
+            entity.ToTable("user_group_publish_grants", Schema);
+            entity.HasKey(item => new { item.UserId, item.GroupId });
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.GroupId).HasColumnName("group_id");
+            entity.Property(item => item.GrantedByUserId).HasColumnName("granted_by_user_id");
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+            entity.HasOne<User>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Group>().WithMany().HasForeignKey(item => item.GroupId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<User>().WithMany().HasForeignKey(item => item.GrantedByUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(item => item.GroupId);
         });
 
         modelBuilder.Entity<ViewerSessionHandoffCode>(entity =>

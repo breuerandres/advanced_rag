@@ -12,6 +12,7 @@ public sealed class ViewerDocumentCatalogServiceTests
     private static readonly Guid ViewerId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid LegalGroupId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid FinanceGroupId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+    private static readonly Guid EmpresaUnitId = DocumentAccessPolicy.RootOrganizationalUnitId;
     private static readonly Guid PublishedLegalDocumentId = Guid.Parse("55555555-5555-5555-5555-555555555555");
     private static readonly Guid PublishedFinanceDocumentId = Guid.Parse("66666666-6666-6666-6666-666666666666");
     private static readonly Guid DraftLegalDocumentId = Guid.Parse("77777777-7777-7777-7777-777777777777");
@@ -69,7 +70,7 @@ public sealed class ViewerDocumentCatalogServiceTests
                     DocumentState.Published,
                     "Manual",
                     "Legal",
-                    [LegalGroupId],
+                    [Rule(EmpresaUnitId, LegalGroupId)],
                     null,
                     1,
                     IndexingStatus.Succeeded,
@@ -80,7 +81,7 @@ public sealed class ViewerDocumentCatalogServiceTests
                     DocumentState.Published,
                     "Manual",
                     "Finanzas",
-                    [FinanceGroupId],
+                    [Rule(EmpresaUnitId, FinanceGroupId)],
                     null,
                     1,
                     IndexingStatus.Succeeded,
@@ -91,7 +92,7 @@ public sealed class ViewerDocumentCatalogServiceTests
                     DocumentState.Draft,
                     "Manual",
                     "Legal",
-                    [LegalGroupId],
+                    [Rule(EmpresaUnitId, LegalGroupId)],
                     2,
                     1,
                     IndexingStatus.None,
@@ -126,5 +127,10 @@ public sealed class ViewerDocumentCatalogServiceTests
                 new(FinanceGroupId, "Finanzas"),
             ]);
         }
+    }
+
+    private static DocumentAccessRuleRecord Rule(Guid? organizationalUnitId, params Guid[] groupIds)
+    {
+        return new DocumentAccessRuleRecord(Guid.NewGuid(), organizationalUnitId, groupIds.Distinct().Order().ToArray());
     }
 }

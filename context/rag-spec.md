@@ -65,15 +65,18 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 
 - FastAPI receives the following RAG-relevant claims from the `.NET` internal session validation endpoint:
   - `userId` (user id)
-  - `role` (one of `Admin`, `DocumentManager`, `Viewer`)
+  - `role` (one of `Admin`, `DocumentPublisher`, `DocumentEditor`, `Viewer`)
+  - `isGlobalAdmin` (boolean)
+  - `organizationalUnitId` (the user's primary organizational-unit id)
   - `groups` (array of group ids, sorted alphabetically)
+  - `accessScopeVersion` (monotonic user scope version)
   - `access_scope_hash` (hex SHA-256, see below)
   - `corpus` (one of `published`, `preview`)
 - The legacy RS256 chat-token browser flow has been removed. FastAPI runtime should use the `.NET` internal session validation path; remaining token-validator test helpers are a cleanup target, not the production auth path.
-- FastAPI validates the CSRF cookie/header pair locally for browser mutations, validates the session through `.NET`, then trusts the returned safe claims as the user's scope inputs for up to the configured 60-second cache TTL. It uses `access_scope_hash` for cache partitioning and audit, and uses `role` + `groups` + `corpus` for the SQL permission filter.
-- The current internal validation response does not return separate attributes. `access_scope_hash` still uses the versioned role/groups/attributes canonical form below with an empty attributes object when no attributes are supplied.
+- FastAPI validates the CSRF cookie/header pair locally for browser mutations, validates the session through `.NET` on every request that uses `DotnetSessionValidator`, then trusts the returned safe claims as the user's scope inputs for that request only. It uses `access_scope_hash` for cache partitioning and audit, and will use `role`, `isGlobalAdmin`, `organizationalUnitId`, `groups`, and `corpus` for the hierarchical SQL permission filter in the RAG filtering slice.
 - `access_scope_hash` is not an authorization mechanism and must never be used by itself to decide whether a chunk is retrievable.
 - For the MVP, the retrieval SQL filter resolves group/attribute rules directly against `app.document_permissions` through read-only grants applied by `.NET` EF migrations after the tables exist. FastAPI may also read `app.user_ai_budget_limits` for budget enforcement through the same grant path. These are the only approved FastAPI reads from the `app` schema and are documented in `architecture.md` Operations.
+- Organizational-unit scope, branch visibility through `.NET`-owned `app.organizational_unit_closure`, root organizational-unit rules that match every user's organizational-unit dimension, unrestricted global `Admin` scope, and `accessScopeVersion` are RAG-relevant inputs. Non-root organizational-unit rules must use closure-table joins to confirm the document unit and user unit are in the same ancestor/descendant branch, except for `Admin` sessions whose effective scope is explicitly global. Sibling branches must not match. Cache entries created under the previous scope shape must not be reused because V2 hashes differ, and FastAPI must not reuse stale session-claim cache entries after `.NET` changes a user's effective document-access scope. `Admin` global access is represented in the effective scope and hash inputs so semantic-cache partitioning remains explicit.
 
 ## `access_scope_hash` Algorithm
 
@@ -81,10 +84,12 @@ Security invariant: two access scopes that differ in any dimension must produce 
 
 ```text
 canonical = {
-  "v": 1,
+  "v": 2,
   "role": <user.role>,
+  "isGlobalAdmin": <true|false>,
+  "organizationalUnitId": <user.organizational_unit_id>,
   "groups": <sorted asc list of group ids>,
-  "attributes": {<sorted asc keys>: <attribute value>}
+  "accessScopeVersion": <user.access_scope_version>
 }
 serialized = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 hash       = sha256(serialized.encode("utf-8")).hexdigest()
@@ -92,11 +97,10 @@ hash       = sha256(serialized.encode("utf-8")).hexdigest()
 
 Rules:
 
-- The schema version `v` starts at `1`. Any change to inputs (adding a new attribute family, changing canonical order, changing serialization) **must** bump `v`, invalidate all cache entries with a different `v`, and be recorded as a design decision.
+- The schema version is currently `v = 2`. Any change to inputs (adding a new attribute family, changing canonical order, changing serialization) **must** bump `v`, invalidate all cache entries with a different `v`, and be recorded as a design decision.
 - `groups` values are user-visible group ids (e.g., UUIDs). Use the stable id, not the display name.
-- `attributes` values are strings. Numbers, booleans, and nulls are converted to their canonical string form before hashing (e.g., `true` â†’ `"true"`).
-- Empty groups or attributes are represented as `[]` and `{}` respectively, not omitted.
-- `.NET` and FastAPI must produce the same hash for the same logical scope. A contract test (`AccessScopeHashCompatibilityTests` in .NET, `test_access_scope_hash.py` in FastAPI) covers fixed scope inputs and compares against pre-computed expected hex digests.
+- Empty groups are represented as `[]`, not omitted.
+- `.NET` computes the V2 hash in `AccessScopeHash.ComputeV2(...)`; FastAPI receives the hash from `.NET` internal session validation and preserves it for semantic-cache and audit partitioning. Contract tests cover the fixed V2 vector and claim shape.
 - The MVP does not include `corpus` in the hash. Cache matching uses the tuple `(corpus, access_scope_hash)` instead. This keeps the hash semantically about "who the user is" and separate from "what corpus they are asking against."
 
 ## Generation

@@ -1,5 +1,6 @@
 using AdvancedRag.App.Auth;
 using AdvancedRag.App.Configuration;
+using AdvancedRag.App.Documents;
 using AdvancedRag.App.Users;
 
 namespace AdvancedRag.App.Setup;
@@ -16,7 +17,8 @@ public sealed class SetupService : ISetupService
     public static readonly IReadOnlyList<string> RequiredRoleNames =
     [
         "Admin",
-        "DocumentManager",
+        "DocumentEditor",
+        "DocumentPublisher",
         "Viewer",
     ];
 
@@ -58,7 +60,8 @@ public sealed class SetupService : ISetupService
             _passwords.Hash(password),
             true,
             ["Admin"],
-            []);
+            [],
+            DocumentAccessPolicy.RootOrganizationalUnitId);
         var budget = new UserBudgetDraft(
             user.Id,
             UserAdministrationService.DefaultMonthlyBudgetUsd,

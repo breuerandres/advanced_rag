@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AdvancedRag.App.Auth;
 
 namespace AdvancedRag.App.Documents;
 
@@ -39,15 +40,21 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     private readonly IDocumentRepository _repository;
     private readonly IInternalIndexingClient _indexingClient;
     private readonly IDocumentHtmlSanitizer _htmlSanitizer;
+    private readonly IEffectiveAccessScopeRepository? _accessScopes;
+    private readonly IDocumentAccessPolicy? _accessPolicy;
 
     public DocumentLifecycleService(
         IDocumentRepository repository,
         IDocumentHtmlSanitizer? htmlSanitizer = null,
-        IInternalIndexingClient? indexingClient = null)
+        IInternalIndexingClient? indexingClient = null,
+        IEffectiveAccessScopeRepository? accessScopes = null,
+        IDocumentAccessPolicy? accessPolicy = null)
     {
         _repository = repository;
         _indexingClient = indexingClient ?? new UnavailableInternalIndexingClient();
         _htmlSanitizer = htmlSanitizer ?? new PassthroughDocumentHtmlSanitizer();
+        _accessScopes = accessScopes;
+        _accessPolicy = accessPolicy;
     }
 
     public Task<IReadOnlyList<DocumentSummary>> ListAsync(CancellationToken ct)
@@ -69,8 +76,10 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             command.DocumentType.Trim(),
             command.Audience.Trim(),
             SanitizeDocumentHtml(command.ContentHtml),
-            NormalizeGroupIds(command.AllowedGroupIds),
+            NormalizeRules(command.AccessRules),
             command.ActorUserId);
+
+        await RequireCanManageDraftAsync(command.ActorUserId, document.AccessRules, ct);
 
         await _repository.SaveAsync(
             document,
@@ -146,9 +155,11 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             Title = normalizedTitle,
             State = DocumentState.Draft,
             CurrentDraftVersion = draft,
-            AllowedGroupIds = NormalizeGroupIds(command.AllowedGroupIds),
+            AccessRules = NormalizeRules(command.AccessRules),
             UpdatedAt = now,
         };
+
+        await RequireCanManageDraftAsync(command.ActorUserId, updated.AccessRules, ct);
 
         await _repository.SaveAsync(
             updated,
@@ -163,6 +174,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     {
         DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
         DocumentVersionRecord draft = RequireDraft(document);
+        await RequireCanManageDraftAsync(command.ActorUserId, document.AccessRules, ct);
         RequireReadyForReview(document, draft);
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -195,6 +207,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     {
         string comment = RequireComment(command.Comment);
         DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
+        await RequireCanManageDraftAsync(command.ActorUserId, document.AccessRules, ct);
         DocumentVersionRecord? draft = document.CurrentDraftVersion;
         if (document.State != DocumentState.InReview
             || draft is null
@@ -231,8 +244,8 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     public async Task<DocumentAggregate> RequestPublishAsync(RequestPublishCommand command, CancellationToken ct)
     {
-        RequireRole(command.ActorRoles, "Admin");
         DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
+        await RequireCanPublishAsync(command.ActorUserId, command.ActorRoles, document.AccessRules, ct);
         DocumentVersionRecord? draft = document.CurrentDraftVersion;
         if (document.State != DocumentState.InReview
             || draft is null
@@ -321,15 +334,22 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     public async Task<DocumentAggregate> ArchiveAsync(ArchiveDocumentCommand command, CancellationToken ct)
     {
         DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
-        if (document.CurrentPublishedVersion is not null && !HasRole(command.ActorRoles, "Admin"))
+        EffectiveAccessScope scope = await ResolveScopeAsync(command.ActorUserId, command.ActorRoles, ct);
+        bool canPublish = _accessPolicy is null
+            ? HasRole(command.ActorRoles, "Admin")
+            : await _accessPolicy.CanPublishAsync(scope, document.AccessRules, ct);
+        bool canManageDraft = _accessPolicy is null
+            ? HasRole(command.ActorRoles, "Admin") || document.State is DocumentState.Draft or DocumentState.InReview
+            : await _accessPolicy.CanManageDraftAsync(scope, document.AccessRules, ct);
+        if (document.CurrentPublishedVersion is not null && !canPublish)
         {
             throw new DocumentLifecycleException(
                 "AUTH_FORBIDDEN",
                 403,
-                "Only administrators can archive documents with an active published version.");
+                "Actor cannot archive this published document.");
         }
 
-        if (!HasRole(command.ActorRoles, "Admin") && document.State is not (DocumentState.Draft or DocumentState.InReview))
+        if (!canPublish && !canManageDraft)
         {
             throw new DocumentLifecycleException("AUTH_FORBIDDEN", 403, "Actor cannot archive this document.");
         }
@@ -358,6 +378,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     public async Task<DocumentAggregate> RestoreAsync(RestoreDocumentCommand command, CancellationToken ct)
     {
         DocumentAggregate document = await RequireDocumentAsync(command.DocumentId, ct);
+        await RequireCanManageDraftAsync(command.ActorUserId, document.AccessRules, ct);
         if (document.State != DocumentState.Archived)
         {
             throw new DocumentLifecycleException(
@@ -443,9 +464,9 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             missing.Add("audience");
         }
 
-        if (document.AllowedGroupIds.Count == 0)
+        if (document.AccessRules.Count == 0 || document.AccessRules.Any(IsInvalidRule))
         {
-            missing.Add("allowedGroupIds");
+            missing.Add("accessRules");
         }
 
         if (string.IsNullOrWhiteSpace(PlainText(draft.ContentHtml)))
@@ -514,22 +535,122 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         return normalized;
     }
 
-    private static void RequireRole(IReadOnlyList<string> roles, string requiredRole)
-    {
-        if (!HasRole(roles, requiredRole))
-        {
-            throw new DocumentLifecycleException("AUTH_FORBIDDEN", 403, "Actor is not authorized.");
-        }
-    }
-
     private static bool HasRole(IReadOnlyList<string> roles, string role)
     {
         return roles.Contains(role, StringComparer.Ordinal);
     }
 
-    private static IReadOnlyList<Guid> NormalizeGroupIds(IReadOnlyList<Guid> groupIds)
+    private async Task RequireCanManageDraftAsync(
+        Guid actorUserId,
+        IReadOnlyList<DocumentAccessRuleRecord> rules,
+        CancellationToken ct)
     {
-        return groupIds.Distinct().Order().ToArray();
+        if (_accessPolicy is null)
+        {
+            return;
+        }
+
+        EffectiveAccessScope scope = await RequireScopeAsync(actorUserId, ct);
+        if (!await _accessPolicy.CanManageDraftAsync(scope, rules, ct))
+        {
+            throw new DocumentLifecycleException("AUTH_FORBIDDEN", 403, "Actor cannot manage this document.");
+        }
+    }
+
+    private async Task RequireCanPublishAsync(
+        Guid actorUserId,
+        IReadOnlyList<string> actorRoles,
+        IReadOnlyList<DocumentAccessRuleRecord> rules,
+        CancellationToken ct)
+    {
+        if (_accessPolicy is null)
+        {
+            if (!HasRole(actorRoles, "Admin"))
+            {
+                throw new DocumentLifecycleException("AUTH_FORBIDDEN", 403, "Actor is not authorized.");
+            }
+
+            return;
+        }
+
+        EffectiveAccessScope scope = await ResolveScopeAsync(actorUserId, actorRoles, ct);
+        if (!await _accessPolicy.CanPublishAsync(scope, rules, ct))
+        {
+            throw new DocumentLifecycleException("AUTH_FORBIDDEN", 403, "Actor cannot publish this document.");
+        }
+    }
+
+    private async Task<EffectiveAccessScope> ResolveScopeAsync(
+        Guid actorUserId,
+        IReadOnlyList<string> actorRoles,
+        CancellationToken ct)
+    {
+        if (_accessScopes is not null)
+        {
+            return await RequireScopeAsync(actorUserId, ct);
+        }
+
+        string primaryRole = PrimaryRole(actorRoles);
+        return new EffectiveAccessScope(
+            actorUserId,
+            primaryRole,
+            primaryRole.Equals("Admin", StringComparison.Ordinal),
+            DocumentAccessPolicy.RootOrganizationalUnitId,
+            [],
+            1,
+            "published");
+    }
+
+    private async Task<EffectiveAccessScope> RequireScopeAsync(Guid actorUserId, CancellationToken ct)
+    {
+        return _accessScopes is null
+            ? throw new DocumentLifecycleException("AUTH_FORBIDDEN", 403, "Actor is not authorized.")
+            : await _accessScopes.FindForActiveUserAsync(actorUserId, ct)
+                ?? throw new DocumentLifecycleException("AUTH_FORBIDDEN", 403, "Actor is not authorized.");
+    }
+
+    private static string PrimaryRole(IReadOnlyList<string> roles)
+    {
+        if (HasRole(roles, "Admin"))
+        {
+            return "Admin";
+        }
+
+        if (HasRole(roles, "DocumentPublisher"))
+        {
+            return "DocumentPublisher";
+        }
+
+        if (HasRole(roles, "DocumentEditor"))
+        {
+            return "DocumentEditor";
+        }
+
+        return "Viewer";
+    }
+
+    private static IReadOnlyList<DocumentAccessRuleRecord> NormalizeRules(IReadOnlyList<DocumentAccessRuleDraft> rules)
+    {
+        if (rules.Count == 0 || rules.Any(rule => rule.OrganizationalUnitId is null && rule.GroupIds.Count == 0))
+        {
+            throw new DocumentLifecycleException(
+                "VALIDATION_FAILED",
+                400,
+                "At least one document access rule is required.",
+                new Dictionary<string, object?> { ["field"] = "accessRules" });
+        }
+
+        return rules
+            .Select(rule => new DocumentAccessRuleRecord(
+                Guid.NewGuid(),
+                rule.OrganizationalUnitId,
+                rule.GroupIds.Distinct().Order().ToArray()))
+            .ToArray();
+    }
+
+    private static bool IsInvalidRule(DocumentAccessRuleRecord rule)
+    {
+        return rule.OrganizationalUnitId is null && rule.GroupIds.Count == 0;
     }
 
     private static DocumentAuditEvent Audit(

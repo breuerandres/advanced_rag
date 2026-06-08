@@ -17,7 +17,7 @@ public sealed class GroupsController : ApiControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin,DocumentManager")]
+    [Authorize(Roles = "Admin,DocumentEditor,DocumentPublisher")]
     public async Task<IActionResult> ListGroupsAsync(CancellationToken ct)
     {
         IReadOnlyList<GroupRecord> groups = await _users.ListGroupsAsync(ct);
@@ -25,13 +25,17 @@ public sealed class GroupsController : ApiControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,DocumentManager")]
+    [Authorize(Roles = "Admin,DocumentPublisher")]
     public async Task<IActionResult> CreateGroupAsync([FromBody] CreateGroupRequest request, CancellationToken ct)
     {
         try
         {
             GroupRecord group = await _users.CreateGroupAsync(
-                new CreateGroupCommand(request.Name, ActorUserId()),
+                new CreateGroupCommand(
+                    request.Name,
+                    ActorUserId(),
+                    request.OwnerOrganizationalUnitId,
+                    request.PublishingPolicy ?? "OwnerScope"),
                 ct);
             return Created($"/api/groups/{group.Id}", GroupResponse.FromGroup(group));
         }
@@ -42,7 +46,7 @@ public sealed class GroupsController : ApiControllerBase
     }
 
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin,DocumentManager")]
+    [Authorize(Roles = "Admin,DocumentPublisher")]
     public async Task<IActionResult> UpdateGroupAsync(
         Guid id,
         [FromBody] UpdateGroupRequest request,
@@ -51,7 +55,12 @@ public sealed class GroupsController : ApiControllerBase
         try
         {
             GroupRecord group = await _users.UpdateGroupAsync(
-                new UpdateGroupCommand(id, request.Name, ActorUserId()),
+                new UpdateGroupCommand(
+                    id,
+                    request.Name,
+                    ActorUserId(),
+                    request.OwnerOrganizationalUnitId,
+                    request.PublishingPolicy ?? "OwnerScope"),
                 ct);
             return Ok(GroupResponse.FromGroup(group));
         }

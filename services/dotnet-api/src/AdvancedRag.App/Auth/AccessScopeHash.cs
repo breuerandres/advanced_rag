@@ -35,4 +35,26 @@ public static class AccessScopeHash
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(serialized));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
+
+    public static string ComputeV2(
+        string role,
+        bool isGlobalAdmin,
+        Guid organizationalUnitId,
+        IEnumerable<Guid> groupIds,
+        long accessScopeVersion)
+    {
+        var canonical = new SortedDictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["accessScopeVersion"] = accessScopeVersion,
+            ["groups"] = groupIds.Select(id => id.ToString()).Order(StringComparer.Ordinal).ToArray(),
+            ["isGlobalAdmin"] = isGlobalAdmin,
+            ["organizationalUnitId"] = organizationalUnitId.ToString(),
+            ["role"] = role,
+            ["v"] = 2,
+        };
+
+        var serialized = JsonSerializer.Serialize(canonical, JsonOptions);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(serialized));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
 }

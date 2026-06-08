@@ -11,15 +11,19 @@ public sealed class AppDbContextMappingTests
         [typeof(User)] = "users",
         [typeof(Role)] = "roles",
         [typeof(UserRole)] = "user_roles",
+        [typeof(OrganizationalUnit)] = "organizational_units",
+        [typeof(OrganizationalUnitClosure)] = "organizational_unit_closure",
         [typeof(Group)] = "groups",
         [typeof(UserGroup)] = "user_groups",
         [typeof(Document)] = "documents",
         [typeof(DocumentVersion)] = "document_versions",
         [typeof(DocumentPermission)] = "document_permissions",
+        [typeof(DocumentPermissionGroup)] = "document_permission_groups",
         [typeof(DocumentTag)] = "document_tags",
         [typeof(DocumentImage)] = "document_images",
         [typeof(ReviewComment)] = "review_comments",
         [typeof(ImportMetadata)] = "import_metadata",
+        [typeof(UserGroupPublishGrant)] = "user_group_publish_grants",
         [typeof(UserAiBudgetLimit)] = "user_ai_budget_limits",
         [typeof(AuditEvent)] = "audit_events",
         [typeof(ViewerSessionHandoffCode)] = "viewer_session_handoff_codes",
@@ -56,6 +60,53 @@ public sealed class AppDbContextMappingTests
             .Select(entity => entity.GetSchema())
             .Should()
             .OnlyContain(schema => schema == "app");
+    }
+
+    [Fact]
+    public void Model_MapsOrganizationalUnitsClosureAndAccessRules()
+    {
+        using var db = CreateDbContext();
+
+        db.Model.FindEntityType(typeof(OrganizationalUnit))!
+            .FindProperty(nameof(OrganizationalUnit.ParentId))!
+            .GetColumnName()
+            .Should()
+            .Be("parent_id");
+        db.Model.FindEntityType(typeof(OrganizationalUnitClosure))!
+            .FindPrimaryKey()!
+            .Properties.Select(property => property.Name)
+            .Should()
+            .Equal(nameof(OrganizationalUnitClosure.AncestorId), nameof(OrganizationalUnitClosure.DescendantId));
+        db.Model.FindEntityType(typeof(User))!
+            .FindProperty(nameof(User.OrganizationalUnitId))!
+            .GetColumnName()
+            .Should()
+            .Be("organizational_unit_id");
+        db.Model.FindEntityType(typeof(User))!
+            .FindProperty(nameof(User.AccessScopeVersion))!
+            .GetColumnName()
+            .Should()
+            .Be("access_scope_version");
+        db.Model.FindEntityType(typeof(Group))!
+            .FindProperty(nameof(Group.PublishingPolicy))!
+            .GetColumnName()
+            .Should()
+            .Be("publishing_policy");
+        db.Model.FindEntityType(typeof(DocumentPermission))!
+            .FindProperty(nameof(DocumentPermission.OrganizationalUnitId))!
+            .GetColumnName()
+            .Should()
+            .Be("organizational_unit_id");
+        db.Model.FindEntityType(typeof(DocumentPermissionGroup))!
+            .FindPrimaryKey()!
+            .Properties.Select(property => property.Name)
+            .Should()
+            .Equal(nameof(DocumentPermissionGroup.DocumentPermissionId), nameof(DocumentPermissionGroup.GroupId));
+        db.Model.FindEntityType(typeof(UserGroupPublishGrant))!
+            .FindPrimaryKey()!
+            .Properties.Select(property => property.Name)
+            .Should()
+            .Equal(nameof(UserGroupPublishGrant.UserId), nameof(UserGroupPublishGrant.GroupId));
     }
 
     private static AppDbContext CreateDbContext()

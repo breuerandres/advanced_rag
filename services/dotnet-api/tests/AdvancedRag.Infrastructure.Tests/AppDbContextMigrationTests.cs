@@ -16,18 +16,22 @@ public sealed class AppDbContextMigrationTests
         "dimensions",
         "document_dimension_values",
         "document_images",
+        "document_permission_groups",
         "groups",
         "import_metadata",
         "document_permissions",
         "document_tags",
         "document_versions",
         "documents",
+        "organizational_unit_closure",
+        "organizational_units",
         "review_comments",
         "roles",
         "session_handoff_codes",
         "tenant_config",
         "user_ai_budget_limits",
         "user_groups",
+        "user_group_publish_grants",
         "user_roles",
         "users",
         "viewer_session_handoff_codes",
@@ -107,6 +111,22 @@ public sealed class AppDbContextMigrationTests
                             has_table_privilege('rag_owner', 'app.document_permissions', 'SELECT')
                         ),
                         (
+                            'document_permission_groups',
+                            has_table_privilege('rag_owner', 'app.document_permission_groups', 'SELECT')
+                        ),
+                        (
+                            'organizational_unit_closure',
+                            has_table_privilege('rag_owner', 'app.organizational_unit_closure', 'SELECT')
+                        ),
+                        (
+                            'organizational_units',
+                            has_table_privilege('rag_owner', 'app.organizational_units', 'SELECT')
+                        ),
+                        (
+                            'groups',
+                            has_table_privilege('rag_owner', 'app.groups', 'SELECT')
+                        ),
+                        (
                             'user_ai_budget_limits',
                             has_table_privilege('rag_owner', 'app.user_ai_budget_limits', 'SELECT')
                         )
@@ -125,7 +145,11 @@ public sealed class AppDbContextMigrationTests
                 "dimension_values",
                 "dimensions",
                 "document_dimension_values",
+                "document_permission_groups",
                 "document_permissions",
+                "groups",
+                "organizational_unit_closure",
+                "organizational_units",
                 "user_ai_budget_limits",
             ]);
     }
@@ -209,6 +233,9 @@ public sealed class AppDbContextMigrationTests
                     users.display_name as "DisplayName",
                     users.password_hash as "PasswordHash",
                     users.is_active as "IsActive",
+                    users.organizational_unit_id as "OrganizationalUnitId",
+                    users.access_scope_version as "AccessScopeVersion",
+                    units.name as "OrganizationalUnitName",
                     roles.name as "RoleName",
                     budget.monthly_budget_usd as "MonthlyBudgetUsd",
                     budget.is_disabled as "BudgetIsDisabled"
@@ -216,6 +243,7 @@ public sealed class AppDbContextMigrationTests
                 join app.user_roles user_roles on user_roles.user_id = users."Id"
                 join app.roles roles on roles."Id" = user_roles.role_id
                 join app.user_ai_budget_limits budget on budget.user_id = users."Id"
+                join app.organizational_units units on units."Id" = users.organizational_unit_id
                 where users.email = 'admin@admin.com'
                 """)
             .SingleAsync();
@@ -223,10 +251,31 @@ public sealed class AppDbContextMigrationTests
         admin.Email.Should().Be("admin@admin.com");
         admin.DisplayName.Should().Be("Default Admin");
         admin.IsActive.Should().BeTrue();
+        admin.OrganizationalUnitId.Should().NotBeEmpty();
+        admin.AccessScopeVersion.Should().Be(1);
+        admin.OrganizationalUnitName.Should().Be("Empresa");
         admin.RoleName.Should().Be("Admin");
         admin.MonthlyBudgetUsd.Should().Be(5.00m);
         admin.BudgetIsDisabled.Should().BeFalse();
         admin.PasswordHash.Should().StartWith("pbkdf2-sha256$210000$");
+
+        (await db.Roles.AsNoTracking().Select(role => role.Name).OrderBy(name => name).ToListAsync())
+            .Should()
+            .Equal("Admin", "DocumentEditor", "DocumentPublisher", "Viewer");
+
+        int rootClosureRows = await db.Database
+            .SqlQueryRaw<int>(
+                """
+                select count(*)::int as "Value"
+                from app.organizational_unit_closure closure
+                join app.organizational_units units on units."Id" = closure.ancestor_id
+                where units.name = 'Empresa'
+                  and closure.ancestor_id = closure.descendant_id
+                  and closure.depth = 0
+                """)
+            .SingleAsync();
+
+        rootClosureRows.Should().Be(1);
     }
 
     [Fact]
@@ -362,6 +411,9 @@ public sealed class AppDbContextMigrationTests
         string DisplayName,
         string PasswordHash,
         bool IsActive,
+        Guid OrganizationalUnitId,
+        long AccessScopeVersion,
+        string OrganizationalUnitName,
         string RoleName,
         decimal MonthlyBudgetUsd,
         bool BudgetIsDisabled);

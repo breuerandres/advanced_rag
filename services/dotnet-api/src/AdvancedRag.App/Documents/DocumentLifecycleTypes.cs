@@ -29,7 +29,7 @@ public sealed record CreateDocumentCommand(
     string DocumentType,
     string Audience,
     string ContentHtml,
-    IReadOnlyList<Guid> AllowedGroupIds,
+    IReadOnlyList<DocumentAccessRuleDraft> AccessRules,
     Guid ActorUserId,
     string RequestId);
 
@@ -39,7 +39,7 @@ public sealed record UpdateDraftCommand(
     string DocumentType,
     string Audience,
     string ContentHtml,
-    IReadOnlyList<Guid> AllowedGroupIds,
+    IReadOnlyList<DocumentAccessRuleDraft> AccessRules,
     Guid ActorUserId,
     string RequestId);
 
@@ -60,6 +60,15 @@ public sealed record ArchiveDocumentCommand(
     string RequestId);
 
 public sealed record RestoreDocumentCommand(Guid DocumentId, Guid ActorUserId, string RequestId);
+
+public sealed record DocumentAccessRuleDraft(
+    Guid? OrganizationalUnitId,
+    IReadOnlyList<Guid> GroupIds);
+
+public sealed record DocumentAccessRuleRecord(
+    Guid Id,
+    Guid? OrganizationalUnitId,
+    IReadOnlyList<Guid> GroupIds);
 
 public sealed record DocumentVersionRecord(
     Guid Id,
@@ -84,11 +93,17 @@ public sealed record DocumentAggregate(
     DocumentState State,
     DocumentVersionRecord? CurrentDraftVersion,
     DocumentVersionRecord? CurrentPublishedVersion,
-    IReadOnlyList<Guid> AllowedGroupIds,
+    IReadOnlyList<DocumentAccessRuleRecord> AccessRules,
     Guid CreatedByUserId,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
+    public IReadOnlyList<Guid> AllowedGroupIds => AccessRules
+        .SelectMany(rule => rule.GroupIds)
+        .Distinct()
+        .Order()
+        .ToArray();
+
     public static DocumentAggregate NewDraft(
         Guid id,
         Guid versionId,
@@ -96,7 +111,7 @@ public sealed record DocumentAggregate(
         string documentType,
         string audience,
         string contentHtml,
-        IReadOnlyList<Guid> allowedGroupIds,
+        IReadOnlyList<DocumentAccessRuleRecord> accessRules,
         Guid actorUserId)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -121,7 +136,7 @@ public sealed record DocumentAggregate(
                 IndexingStatus.None,
                 null),
             null,
-            allowedGroupIds,
+            accessRules,
             actorUserId,
             now,
             now);
@@ -134,12 +149,18 @@ public sealed record DocumentSummary(
     DocumentState State,
     string DocumentType,
     string Audience,
-    IReadOnlyList<Guid> AllowedGroupIds,
+    IReadOnlyList<DocumentAccessRuleRecord> AccessRules,
     int? DraftVersionNumber,
     int? PublishedVersionNumber,
     IndexingStatus IndexingStatus,
     DateTimeOffset UpdatedAt)
 {
+    public IReadOnlyList<Guid> AllowedGroupIds => AccessRules
+        .SelectMany(rule => rule.GroupIds)
+        .Distinct()
+        .Order()
+        .ToArray();
+
     public static DocumentSummary FromAggregate(DocumentAggregate document)
     {
         return new DocumentSummary(
@@ -152,7 +173,7 @@ public sealed record DocumentSummary(
             document.CurrentDraftVersion?.Audience
                 ?? document.CurrentPublishedVersion?.Audience
                 ?? string.Empty,
-            document.AllowedGroupIds,
+            document.AccessRules,
             document.CurrentDraftVersion?.VersionNumber,
             document.CurrentPublishedVersion?.VersionNumber,
             document.CurrentDraftVersion?.IndexingStatus ?? IndexingStatus.None,

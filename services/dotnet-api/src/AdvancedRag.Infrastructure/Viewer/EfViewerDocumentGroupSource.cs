@@ -19,7 +19,7 @@ public sealed class EfViewerDocumentGroupSource : IViewerDocumentGroupSource
         return await _db.Groups
             .AsNoTracking()
             .OrderBy(group => group.Name)
-            .Select(group => new GroupRecord(group.Id, group.Name))
+            .Select(group => new GroupRecord(group.Id, group.Name, null, group.PublishingPolicy))
             .ToListAsync(ct);
     }
 }

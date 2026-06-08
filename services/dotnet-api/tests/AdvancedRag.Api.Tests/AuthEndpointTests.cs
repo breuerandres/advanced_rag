@@ -123,8 +123,11 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
         body.Should().NotBeNull();
         body!.UserId.Should().Be(AuthWebApplicationFactory.TestUserId);
         body.Role.Should().Be("Viewer");
+        body.IsGlobalAdmin.Should().BeFalse();
+        body.OrganizationalUnitId.Should().Be(AuthWebApplicationFactory.TestOrganizationalUnitId);
         body.Groups.Should().BeEquivalentTo([AuthWebApplicationFactory.TestGroupId]);
-        body.AccessScopeHash.Should().NotBeNullOrWhiteSpace();
+        body.AccessScopeVersion.Should().Be(7);
+        body.AccessScopeHash.Should().Be("aad571e7584011968b0971a4f7a39785771a4b60940101dd073ff97051bf7100");
         body.Corpus.Should().Be("published");
     }
 
@@ -307,7 +310,10 @@ public sealed class AuthEndpointTests : IClassFixture<AuthWebApplicationFactory>
     private sealed record InternalSessionValidationResponse(
         Guid UserId,
         string Role,
+        bool IsGlobalAdmin,
+        Guid OrganizationalUnitId,
         IReadOnlyList<Guid> Groups,
+        long AccessScopeVersion,
         string AccessScopeHash,
         string Corpus);
 }
@@ -317,6 +323,7 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>, 
     public static readonly Guid TestUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     public static readonly Guid TestRoleId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public static readonly Guid TestGroupId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    public static readonly Guid TestOrganizationalUnitId = Guid.Parse("01000000-0000-0000-0000-000000000001");
     public const string InternalServiceToken = "test-internal-service-token";
     public const string TestUserEmail = "viewer@example.com";
     private const string ValidPasswordHash =
@@ -384,6 +391,8 @@ public sealed class AuthWebApplicationFactory : WebApplicationFactory<Program>, 
             DisplayName = "Viewer User",
             PasswordHash = ValidPasswordHash,
             IsActive = true,
+            OrganizationalUnitId = TestOrganizationalUnitId,
+            AccessScopeVersion = 7,
             CreatedAt = DateTimeOffset.UtcNow,
         });
         db.Groups.Add(new Group { Id = TestGroupId, Name = "Operations" });

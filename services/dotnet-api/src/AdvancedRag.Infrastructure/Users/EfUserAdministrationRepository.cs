@@ -27,27 +27,46 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
 
     public async Task<IReadOnlyList<GroupRecord>> ListGroupsAsync(CancellationToken ct)
     {
-        return await _db.Groups
+        var groups = await _db.Groups
             .AsNoTracking()
             .OrderBy(group => group.Name)
-            .Select(group => new GroupRecord(group.Id, group.Name))
             .ToListAsync(ct);
+
+        return await BuildGroupsAsync(groups, ct);
     }
 
-    public async Task<GroupRecord> CreateGroupAsync(string name, Guid actorUserId, CancellationToken ct)
+    public async Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveOrganizationalUnitsAsync(CancellationToken ct)
+    {
+        return await BuildOrganizationalUnitRecordsAsync(activeOnly: true, ct);
+    }
+
+    public async Task<GroupRecord> CreateGroupAsync(
+        string name,
+        Guid? ownerOrganizationalUnitId,
+        string publishingPolicy,
+        Guid actorUserId,
+        CancellationToken ct)
     {
         var group = new Group
         {
             Id = Guid.NewGuid(),
             Name = name,
+            OwnerOrganizationalUnitId = ownerOrganizationalUnitId,
+            PublishingPolicy = publishingPolicy,
         };
 
         _db.Groups.Add(group);
         await _db.SaveChangesAsync(ct);
-        return new GroupRecord(group.Id, group.Name);
+        return (await BuildGroupsAsync([group], ct)).Single();
     }
 
-    public async Task<GroupRecord?> UpdateGroupAsync(Guid groupId, string name, Guid actorUserId, CancellationToken ct)
+    public async Task<GroupRecord?> UpdateGroupAsync(
+        Guid groupId,
+        string name,
+        Guid? ownerOrganizationalUnitId,
+        string publishingPolicy,
+        Guid actorUserId,
+        CancellationToken ct)
     {
         var group = await _db.Groups.SingleOrDefaultAsync(item => item.Id == groupId, ct);
         if (group is null)
@@ -56,8 +75,10 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
         }
 
         group.Name = name;
+        group.OwnerOrganizationalUnitId = ownerOrganizationalUnitId;
+        group.PublishingPolicy = publishingPolicy;
         await _db.SaveChangesAsync(ct);
-        return new GroupRecord(group.Id, group.Name);
+        return (await BuildGroupsAsync([group], ct)).Single();
     }
 
     public async Task<bool> EmailExistsAsync(string normalizedEmail, CancellationToken ct)
@@ -81,12 +102,21 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
         IReadOnlyList<Guid> groupIds,
         CancellationToken ct)
     {
-        return await _db.Groups
+        var groups = await _db.Groups
             .AsNoTracking()
             .Where(group => groupIds.Contains(group.Id))
             .OrderBy(group => group.Name)
-            .Select(group => new GroupRecord(group.Id, group.Name))
             .ToListAsync(ct);
+
+        return await BuildGroupsAsync(groups, ct);
+    }
+
+    public async Task<OrganizationalUnitRecord?> FindOrganizationalUnitAsync(
+        Guid organizationalUnitId,
+        CancellationToken ct)
+    {
+        IReadOnlyList<OrganizationalUnitRecord> records = await BuildOrganizationalUnitRecordsAsync(activeOnly: false, ct);
+        return records.SingleOrDefault(item => item.Id == organizationalUnitId);
     }
 
     public async Task<UserManagementUser> CreateUserAsync(
@@ -103,6 +133,7 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
             DisplayName = user.DisplayName,
             PasswordHash = user.PasswordHash,
             IsActive = user.IsActive,
+            OrganizationalUnitId = user.OrganizationalUnitId,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
@@ -139,13 +170,15 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
         Guid actorUserId,
         CancellationToken ct)
     {
-        if (!await _db.Users.AnyAsync(user => user.Id == userId, ct))
+        var user = await _db.Users.SingleOrDefaultAsync(item => item.Id == userId, ct);
+        if (user is null)
         {
             return null;
         }
 
         await _db.UserRoles.Where(userRole => userRole.UserId == userId).ExecuteDeleteAsync(ct);
         await AddRoleLinksAsync(userId, roleNames, ct);
+        IncrementAccessScopeVersion(user);
         await _db.SaveChangesAsync(ct);
         return await FindUserAsync(userId, ct);
     }
@@ -156,13 +189,15 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
         Guid actorUserId,
         CancellationToken ct)
     {
-        if (!await _db.Users.AnyAsync(user => user.Id == userId, ct))
+        var user = await _db.Users.SingleOrDefaultAsync(item => item.Id == userId, ct);
+        if (user is null)
         {
             return null;
         }
 
         await _db.UserGroups.Where(userGroup => userGroup.UserId == userId).ExecuteDeleteAsync(ct);
         AddGroupLinks(userId, groupIds);
+        IncrementAccessScopeVersion(user);
         await _db.SaveChangesAsync(ct);
         return await FindUserAsync(userId, ct);
     }
@@ -180,6 +215,7 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
         }
 
         user.IsActive = isActive;
+        IncrementAccessScopeVersion(user);
         await _db.SaveChangesAsync(ct);
         return await FindUserAsync(userId, ct);
     }
@@ -242,8 +278,16 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
                 join groupEntity in _db.Groups.AsNoTracking() on userGroup.GroupId equals groupEntity.Id
                 where userIds.Contains(userGroup.UserId)
                 orderby groupEntity.Name
-                select new { userGroup.UserId, Group = new GroupRecord(groupEntity.Id, groupEntity.Name) })
+                select new { userGroup.UserId, Group = groupEntity })
             .ToListAsync(ct);
+        IReadOnlyList<GroupRecord> allGroups = await BuildGroupsAsync(
+            groupRows.Select(row => row.Group).DistinctBy(group => group.Id).ToArray(),
+            ct);
+        Dictionary<Guid, GroupRecord> groupsById = allGroups.ToDictionary(group => group.Id);
+        IReadOnlyList<OrganizationalUnitRecord> organizationalUnits = await BuildOrganizationalUnitRecordsAsync(
+            activeOnly: false,
+            ct);
+        Dictionary<Guid, OrganizationalUnitRecord> unitsById = organizationalUnits.ToDictionary(unit => unit.Id);
         var budgets = await _db.UserAiBudgetLimits
             .AsNoTracking()
             .Where(budget => userIds.Contains(budget.UserId))
@@ -260,7 +304,7 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
                     .ToArray();
                 var groups = groupRows
                     .Where(row => row.UserId == user.Id)
-                    .Select(row => row.Group)
+                    .Select(row => groupsById[row.Group.Id])
                     .Distinct()
                     .OrderBy(group => group.Name, StringComparer.Ordinal)
                     .ToArray();
@@ -276,7 +320,13 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
                     user.IsActive,
                     roles,
                     groups,
-                    AccessScopeHash.Compute(PrimaryRole(roles), groups.Select(group => group.Id)),
+                    unitsById.GetValueOrDefault(user.OrganizationalUnitId),
+                    AccessScopeHash.ComputeV2(
+                        PrimaryRole(roles),
+                        roles.Contains("Admin", StringComparer.Ordinal),
+                        user.OrganizationalUnitId,
+                        groups.Select(group => group.Id),
+                        user.AccessScopeVersion),
                     monthlyBudget,
                     0m,
                     budget?.IsDisabled ?? false);
@@ -306,11 +356,74 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
             return "Admin";
         }
 
-        if (roles.Contains("DocumentManager", StringComparer.Ordinal))
+        if (roles.Contains("DocumentPublisher", StringComparer.Ordinal))
         {
-            return "DocumentManager";
+            return "DocumentPublisher";
         }
 
-        return roles.Contains("Viewer", StringComparer.Ordinal) ? "Viewer" : roles.FirstOrDefault() ?? "Viewer";
+        if (roles.Contains("DocumentEditor", StringComparer.Ordinal))
+        {
+            return "DocumentEditor";
+        }
+
+        return "Viewer";
+    }
+
+    private static void IncrementAccessScopeVersion(User user)
+    {
+        checked
+        {
+            user.AccessScopeVersion += 1;
+        }
+    }
+
+    private async Task<IReadOnlyList<GroupRecord>> BuildGroupsAsync(
+        IReadOnlyList<Group> groups,
+        CancellationToken ct)
+    {
+        if (groups.Count == 0)
+        {
+            return [];
+        }
+
+        IReadOnlyList<OrganizationalUnitRecord> units = await BuildOrganizationalUnitRecordsAsync(activeOnly: false, ct);
+        Dictionary<Guid, OrganizationalUnitRecord> unitsById = units.ToDictionary(unit => unit.Id);
+
+        return groups
+            .Select(group => new GroupRecord(
+                group.Id,
+                group.Name,
+                group.OwnerOrganizationalUnitId is { } ownerId ? unitsById.GetValueOrDefault(ownerId) : null,
+                group.PublishingPolicy))
+            .ToArray();
+    }
+
+    private async Task<IReadOnlyList<OrganizationalUnitRecord>> BuildOrganizationalUnitRecordsAsync(
+        bool activeOnly,
+        CancellationToken ct)
+    {
+        var units = await _db.OrganizationalUnits
+            .AsNoTracking()
+            .Where(unit => !activeOnly || unit.IsActive)
+            .OrderBy(unit => unit.Name)
+            .ToListAsync(ct);
+        Guid[] unitIds = units.Select(unit => unit.Id).ToArray();
+        var depths = await _db.OrganizationalUnitClosure
+            .AsNoTracking()
+            .Where(closure => unitIds.Contains(closure.DescendantId))
+            .GroupBy(closure => closure.DescendantId)
+            .Select(group => new { Id = group.Key, Depth = group.Max(closure => closure.Depth) })
+            .ToDictionaryAsync(item => item.Id, item => item.Depth, ct);
+
+        return units
+            .Select(unit => new OrganizationalUnitRecord(
+                unit.Id,
+                unit.Name,
+                unit.ParentId,
+                depths.GetValueOrDefault(unit.Id),
+                unit.IsActive))
+            .OrderBy(unit => unit.Depth)
+            .ThenBy(unit => unit.Name, StringComparer.Ordinal)
+            .ToArray();
     }
 }

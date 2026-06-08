@@ -8,20 +8,23 @@ from advanced_rag.core.errors import ApiException
 
 
 @pytest.mark.asyncio
-async def test_dotnet_session_validator_caches_claims_by_session_cookie_hash() -> None:
+async def test_dotnet_session_validator_fetches_access_claims_every_request() -> None:
     calls: list[httpx.Request] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request)
         assert request.headers["X-Internal-Service-Token"] == "internal-token"
         assert request.headers["Cookie"] == "__Host-session=session-cookie-value"
-        assert request.headers["X-Request-ID"] == "req-1"
+        assert request.headers["X-Request-ID"] in {"req-1", "req-2"}
         return httpx.Response(
             200,
             json={
                 "userId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
                 "role": "Viewer",
+                "isGlobalAdmin": False,
+                "organizationalUnitId": "01000000-0000-0000-0000-000000000003",
                 "groups": ["bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"],
+                "accessScopeVersion": len(calls),
                 "accessScopeHash": "scope-allowed",
                 "corpus": "published",
             },
@@ -40,8 +43,10 @@ async def test_dotnet_session_validator_caches_claims_by_session_cookie_hash() -
     second = await validator.validate("session-cookie-value", request_id="req-2")
 
     assert first.user_id == "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-    assert second == first
-    assert len(calls) == 1
+    assert first.organizational_unit_id == "01000000-0000-0000-0000-000000000003"
+    assert first.access_scope_version == 1
+    assert second.access_scope_version == 2
+    assert len(calls) == 2
 
 
 @pytest.mark.asyncio

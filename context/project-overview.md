@@ -17,7 +17,7 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 
 1. An `Admin` configures users, roles, groups/departments, access attributes, and AI budget limits.
 2. A `DocumentManager` creates an document manually or imports a PDF/DOCX to prefill the editor with safe draft HTML where possible, then edits normalized HTML and metadata, manages groups and user group assignments, and sends the draft to review.
-3. An `Admin` publishes from `In Review`; publication is blocked until FastAPI indexes the document successfully.
+3. An `Admin` publishes from `In Review`; publication is blocked until FastAPI indexes the document successfully. In the planned hierarchical access refactor, non-admin publication is supported through scoped `DocumentPublisher` permission within the user's organizational-unit management scope.
 4. A `Viewer` asks questions in `chat.client.com`; FastAPI retrieves only published content matching the viewer's effective access scope.
 5. The viewer opens cited documents through session-authenticated document locators with short-lived one-time handoff when crossing into `docs.client.com`.
 6. The viewer can submit thumbs up/down feedback with an optional comment for each chat answer.
@@ -31,6 +31,7 @@ Advanced RAG Document Platform is a single-tenant corporate document management 
 - Document creation, import, metadata editing, review transitions, publication, archive, restore, and audit.
 - Document images uploaded from the editor are stored in private S3-compatible object storage and referenced through authorized app-controlled URLs.
 - Document access is assigned by groups/departments and document attributes in the MVP; per-user document exceptions are handled by creating dedicated groups, not by direct user ACLs.
+- Planned hierarchical access refactor: `Admin` remains globally unrestricted, while non-admin document management is split into scoped `DocumentEditor` and `DocumentPublisher` permissions tied to the user's organizational-unit management scope. Groups may narrow or extend reading audiences, but they do not grant publication authority by themselves. Each transverse group has a global or organizational-unit ownership scope; non-admin publishers may use only groups owned inside their management scope or groups explicitly granted for publishing use.
 - Assisted PDF/DOCX import that returns safe draft HTML where possible while leaving final formatting and attributes under user control. DOCX imports may preserve common semantic structure; PDF imports remain conservative and do not promise faithful visual reconstruction.
 - Simple formal versioning where every successful publication creates an immutable published version.
 - Pre-publication indexing through FastAPI before content becomes public.

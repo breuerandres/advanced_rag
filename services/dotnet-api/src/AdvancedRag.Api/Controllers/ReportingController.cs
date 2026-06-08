@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace AdvancedRag.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin,DocumentManager")]
+[Authorize(Roles = "Admin,DocumentEditor,DocumentPublisher")]
 [Route("api/reporting")]
 public sealed class ReportingController : ApiControllerBase
 {

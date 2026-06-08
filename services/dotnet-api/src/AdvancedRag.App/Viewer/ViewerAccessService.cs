@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using AdvancedRag.App.Auth;
+using AdvancedRag.App.Documents;
 
 namespace AdvancedRag.App.Viewer;
 
@@ -13,17 +15,23 @@ public sealed class ViewerAccessService : IViewerAccessService
     private readonly IViewerSessionHandoffRepository _handoffs;
     private readonly string _docsBaseUrl;
     private readonly TimeProvider _timeProvider;
+    private readonly IEffectiveAccessScopeRepository? _accessScopes;
+    private readonly IDocumentAccessPolicy? _accessPolicy;
 
     public ViewerAccessService(
         IViewerAccessRepository repository,
         IViewerSessionHandoffRepository handoffs,
         string docsBaseUrl = "https://docs.client.com",
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IEffectiveAccessScopeRepository? accessScopes = null,
+        IDocumentAccessPolicy? accessPolicy = null)
     {
         _repository = repository;
         _handoffs = handoffs;
         _docsBaseUrl = docsBaseUrl.TrimEnd('/');
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _accessScopes = accessScopes;
+        _accessPolicy = accessPolicy;
     }
 
     public async Task<ViewerLinkResult> CreateLinkAsync(CreateViewerLinkCommand command, CancellationToken ct)
@@ -31,7 +39,7 @@ public sealed class ViewerAccessService : IViewerAccessService
         string purpose = NormalizePurpose(command.Purpose);
         ViewerDocumentAccess document = await RequireDocumentAsync(command.DocumentId, ct);
         IReadOnlyList<string> allowedStatuses = AllowedStatusesFor(purpose, command.Roles);
-        RequireDocumentAllowed(document, allowedStatuses);
+        await RequireDocumentAllowedAsync(command.UserId, command.Roles, document, allowedStatuses, ct);
 
         DateTimeOffset now = _timeProvider.GetUtcNow();
         DateTimeOffset expiresAt = now.Add(HandoffTtl);
@@ -84,7 +92,7 @@ public sealed class ViewerAccessService : IViewerAccessService
 
         IReadOnlyList<string> allowedStatuses = ParseAllowedStateScope(record.AllowedStateScope);
         ViewerDocumentAccess document = await RequireDocumentAsync(command.DocumentId, ct);
-        RequireDocumentAllowed(document, allowedStatuses);
+        await RequireDocumentAllowedAsync(record.UserId, [], document, allowedStatuses, ct);
 
         await _handoffs.MarkConsumedAsync(record.Id, now, ct);
         return new ViewerSessionHandoffResult(record.UserId, allowedStatuses, record.ExpiresAt);
@@ -94,7 +102,7 @@ public sealed class ViewerAccessService : IViewerAccessService
     {
         ViewerDocumentAccess document = await RequireDocumentAsync(command.DocumentId, ct);
         IReadOnlyList<string> allowedStatuses = AllowedStatusesForSession(command.Roles);
-        RequireDocumentAllowed(document, allowedStatuses);
+        await RequireDocumentAllowedAsync(command.UserId, command.Roles, document, allowedStatuses, ct);
         ViewerDocumentVersion version = SelectVersion(document, allowedStatuses);
 
         return new ViewerDocumentResult(
@@ -137,7 +145,8 @@ public sealed class ViewerAccessService : IViewerAccessService
         }
 
         if (roles.Contains("Admin", StringComparer.Ordinal)
-            || roles.Contains("DocumentManager", StringComparer.Ordinal))
+            || roles.Contains("DocumentPublisher", StringComparer.Ordinal)
+            || roles.Contains("DocumentEditor", StringComparer.Ordinal))
         {
             return ManagementAllowedStatuses;
         }
@@ -145,9 +154,12 @@ public sealed class ViewerAccessService : IViewerAccessService
         throw new ViewerAccessException("AUTH_FORBIDDEN", 403, "Viewer link is not allowed.");
     }
 
-    private static void RequireDocumentAllowed(
+    private async Task RequireDocumentAllowedAsync(
+        Guid userId,
+        IReadOnlyList<string> roles,
         ViewerDocumentAccess document,
-        IReadOnlyList<string> allowedStatuses)
+        IReadOnlyList<string> allowedStatuses,
+        CancellationToken ct)
     {
         if (!allowedStatuses.Contains(document.State, StringComparer.Ordinal))
         {
@@ -155,6 +167,19 @@ public sealed class ViewerAccessService : IViewerAccessService
         }
 
         _ = SelectVersion(document, allowedStatuses);
+        if (_accessPolicy is null)
+        {
+            return;
+        }
+
+        EffectiveAccessScope scope = await ResolveScopeAsync(userId, roles, ct);
+        bool canRead = document.State == "Published"
+            ? await _accessPolicy.CanReadPublishedDocumentAsync(scope, document.AccessRules, ct)
+            : await _accessPolicy.CanManageDraftAsync(scope, document.AccessRules, ct);
+        if (!canRead)
+        {
+            throw new ViewerAccessException("AUTH_FORBIDDEN", 403, "Viewer access is not allowed.");
+        }
     }
 
     private static ViewerDocumentVersion SelectVersion(
@@ -181,9 +206,38 @@ public sealed class ViewerAccessService : IViewerAccessService
     private static IReadOnlyList<string> AllowedStatusesForSession(IReadOnlyList<string> roles)
     {
         return roles.Contains("Admin", StringComparer.Ordinal)
-            || roles.Contains("DocumentManager", StringComparer.Ordinal)
+            || roles.Contains("DocumentPublisher", StringComparer.Ordinal)
+            || roles.Contains("DocumentEditor", StringComparer.Ordinal)
                 ? ManagementAllowedStatuses
                 : ChatAllowedStatuses;
+    }
+
+    private async Task<EffectiveAccessScope> ResolveScopeAsync(
+        Guid userId,
+        IReadOnlyList<string> roles,
+        CancellationToken ct)
+    {
+        if (_accessScopes is not null)
+        {
+            return await _accessScopes.FindForActiveUserAsync(userId, ct)
+                ?? throw new ViewerAccessException("AUTH_FORBIDDEN", 403, "Viewer access is not allowed.");
+        }
+
+        string primaryRole = roles.Contains("Admin", StringComparer.Ordinal)
+            ? "Admin"
+            : roles.Contains("DocumentPublisher", StringComparer.Ordinal)
+                ? "DocumentPublisher"
+                : roles.Contains("DocumentEditor", StringComparer.Ordinal)
+                    ? "DocumentEditor"
+                    : "Viewer";
+        return new EffectiveAccessScope(
+            userId,
+            primaryRole,
+            primaryRole.Equals("Admin", StringComparison.Ordinal),
+            DocumentAccessPolicy.RootOrganizationalUnitId,
+            [],
+            1,
+            "published");
     }
 
     private static string GenerateHandoffCode()

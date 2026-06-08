@@ -5,4 +5,5 @@ public sealed record CreateUserRequest(
     string DisplayName,
     string Password,
     IReadOnlyList<string>? Roles,
-    IReadOnlyList<Guid>? GroupIds);
+    IReadOnlyList<Guid>? GroupIds,
+    Guid? OrganizationalUnitId);

@@ -9,7 +9,7 @@ namespace AdvancedRag.Infrastructure.Tests;
 public sealed class EfDocumentRepositoryTests
 {
     [Fact]
-    public async Task FindAsync_LoadsAllowedGroupIdsFromPostgres()
+    public async Task FindAsync_LoadsAccessRulesFromPostgres()
     {
         await using var postgres = new PostgreSqlBuilder("pgvector/pgvector:pg16")
             .WithDatabase("advanced_rag_document_repository_test")
@@ -29,6 +29,7 @@ public sealed class EfDocumentRepositoryTests
         var groupId = Guid.Parse("22222222-2222-2222-2222-222222222222");
         var documentId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var versionId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var permissionId = Guid.Parse("55555555-5555-5555-5555-555555555555");
 
         await using (var db = new AppDbContext(options))
         {
@@ -67,10 +68,15 @@ public sealed class EfDocumentRepositoryTests
             });
             db.DocumentPermissions.Add(new DocumentPermission
             {
-                Id = Guid.NewGuid(),
+                Id = permissionId,
                 DocumentId = documentId,
-                GroupId = groupId,
+                OrganizationalUnitId = User.RootOrganizationalUnitId,
                 CreatedAt = DateTimeOffset.UtcNow,
+            });
+            db.DocumentPermissionGroups.Add(new DocumentPermissionGroup
+            {
+                DocumentPermissionId = permissionId,
+                GroupId = groupId,
             });
             await db.SaveChangesAsync();
         }
@@ -82,6 +88,9 @@ public sealed class EfDocumentRepositoryTests
             var document = await repository.FindAsync(documentId, CancellationToken.None);
 
             document.Should().NotBeNull();
+            document!.AccessRules.Should().ContainSingle();
+            document.AccessRules.Single().OrganizationalUnitId.Should().Be(User.RootOrganizationalUnitId);
+            document.AccessRules.Single().GroupIds.Should().Equal(groupId);
             document!.AllowedGroupIds.Should().Equal(groupId);
         }
     }

@@ -13,11 +13,19 @@ public sealed class ViewerDocumentCatalogService : IViewerDocumentCatalogService
 {
     private readonly IDocumentRepository _documents;
     private readonly IViewerDocumentGroupSource _groups;
+    private readonly IEffectiveAccessScopeRepository? _accessScopes;
+    private readonly IDocumentAccessPolicy? _accessPolicy;
 
-    public ViewerDocumentCatalogService(IDocumentRepository documents, IViewerDocumentGroupSource groups)
+    public ViewerDocumentCatalogService(
+        IDocumentRepository documents,
+        IViewerDocumentGroupSource groups,
+        IEffectiveAccessScopeRepository? accessScopes = null,
+        IDocumentAccessPolicy? accessPolicy = null)
     {
         _documents = documents;
         _groups = groups;
+        _accessScopes = accessScopes;
+        _accessPolicy = accessPolicy;
     }
 
     public async Task<ViewerDocumentCatalog> ListAsync(AuthenticatedUser user, CancellationToken ct)
@@ -28,10 +36,20 @@ public sealed class ViewerDocumentCatalogService : IViewerDocumentCatalogService
         bool isAdmin = user.Roles.Contains("Admin", StringComparer.Ordinal);
         HashSet<Guid> userGroupIds = user.Groups.Select(group => group.Id).ToHashSet();
 
-        ViewerDocumentCatalogItem[] visibleDocuments = documents
-            .Where(document => isAdmin || IsPublishedForUserGroup(document, userGroupIds))
-            .Select(document => MapDocument(document, groupsById))
-            .ToArray();
+        var visibleDocuments = new List<ViewerDocumentCatalogItem>();
+        EffectiveAccessScope? scope = _accessScopes is null
+            ? null
+            : await _accessScopes.FindForActiveUserAsync(user.Id, ct);
+        foreach (DocumentSummary document in documents)
+        {
+            bool isVisible = _accessPolicy is null || scope is null
+                ? isAdmin || IsPublishedForUserGroup(document, userGroupIds)
+                : await IsVisibleAsync(scope, document, ct);
+            if (isVisible)
+            {
+                visibleDocuments.Add(MapDocument(document, groupsById));
+            }
+        }
 
         GroupRecord[] visibleGroups = visibleDocuments
             .SelectMany(document => document.AllowedGroups)
@@ -40,6 +58,16 @@ public sealed class ViewerDocumentCatalogService : IViewerDocumentCatalogService
             .ToArray();
 
         return new ViewerDocumentCatalog(visibleDocuments, visibleGroups);
+    }
+
+    private async Task<bool> IsVisibleAsync(EffectiveAccessScope scope, DocumentSummary document, CancellationToken ct)
+    {
+        if (document.State == DocumentState.Published)
+        {
+            return await _accessPolicy!.CanReadPublishedDocumentAsync(scope, document.AccessRules, ct);
+        }
+
+        return await _accessPolicy!.CanManageDraftAsync(scope, document.AccessRules, ct);
     }
 
     private static bool IsPublishedForUserGroup(DocumentSummary document, HashSet<Guid> userGroupIds)

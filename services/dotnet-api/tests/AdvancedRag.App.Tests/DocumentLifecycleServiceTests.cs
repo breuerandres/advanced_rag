@@ -1,4 +1,5 @@
 using AdvancedRag.App.Documents;
+using AdvancedRag.App.Auth;
 using FluentAssertions;
 
 namespace AdvancedRag.App.Tests;
@@ -9,6 +10,12 @@ public sealed class DocumentLifecycleServiceTests
     private static readonly Guid DocumentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid VersionId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid OperationsGroupId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+    private static readonly Guid EmpresaUnitId = DocumentAccessPolicy.RootOrganizationalUnitId;
+    private static readonly Guid ComunicacionUnitId = Guid.Parse("01000000-0000-0000-0000-000000000002");
+    private static readonly Guid MarketingUnitId = Guid.Parse("01000000-0000-0000-0000-000000000003");
+    private static readonly Guid SistemasUnitId = Guid.Parse("01000000-0000-0000-0000-000000000004");
+    private static readonly Guid ComiteCrisisGroupId = Guid.Parse("02000000-0000-0000-0000-000000000002");
+    private static readonly Guid GerentesGroupId = Guid.Parse("02000000-0000-0000-0000-000000000001");
 
     [Fact]
     public async Task SendToReviewAsync_RejectsDraftMissingRequiredReviewFields()
@@ -146,7 +153,7 @@ public sealed class DocumentLifecycleServiceTests
                 "Policy",
                 "All staff",
                 "<p>Updated content</p>",
-                [OperationsGroupId],
+                GroupRules(OperationsGroupId),
                 ActorId,
                 "request-6"),
             CancellationToken.None);
@@ -172,7 +179,7 @@ public sealed class DocumentLifecycleServiceTests
                 "Policy",
                 "All staff",
                 "<script>alert(1)</script><p>Safe content</p>",
-                [OperationsGroupId],
+                GroupRules(OperationsGroupId),
                 ActorId,
                 "request-sanitize"),
             CancellationToken.None);
@@ -196,7 +203,7 @@ public sealed class DocumentLifecycleServiceTests
                 "Policy",
                 "All staff",
                 contentHtml,
-                [OperationsGroupId],
+                GroupRules(OperationsGroupId),
                 ActorId,
                 "request-invalid-image"),
             CancellationToken.None);
@@ -221,13 +228,79 @@ public sealed class DocumentLifecycleServiceTests
                 "Policy",
                 "All staff",
                 $"<p>Safe content</p><img src=\"/api/document-images/{imageId}/content\" alt=\"diagram\">",
-                [OperationsGroupId],
+                GroupRules(OperationsGroupId),
                 ActorId,
                 "request-valid-image"),
             CancellationToken.None);
 
         document.CurrentDraftVersion!.ContentHtml.Should()
             .Contain($"/api/document-images/{imageId}/content");
+    }
+
+    [Fact]
+    public async Task RequestPublishAsync_PublisherCanUseOwnedGroupButCannotUseGlobalGroupWithoutGrant()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = ValidInReview([
+            Rule(ComunicacionUnitId, ComiteCrisisGroupId),
+        ]);
+        var scopes = new InMemoryEffectiveAccessScopeRepository();
+        scopes.Scopes[ActorId] = Scope("DocumentPublisher", ComunicacionUnitId, [ComiteCrisisGroupId, GerentesGroupId]);
+        var accessData = HierarchyAccessDataSource();
+        accessData.GroupPolicies[ComiteCrisisGroupId] = new DocumentAccessGroupPolicy(
+            ComiteCrisisGroupId,
+            ComunicacionUnitId,
+            "OwnerScope",
+            false);
+        accessData.GroupPolicies[GerentesGroupId] = new DocumentAccessGroupPolicy(
+            GerentesGroupId,
+            null,
+            "ExplicitGrantOnly",
+            false);
+        var service = new DocumentLifecycleService(
+            repository,
+            indexingClient: new RecordingIndexingClient(),
+            accessScopes: scopes,
+            accessPolicy: new DocumentAccessPolicy(accessData));
+
+        DocumentAggregate document = await service.RequestPublishAsync(
+            new RequestPublishCommand(DocumentId, ActorId, ["DocumentPublisher"], "request-owned-group"),
+            CancellationToken.None);
+
+        document.State.Should().Be(DocumentState.Published);
+
+        repository.Documents[DocumentId] = ValidInReview([
+            Rule(ComunicacionUnitId, GerentesGroupId),
+        ]);
+        Func<Task> act = () => service.RequestPublishAsync(
+            new RequestPublishCommand(DocumentId, ActorId, ["DocumentPublisher"], "request-global-group"),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<DocumentLifecycleException>()
+            .Where(error => error.Code == "AUTH_FORBIDDEN");
+    }
+
+    [Fact]
+    public async Task RequestPublishAsync_PublisherCannotPublishOutsideOwnBranch()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = ValidInReview([Rule(SistemasUnitId)]);
+        var scopes = new InMemoryEffectiveAccessScopeRepository();
+        scopes.Scopes[ActorId] = Scope("DocumentPublisher", ComunicacionUnitId, []);
+        var service = new DocumentLifecycleService(
+            repository,
+            indexingClient: new RecordingIndexingClient(),
+            accessScopes: scopes,
+            accessPolicy: new DocumentAccessPolicy(HierarchyAccessDataSource()));
+
+        Func<Task> act = () => service.RequestPublishAsync(
+            new RequestPublishCommand(DocumentId, ActorId, ["DocumentPublisher"], "request-sibling"),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<DocumentLifecycleException>()
+            .Where(error => error.Code == "AUTH_FORBIDDEN");
     }
 
     [Fact]
@@ -273,13 +346,18 @@ public sealed class DocumentLifecycleServiceTests
             "Policy",
             "All staff",
             "<p>Wear protective equipment.</p>",
-            [OperationsGroupId],
+            [Rule(EmpresaUnitId, OperationsGroupId)],
             ActorId);
     }
 
-    private static DocumentAggregate ValidInReview()
+    private static DocumentAggregate ValidInReview(IReadOnlyList<DocumentAccessRuleRecord>? accessRules = null)
     {
         var draft = ValidDraft();
+        if (accessRules is not null)
+        {
+            draft = draft with { AccessRules = accessRules };
+        }
+
         return draft with
         {
             State = DocumentState.InReview,
@@ -317,10 +395,49 @@ public sealed class DocumentLifecycleServiceTests
             DocumentState.Published,
             null,
             publishedVersion,
-            [OperationsGroupId],
+            [Rule(EmpresaUnitId, OperationsGroupId)],
             ActorId,
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow);
+    }
+
+    private static IReadOnlyList<DocumentAccessRuleDraft> GroupRules(params Guid[] groupIds)
+    {
+        return groupIds.Select(groupId => new DocumentAccessRuleDraft(null, [groupId])).ToArray();
+    }
+
+    private static DocumentAccessRuleRecord Rule(Guid? organizationalUnitId, params Guid[] groupIds)
+    {
+        return new DocumentAccessRuleRecord(Guid.NewGuid(), organizationalUnitId, groupIds.Distinct().Order().ToArray());
+    }
+
+    private static EffectiveAccessScope Scope(
+        string primaryRole,
+        Guid organizationalUnitId,
+        IReadOnlyList<Guid> groupIds)
+    {
+        return new EffectiveAccessScope(
+            ActorId,
+            primaryRole,
+            primaryRole.Equals("Admin", StringComparison.Ordinal),
+            organizationalUnitId,
+            groupIds,
+            1,
+            "published");
+    }
+
+    private static InMemoryDocumentAccessPolicyDataSource HierarchyAccessDataSource()
+    {
+        var source = new InMemoryDocumentAccessPolicyDataSource();
+        source.AddClosure(EmpresaUnitId, EmpresaUnitId);
+        source.AddClosure(ComunicacionUnitId, ComunicacionUnitId);
+        source.AddClosure(MarketingUnitId, MarketingUnitId);
+        source.AddClosure(SistemasUnitId, SistemasUnitId);
+        source.AddClosure(EmpresaUnitId, ComunicacionUnitId);
+        source.AddClosure(EmpresaUnitId, MarketingUnitId);
+        source.AddClosure(EmpresaUnitId, SistemasUnitId);
+        source.AddClosure(ComunicacionUnitId, MarketingUnitId);
+        return source;
     }
 
     private sealed class InMemoryDocumentRepository : IDocumentRepository
@@ -393,6 +510,62 @@ public sealed class DocumentLifecycleServiceTests
                 0,
                 "INDEXING_NO_CONTENT",
                 "Indexing failed."));
+        }
+    }
+
+    private sealed class InMemoryEffectiveAccessScopeRepository : IEffectiveAccessScopeRepository
+    {
+        public Dictionary<Guid, EffectiveAccessScope> Scopes { get; } = [];
+
+        public Task<EffectiveAccessScope?> FindForActiveUserAsync(Guid userId, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(Scopes.GetValueOrDefault(userId));
+        }
+    }
+
+    private sealed class InMemoryDocumentAccessPolicyDataSource : IDocumentAccessPolicyDataSource
+    {
+        private readonly HashSet<(Guid AncestorId, Guid DescendantId)> _closures = [];
+
+        public Dictionary<Guid, DocumentAccessGroupPolicy> GroupPolicies { get; } = [];
+
+        public void AddClosure(Guid ancestorId, Guid descendantId)
+        {
+            _closures.Add((ancestorId, descendantId));
+        }
+
+        public Task<bool> IsSameBranchAsync(
+            Guid firstOrganizationalUnitId,
+            Guid secondOrganizationalUnitId,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(
+                _closures.Contains((firstOrganizationalUnitId, secondOrganizationalUnitId))
+                || _closures.Contains((secondOrganizationalUnitId, firstOrganizationalUnitId)));
+        }
+
+        public Task<bool> IsDescendantOrSelfAsync(
+            Guid ancestorOrganizationalUnitId,
+            Guid descendantOrganizationalUnitId,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult(_closures.Contains((ancestorOrganizationalUnitId, descendantOrganizationalUnitId)));
+        }
+
+        public Task<IReadOnlyList<DocumentAccessGroupPolicy>> GetGroupPoliciesAsync(
+            Guid publisherUserId,
+            IReadOnlyList<Guid> groupIds,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult<IReadOnlyList<DocumentAccessGroupPolicy>>(
+                groupIds
+                    .Where(GroupPolicies.ContainsKey)
+                    .Select(groupId => GroupPolicies[groupId])
+                    .ToArray());
         }
     }
 }

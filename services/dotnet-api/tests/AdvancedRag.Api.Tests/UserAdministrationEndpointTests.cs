@@ -40,6 +40,7 @@ public sealed class UserAdministrationEndpointTests
                 password = "temporary-password",
                 roles = new[] { "Viewer" },
                 groupIds = new[] { FakeUserAdministrationService.OperationsGroupId },
+                organizationalUnitId = FakeUserAdministrationService.MarketingUnitId,
             },
             "manage.localhost",
             session.Csrf,
@@ -50,16 +51,108 @@ public sealed class UserAdministrationEndpointTests
         body.Should().NotBeNull();
         body!.Email.Should().Be("new.viewer@example.com");
         body.Roles.Should().Equal("Viewer");
+        body.OrganizationalUnit.Should().NotBeNull();
+        body.OrganizationalUnit!.Id.Should().Be(FakeUserAdministrationService.MarketingUnitId);
         body.MonthlyBudgetUsd.Should().Be(5m);
         body.CurrentSpendUsd.Should().Be(0m);
         body.RemainingBudgetUsd.Should().Be(5m);
     }
 
     [Fact]
-    public async Task ListUsers_AsDocumentManager_ReturnsUsersAndBalances()
+    public async Task CreateUser_WithoutOrganizationalUnit_ReturnsValidationEnvelope()
     {
         using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        var session = await LoginAsync(client, FakeAuthService.DocumentManagerEmail, "manage.localhost");
+        var session = await LoginAsync(client, FakeAuthService.AdminEmail, "manage.localhost");
+
+        using var response = await SendJsonAsync(
+            client,
+            HttpMethod.Post,
+            "/api/users",
+            new
+            {
+                email = "missing.unit@example.com",
+                displayName = "Missing Unit",
+                password = "temporary-password",
+                roles = new[] { "Viewer" },
+                groupIds = Array.Empty<Guid>(),
+            },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadFromJsonAsync<ApiErrorEnvelope>();
+        body!.Error.Code.Should().Be("VALIDATION_FAILED");
+        body.Error.Details.Should().ContainKey("field").WhoseValue.ToString().Should().Be("organizationalUnitId");
+    }
+
+    [Theory]
+    [InlineData("Viewer")]
+    [InlineData("DocumentEditor")]
+    [InlineData("DocumentPublisher")]
+    [InlineData("Admin")]
+    public async Task SetUserRoles_AcceptsActiveHierarchicalRoles(string role)
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var session = await LoginAsync(client, FakeAuthService.AdminEmail, "manage.localhost");
+
+        using var response = await SendJsonAsync(
+            client,
+            HttpMethod.Put,
+            $"/api/users/{FakeAuthService.TargetUserId}/roles",
+            new { roles = new[] { role } },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<UserResponse>();
+        body!.Roles.Should().Equal(role);
+    }
+
+    [Fact]
+    public async Task SetUserGroups_IncrementsAccessScopeVersionInReturnedHash()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var session = await LoginAsync(client, FakeAuthService.AdminEmail, "manage.localhost");
+
+        using var response = await SendJsonAsync(
+            client,
+            HttpMethod.Put,
+            $"/api/users/{FakeAuthService.TargetUserId}/groups",
+            new { groupIds = new[] { FakeUserAdministrationService.OperationsGroupId } },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<UserResponse>();
+        body!.AccessScopeHash.Should().Be("scope-hash-v2");
+    }
+
+    [Fact]
+    public async Task SetUserRoles_AsDocumentPublisher_ReturnsForbidden()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var session = await LoginAsync(client, FakeAuthService.DocumentPublisherEmail, "manage.localhost");
+
+        using HttpResponseMessage setRoles = await SendJsonAsync(
+            client,
+            HttpMethod.Put,
+            $"/api/users/{FakeAuthService.DocumentPublisherUserId}/roles",
+            new { roles = new[] { "Admin" } },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+
+        setRoles.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task ListUsers_AsDocumentPublisher_ReturnsUsersAndBalances()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var session = await LoginAsync(client, FakeAuthService.DocumentPublisherEmail, "manage.localhost");
 
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/users");
         request.Headers.Host = "manage.localhost";
@@ -77,10 +170,10 @@ public sealed class UserAdministrationEndpointTests
     }
 
     [Fact]
-    public async Task MutateAdminOnlyUserFields_AsDocumentManager_ReturnsForbidden()
+    public async Task MutateAdminOnlyUserFields_AsDocumentPublisher_ReturnsForbidden()
     {
         using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        var session = await LoginAsync(client, FakeAuthService.DocumentManagerEmail, "manage.localhost");
+        var session = await LoginAsync(client, FakeAuthService.DocumentPublisherEmail, "manage.localhost");
 
         using HttpResponseMessage createUser = await SendJsonAsync(
             client,
@@ -129,10 +222,10 @@ public sealed class UserAdministrationEndpointTests
     }
 
     [Fact]
-    public async Task ManageGroupsAndAssignments_AsDocumentManager_ReturnsSuccess()
+    public async Task ManageGroupsAndAssignments_AsDocumentPublisher_ReturnsSuccess()
     {
         using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        var session = await LoginAsync(client, FakeAuthService.DocumentManagerEmail, "manage.localhost");
+        var session = await LoginAsync(client, FakeAuthService.DocumentPublisherEmail, "manage.localhost");
 
         using HttpResponseMessage createGroup = await SendJsonAsync(
             client,
@@ -306,13 +399,20 @@ public sealed class UserAdministrationEndpointTests
         bool IsActive,
         IReadOnlyList<string> Roles,
         IReadOnlyList<GroupResponse> Groups,
+        OrganizationalUnitResponse? OrganizationalUnit,
         string AccessScopeHash,
         decimal? MonthlyBudgetUsd,
         decimal CurrentSpendUsd,
         decimal? RemainingBudgetUsd,
         bool IsBudgetDisabled);
 
-    private sealed record GroupResponse(Guid Id, string Name);
+    private sealed record GroupResponse(
+        Guid Id,
+        string Name,
+        OrganizationalUnitResponse? OwnerOrganizationalUnit,
+        string PublishingPolicy);
+
+    private sealed record OrganizationalUnitResponse(Guid Id, string Name, Guid? ParentId, int Depth, bool IsActive);
 }
 
 public sealed class UserAdministrationWebApplicationFactory : WebApplicationFactory<Program>
@@ -430,15 +530,24 @@ public sealed class FakeTenantConfigService : ITenantConfigService
 public sealed class FakeAuthService : IAuthService
 {
     public static readonly Guid AdminUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid DocumentPublisherUserId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
     public static readonly Guid DocumentManagerUserId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
     public static readonly Guid TargetUserId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public const string AdminEmail = "admin@example.com";
+    public const string DocumentPublisherEmail = "publisher@example.com";
     public const string DocumentManagerEmail = "manager@example.com";
     public const string TargetEmail = "target@example.com";
     public const string ValidPassword = "password";
     private readonly Dictionary<Guid, FakeUserState> _users = new()
     {
         [AdminUserId] = new(AdminUserId, AdminEmail, "Admin User", true, ["Admin"], []),
+        [DocumentPublisherUserId] = new(
+            DocumentPublisherUserId,
+            DocumentPublisherEmail,
+            "Document Publisher",
+            true,
+            ["DocumentPublisher"],
+            []),
         [DocumentManagerUserId] = new(
             DocumentManagerUserId,
             DocumentManagerEmail,
@@ -490,12 +599,16 @@ public sealed class FakeAuthService : IAuthService
 public sealed class FakeUserAdministrationService : IUserAdministrationService
 {
     public static readonly Guid OperationsGroupId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    public static readonly Guid RootUnitId = Guid.Parse("01000000-0000-0000-0000-000000000001");
+    public static readonly Guid MarketingUnitId = Guid.Parse("01000000-0000-0000-0000-000000000003");
     private readonly FakeAuthService _auth;
-    private readonly GroupRecord _operations = new(OperationsGroupId, "Operations");
+    private readonly OrganizationalUnitRecord _marketing = new(MarketingUnitId, "Marketing", RootUnitId, 2, true);
+    private readonly GroupRecord _operations;
 
     public FakeUserAdministrationService(FakeAuthService auth)
     {
         _auth = auth;
+        _operations = new GroupRecord(OperationsGroupId, "Operations", null, "OwnerScope");
     }
 
     public Task<IReadOnlyList<UserManagementUser>> ListUsersAsync(CancellationToken ct)
@@ -525,6 +638,15 @@ public sealed class FakeUserAdministrationService : IUserAdministrationService
     public Task<UserManagementUser> CreateUserAsync(CreateUserCommand command, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        if (command.OrganizationalUnitId is null)
+        {
+            throw new UserAdministrationException(
+                "VALIDATION_FAILED",
+                400,
+                "Organizational unit is required.",
+                new Dictionary<string, object?> { ["field"] = "organizationalUnitId" });
+        }
+
         return Task.FromResult(
             new UserManagementUser(
                 Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
@@ -533,6 +655,7 @@ public sealed class FakeUserAdministrationService : IUserAdministrationService
                 true,
                 command.RoleNames,
                 [ _operations ],
+                _marketing,
                 "scope-hash",
                 5m,
                 0m,
@@ -548,13 +671,13 @@ public sealed class FakeUserAdministrationService : IUserAdministrationService
     public Task<UserManagementUser> SetUserRolesAsync(SetUserRolesCommand command, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        return Task.FromResult(CreateTargetUser(isActive: true));
+        return Task.FromResult(CreateTargetUser(isActive: true, roles: command.RoleNames));
     }
 
     public Task<UserManagementUser> SetUserGroupsAsync(SetUserGroupsCommand command, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        return Task.FromResult(CreateTargetUser(isActive: true));
+        return Task.FromResult(CreateTargetUser(isActive: true) with { AccessScopeHash = "scope-hash-v2" });
     }
 
     public Task<UserManagementUser> SetUserActiveStatusAsync(SetUserActiveStatusCommand command, CancellationToken ct)
@@ -578,15 +701,16 @@ public sealed class FakeUserAdministrationService : IUserAdministrationService
         return Task.FromResult(CreateTargetUser(isActive: true));
     }
 
-    private UserManagementUser CreateTargetUser(bool isActive)
+    private UserManagementUser CreateTargetUser(bool isActive, IReadOnlyList<string>? roles = null)
     {
         return new UserManagementUser(
             FakeAuthService.TargetUserId,
             FakeAuthService.TargetEmail,
             "Target User",
             isActive,
-            ["Viewer"],
+            roles ?? ["Viewer"],
             [],
+            _marketing,
             "scope-hash",
             5m,
             0m,

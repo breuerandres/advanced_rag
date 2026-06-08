@@ -22,7 +22,10 @@ class ChatTokenClaims(BaseModel):
 
     user_id: str
     role: str
+    is_global_admin: bool = False
+    organizational_unit_id: str = "01000000-0000-0000-0000-000000000001"
     groups: list[str]
+    access_scope_version: int = 1
     access_scope_hash: str
     corpus: str
 
@@ -138,7 +141,13 @@ class JwksChatTokenValidator:
 def _claims_from_payload(payload: dict[str, Any]) -> ChatTokenClaims:
     user_id = payload.get("sub")
     role = payload.get("role")
+    is_global_admin = payload.get("is_global_admin", False)
+    organizational_unit_id = payload.get(
+        "organizational_unit_id",
+        "01000000-0000-0000-0000-000000000001",
+    )
     groups = payload.get("groups")
+    access_scope_version = payload.get("access_scope_version", 1)
     access_scope_hash = payload.get("access_scope_hash")
     corpus = payload.get("corpus")
 
@@ -146,7 +155,13 @@ def _claims_from_payload(payload: dict[str, Any]) -> ChatTokenClaims:
         raise ApiException("AUTH_TOKEN_INVALID", 401, "Chat token invalid.")
     if not isinstance(role, str) or not role:
         raise ApiException("AUTH_TOKEN_INVALID", 401, "Chat token invalid.")
+    if not isinstance(is_global_admin, bool):
+        raise ApiException("AUTH_TOKEN_INVALID", 401, "Chat token invalid.")
+    if not isinstance(organizational_unit_id, str) or not organizational_unit_id:
+        raise ApiException("AUTH_TOKEN_INVALID", 401, "Chat token invalid.")
     if not isinstance(groups, list) or not all(isinstance(item, str) for item in groups):
+        raise ApiException("AUTH_TOKEN_INVALID", 401, "Chat token invalid.")
+    if not isinstance(access_scope_version, int):
         raise ApiException("AUTH_TOKEN_INVALID", 401, "Chat token invalid.")
     if not isinstance(access_scope_hash, str) or not access_scope_hash:
         raise ApiException("AUTH_TOKEN_INVALID", 401, "Chat token invalid.")
@@ -156,7 +171,10 @@ def _claims_from_payload(payload: dict[str, Any]) -> ChatTokenClaims:
     return ChatTokenClaims(
         user_id=user_id,
         role=role,
+        is_global_admin=is_global_admin,
+        organizational_unit_id=organizational_unit_id,
         groups=groups,
+        access_scope_version=access_scope_version,
         access_scope_hash=access_scope_hash,
         corpus=corpus,
     )

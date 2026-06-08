@@ -16,12 +16,17 @@ public sealed record AuthenticatedUser(
                 return "Admin";
             }
 
-            if (Roles.Contains("DocumentManager", StringComparer.Ordinal))
+            if (Roles.Contains("DocumentPublisher", StringComparer.Ordinal))
             {
-                return "DocumentManager";
+                return "DocumentPublisher";
             }
 
-            return Roles.Contains("Viewer", StringComparer.Ordinal) ? "Viewer" : Roles.FirstOrDefault() ?? "Viewer";
+            if (Roles.Contains("DocumentEditor", StringComparer.Ordinal))
+            {
+                return "DocumentEditor";
+            }
+
+            return "Viewer";
         }
     }
 }

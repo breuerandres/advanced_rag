@@ -50,6 +50,7 @@ public sealed class EfSetupRepository : ISetupRepository
             DisplayName = user.DisplayName,
             PasswordHash = user.PasswordHash,
             IsActive = user.IsActive,
+            OrganizationalUnitId = user.OrganizationalUnitId,
             CreatedAt = DateTimeOffset.UtcNow,
         });
         _db.UserRoles.Add(new UserRole { UserId = user.Id, RoleId = adminRole.Id });
@@ -73,7 +74,13 @@ public sealed class EfSetupRepository : ISetupRepository
             true,
             ["Admin"],
             [],
-            AccessScopeHash.Compute("Admin", []),
+            new OrganizationalUnitRecord(
+                user.OrganizationalUnitId,
+                "Empresa",
+                null,
+                0,
+                true),
+            AccessScopeHash.ComputeV2("Admin", true, user.OrganizationalUnitId, [], 1),
             budget.MonthlyBudgetUsd,
             0m,
             budget.IsDisabled);

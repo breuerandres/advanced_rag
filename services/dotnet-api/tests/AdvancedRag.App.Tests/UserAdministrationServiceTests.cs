@@ -10,6 +10,7 @@ public sealed class UserAdministrationServiceTests
     private static readonly Guid UserId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid OperationsGroupId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid FinanceGroupId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+    private static readonly Guid RootUnitId = Guid.Parse("01000000-0000-0000-0000-000000000001");
 
     [Fact]
     public async Task CreateUserAsync_AdminCreatesUserWithDefaultMonthlyAiBudget()
@@ -26,7 +27,8 @@ public sealed class UserAdministrationServiceTests
                 "temporary-password",
                 ["Viewer"],
                 [OperationsGroupId],
-                ActorId),
+                ActorId,
+                RootUnitId),
             CancellationToken.None);
 
         created.Id.Should().Be(UserId);
@@ -148,18 +150,35 @@ public sealed class UserAdministrationServiceTests
             return Task.FromResult(_groups);
         }
 
-        public Task<GroupRecord> CreateGroupAsync(string name, Guid actorUserId, CancellationToken ct)
+        public Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveOrganizationalUnitsAsync(CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            var group = new GroupRecord(Guid.NewGuid(), name);
+            return Task.FromResult<IReadOnlyList<OrganizationalUnitRecord>>([RootUnit()]);
+        }
+
+        public Task<GroupRecord> CreateGroupAsync(
+            string name,
+            Guid? ownerOrganizationalUnitId,
+            string publishingPolicy,
+            Guid actorUserId,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            var group = new GroupRecord(Guid.NewGuid(), name, null, publishingPolicy);
             return Task.FromResult(group);
         }
 
-        public Task<GroupRecord?> UpdateGroupAsync(Guid groupId, string name, Guid actorUserId, CancellationToken ct)
+        public Task<GroupRecord?> UpdateGroupAsync(
+            Guid groupId,
+            string name,
+            Guid? ownerOrganizationalUnitId,
+            string publishingPolicy,
+            Guid actorUserId,
+            CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             var group = _groups.SingleOrDefault(item => item.Id == groupId);
-            return Task.FromResult(group is null ? null : group with { Name = name });
+            return Task.FromResult(group is null ? null : group with { Name = name, PublishingPolicy = publishingPolicy });
         }
 
         public Task<bool> EmailExistsAsync(string normalizedEmail, CancellationToken ct)
@@ -180,6 +199,15 @@ public sealed class UserAdministrationServiceTests
             ct.ThrowIfCancellationRequested();
             return Task.FromResult<IReadOnlyList<GroupRecord>>(
                 _groups.Where(group => groupIds.Contains(group.Id)).ToArray());
+        }
+
+        public Task<OrganizationalUnitRecord?> FindOrganizationalUnitAsync(
+            Guid organizationalUnitId,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            return Task.FromResult<OrganizationalUnitRecord?>(
+                organizationalUnitId == RootUnitId ? RootUnit() : null);
         }
 
         public Task<UserManagementUser> CreateUserAsync(
@@ -280,7 +308,7 @@ public sealed class UserAdministrationServiceTests
             IReadOnlyList<string> roles,
             IReadOnlyList<Guid> groups)
         {
-            Users.Add(new UserDraft(id, email, displayName, "hash", true, roles, groups));
+            Users.Add(new UserDraft(id, email, displayName, "hash", true, roles, groups, RootUnitId));
             Budgets.Add(new UserBudgetDraft(id, 5m, false, ActorId));
         }
 
@@ -303,10 +331,21 @@ public sealed class UserAdministrationServiceTests
                 user.IsActive,
                 roleNames.Order(StringComparer.Ordinal).ToArray(),
                 groups,
-                AccessScopeHash.Compute(PrimaryRole(roleNames), groups.Select(group => group.Id)),
+                RootUnit(),
+                AccessScopeHash.ComputeV2(
+                    PrimaryRole(roleNames),
+                    roleNames.Contains("Admin", StringComparer.Ordinal),
+                    user.OrganizationalUnitId,
+                    groups.Select(group => group.Id),
+                    1),
                 monthlyBudget,
                 0m,
                 budget?.IsDisabled ?? false);
+        }
+
+        private static OrganizationalUnitRecord RootUnit()
+        {
+            return new OrganizationalUnitRecord(RootUnitId, "Empresa", null, 0, true);
         }
 
         private static string PrimaryRole(IReadOnlyList<string> roles)
