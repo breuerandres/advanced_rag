@@ -11,7 +11,7 @@
   "auth": {
     "active_session": "Sesión activa",
     "invalid_credentials": "Email o contraseña no válidos.",
-    "login_detail": "Usá tu cuenta Admin o DocumentManager para administrar instrucciones, usuarios, auditoría y configuración.",
+    "login_detail": "Usá tu cuenta Admin, DocumentEditor o DocumentPublisher para administrar instrucciones, usuarios, auditoría y configuración.",
     "login_error": "No se pudo iniciar sesión.",
     "login_eyebrow": "Consola de gestión",
     "login_submit": "Ingresar",
@@ -124,7 +124,8 @@
     "editor_empty": "Abri un documento o crea uno nuevo para editarlo.",
     "created_message": "Documento creado.",
     "draft_saved_message": "Borrador guardado.",
-    "review_validation_error": "Completa titulo, tipo, audiencia, grupos y contenido antes de enviar a revision.",
+    "save_error": "No se pudo guardar el borrador. Referencia: {{reference}}.",
+    "review_validation_error": "Completa titulo, tipo, audiencia, reglas de acceso y contenido antes de enviar a revision.",
     "save_before_review_error": "Guarda el borrador antes de enviarlo a revision.",
     "sent_to_review_message": "Documento enviado a revision.",
     "published_message": "Documento publicado.",
@@ -175,7 +176,20 @@
     "image_save_before_upload": "Guardá el borrador antes de insertar imágenes.",
     "image_too_large": "La imagen supera el límite de 5 MB.",
     "image_upload_error": "No se pudo subir la imagen. Intentá nuevamente.",
-    "generated_html": "HTML generado"
+    "generated_html": "HTML generado",
+    "access_rules": "Reglas de acceso",
+    "access_rules_help": "Cada regla habilita una unidad organizativa y/o grupos. Dentro de una regla se exigen ambas condiciones; entre reglas, alcanza con que una coincida.",
+    "add_access_rule": "Agregar regla",
+    "remove_access_rule": "Quitar regla",
+    "access_rule_label": "Regla {{number}}",
+    "rule_organizational_unit": "Unidad organizativa",
+    "rule_no_unit": "Sin unidad (solo grupos)",
+    "rule_company_wide": "toda la empresa",
+    "rule_groups": "Grupos",
+    "access_rules_required": "Agregá al menos una regla de acceso.",
+    "access_rule_empty_invalid": "Esta regla necesita una unidad organizativa o al menos un grupo.",
+    "access_rule_validation_error": "Revisá las reglas de acceso: cada regla necesita una unidad o un grupo y no puede quedar vacía.",
+    "organizational_units_load_error": "No se pudieron cargar las unidades organizativas."
   },
   "users": {
     "title": "Usuarios y grupos",
@@ -231,7 +245,16 @@
     "role_viewer": "Viewer",
     "activate": "Activar",
     "deactivate": "Desactivar",
-    "edit_budget": "Editar presupuesto"
+    "edit_budget": "Editar presupuesto",
+    "organizational_unit": "Unidad organizativa",
+    "organizational_unit_required": "Seleccioná una unidad organizativa.",
+    "organizational_unit_placeholder": "Seleccioná una unidad",
+    "organizational_unit_column": "Unidad",
+    "organizational_units_load_error": "No se pudieron cargar las unidades organizativas.",
+    "company_wide": "Toda la empresa",
+    "owner_unit_column": "Unidad dueña",
+    "publishing_policy_column": "Política de publicación",
+    "no_owner_unit": "Sin unidad dueña"
   },
   "setup": {
     "title": "Configuración inicial",

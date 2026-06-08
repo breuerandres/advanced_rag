@@ -34,6 +34,12 @@ from advanced_rag.rag.rerank import rerank_candidates
 
 PROMPT_VERSION = 1
 
+# Root organizational unit ("Empresa"), seeded by the .NET migration
+# 20260608100000_AddHierarchicalAccessBaseline. A document rule scoped to this unit is
+# the explicit company-wide rule and matches every user, so retrieval passes it to the
+# branch-aware SQL as the root marker.
+ROOT_ORGANIZATIONAL_UNIT_ID = UUID("01000000-0000-0000-0000-000000000001")
+
 
 class RetrievedChunk(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -189,7 +195,7 @@ class ChatService:
             chunks, rerank_audit = await self._retrieve_chunks(
                 session,
                 corpus=corpus,
-                groups=[UUID(group_id) for group_id in claims.groups],
+                claims=claims,
                 question=retrieval_question,
                 question_embedding=question_embedding,
                 filters=filters,
@@ -425,17 +431,22 @@ class ChatService:
         session: AsyncSession,
         *,
         corpus: str,
-        groups: list[UUID],
+        claims: ChatTokenClaims,
         question: str,
         question_embedding: list[float],
         filters: list[UUID] | None,
     ) -> tuple[list[RetrievedChunk], dict | None]:
-        if not groups:
-            return [], None
-
+        # Branch-aware access filtering runs inside the retrieval SQL: a global admin
+        # bypasses the rule filter, every other user is limited to documents whose
+        # access rules match their organizational-unit branch and/or groups. Users with
+        # no groups can still match organizational-unit and company-wide rules, so there
+        # is deliberately no group-presence short circuit here.
         params = HybridRetrievalParams(
             corpus=corpus,
-            user_groups=groups,
+            is_global_admin=claims.is_global_admin,
+            user_organizational_unit_id=UUID(claims.organizational_unit_id),
+            root_organizational_unit_id=ROOT_ORGANIZATIONAL_UNIT_ID,
+            user_groups=[UUID(group_id) for group_id in claims.groups],
             dimension_value_filter=filters,
             vector_top_k=self._settings.rag_vector_top_k,
             bm25_top_k=self._settings.rag_bm25_top_k,

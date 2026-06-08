@@ -117,7 +117,11 @@ function canAccessSection(section: ManagementSection, userRoles: string[]) {
     return true
   }
 
-  if (userRoles.includes('Admin') || userRoles.includes('DocumentManager')) {
+  if (
+    userRoles.includes('Admin') ||
+    userRoles.includes('DocumentEditor') ||
+    userRoles.includes('DocumentPublisher')
+  ) {
     return true
   }
 

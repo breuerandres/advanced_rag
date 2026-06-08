@@ -1,5 +1,16 @@
 import { parseApiError } from '../lib/api-error'
 
+export interface DocumentAccessRule {
+  id: string
+  organizationalUnitId: string | null
+  groupIds: string[]
+}
+
+export interface DocumentAccessRuleInput {
+  organizationalUnitId: string | null
+  groupIds: string[]
+}
+
 export interface DocumentSummary {
   id: string
   title: string
@@ -7,6 +18,7 @@ export interface DocumentSummary {
   documentType: string
   audience: string
   allowedGroupIds: string[]
+  accessRules?: DocumentAccessRule[]
   draftVersionNumber: number | null
   publishedVersionNumber: number | null
   indexingStatus: string
@@ -31,6 +43,7 @@ export interface DocumentDetail {
   currentDraftVersion: DocumentVersion | null
   currentPublishedVersion: DocumentVersion | null
   allowedGroupIds: string[]
+  accessRules?: DocumentAccessRule[]
   updatedAt: string
 }
 
@@ -39,7 +52,7 @@ export interface SaveDocumentDraftRequest {
   documentType: string
   audience: string
   contentHtml: string
-  allowedGroupIds: string[]
+  accessRules: DocumentAccessRuleInput[]
 }
 
 export interface ImportExtractionResult {

@@ -1,8 +1,11 @@
 import { parseApiError } from '../lib/api-error'
+import type { OrganizationalUnitSummary } from './orgUnits'
 
 export interface GroupSummary {
   id: string
   name: string
+  ownerOrganizationalUnit?: OrganizationalUnitSummary | null
+  publishingPolicy?: string
 }
 
 export interface UserSummary {
@@ -12,6 +15,7 @@ export interface UserSummary {
   isActive: boolean
   roles: string[]
   groups: GroupSummary[]
+  organizationalUnit?: OrganizationalUnitSummary | null
   accessScopeHash: string
   monthlyBudgetUsd: number | null
   currentSpendUsd: number
@@ -34,6 +38,7 @@ export interface CreateUserRequest {
   password: string
   roles: string[]
   groupIds: string[]
+  organizationalUnitId: string
 }
 
 export interface SetUserStatusRequest {

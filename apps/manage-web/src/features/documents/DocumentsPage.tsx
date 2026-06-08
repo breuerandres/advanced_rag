@@ -26,8 +26,14 @@ import {
   sendDocumentToReview,
   uploadDocumentImage,
 } from "../../api/documents";
-import type { DocumentDetail, DocumentSummary } from "../../api/documents";
+import type {
+  DocumentAccessRuleInput,
+  DocumentDetail,
+  DocumentSummary,
+} from "../../api/documents";
 import { createGroup, listGroups, type GroupSummary } from "../../api/users";
+import { listOrganizationalUnits } from "../../api/orgUnits";
+import type { OrganizationalUnitSummary } from "../../api/orgUnits";
 import { RichTextEditor } from "./RichTextEditor";
 import { Button, Checkbox, DataTable, Dialog, Input } from "@helpcenter/shared-ui";
 
@@ -585,9 +591,13 @@ function DocumentEditor({
   const [documentType, setDocumentType] = useState(editableVersion?.documentType ?? "");
   const [audience, setAudience] = useState(editableVersion?.audience ?? "");
   const [contentHtml, setContentHtml] = useState(editableVersion?.contentHtml ?? "");
-  const [allowedGroupIds, setAllowedGroupIds] = useState<string[]>(
-    documentDetail.allowedGroupIds.map((groupId) => groupId.toString()),
+  const [rules, setRules] = useState<DocumentAccessRuleInput[]>(() =>
+    initialAccessRules(documentDetail),
   );
+  const [organizationalUnits, setOrganizationalUnits] = useState<
+    OrganizationalUnitSummary[]
+  >([]);
+  const [orgUnitsError, setOrgUnitsError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -607,6 +617,25 @@ function DocumentEditor({
   const hasReviewValidationError =
     validationError === reviewValidationMessage;
 
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const units = await listOrganizationalUnits();
+        if (active) {
+          setOrganizationalUnits(units);
+        }
+      } catch {
+        if (active) {
+          setOrgUnitsError(t("documents.organizational_units_load_error"));
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [t]);
+
   async function saveDraft() {
     setValidationError(null);
     setIsSaving(true);
@@ -616,7 +645,7 @@ function DocumentEditor({
         documentType,
         audience,
         contentHtml: normalizeEditorHtml(contentHtml),
-        allowedGroupIds,
+        accessRules: rules,
       };
       const updated =
         mode === "create"
@@ -627,18 +656,27 @@ function DocumentEditor({
         updated,
         mode === "create" ? t("documents.created_message") : t("documents.draft_saved_message"),
       );
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "VALIDATION_FAILED") {
+        setValidationError(t("documents.access_rule_validation_error"));
+      } else {
+        const reference = error instanceof ApiError ? error.requestId : "unknown";
+        setValidationError(t("documents.save_error", { reference }));
+      }
     } finally {
       setIsSaving(false);
     }
   }
 
   async function sendToReview() {
+    const hasValidAccessRules =
+      rules.length > 0 && rules.every((rule) => !isRuleEmpty(rule));
     if (
       title.trim().length === 0 ||
       documentType.trim().length === 0 ||
       audience.trim().length === 0 ||
       plainText(contentHtml).length === 0 ||
-      allowedGroupIds.length === 0
+      !hasValidAccessRules
     ) {
       setValidationError(
         reviewValidationMessage,
@@ -694,25 +732,57 @@ function DocumentEditor({
     }
   }
 
-  function toggleGroup(groupId: string) {
-    setAllowedGroupIds((current) =>
-      current.includes(groupId)
-        ? current.filter((selectedId) => selectedId !== groupId)
-        : [...current, groupId],
+  function addRule() {
+    setRules((current) => [...current, { organizationalUnitId: null, groupIds: [] }]);
+    setIsDirty(true);
+  }
+
+  function removeRule(index: number) {
+    setRules((current) => current.filter((_, ruleIndex) => ruleIndex !== index));
+    setIsDirty(true);
+  }
+
+  function setRuleUnit(index: number, unitId: string) {
+    setRules((current) =>
+      current.map((rule, ruleIndex) =>
+        ruleIndex === index
+          ? { ...rule, organizationalUnitId: unitId === "" ? null : unitId }
+          : rule,
+      ),
     );
     setIsDirty(true);
   }
 
-  function selectAllGroups() {
-    setAllowedGroupIds(groups.map((group) => group.id));
+  function toggleRuleGroup(index: number, groupId: string) {
+    setRules((current) =>
+      current.map((rule, ruleIndex) =>
+        ruleIndex === index
+          ? {
+              ...rule,
+              groupIds: rule.groupIds.includes(groupId)
+                ? rule.groupIds.filter((id) => id !== groupId)
+                : [...rule.groupIds, groupId],
+            }
+          : rule,
+      ),
+    );
     setIsDirty(true);
   }
 
   function addCreatedAccessGroup(group: GroupSummary) {
     onGroupCreated(group);
-    setAllowedGroupIds((current) =>
-      current.includes(group.id) ? current : [...current, group.id],
-    );
+    setRules((current) => {
+      const base =
+        current.length > 0
+          ? current
+          : [{ organizationalUnitId: null, groupIds: [] as string[] }];
+      // Add the newly created group to the first rule so it is immediately usable.
+      return base.map((rule, index) =>
+        index === 0 && !rule.groupIds.includes(group.id)
+          ? { ...rule, groupIds: [...rule.groupIds, group.id] }
+          : rule,
+      );
+    });
     setIsGroupDialogOpen(false);
     setIsDirty(true);
     setGroupCreateMessage(t("documents.group_create_success", { name: group.name }));
@@ -801,9 +871,14 @@ function DocumentEditor({
           </div>
         </div>
 
-        <fieldset className="checkbox-list">
-          <legend>{t("documents.access_groups")}</legend>
+        <fieldset className="checkbox-list access-rules">
+          <legend>{t("documents.access_rules")}</legend>
+          <p className="muted-copy">{t("documents.access_rules_help")}</p>
           <div className="checkbox-list-actions">
+            <Button className="text-button" type="button" onClick={addRule}>
+              <Plus size={16} />
+              {t("documents.add_access_rule")}
+            </Button>
             <Button
               className="text-button"
               type="button"
@@ -812,33 +887,74 @@ function DocumentEditor({
               <FolderPlus size={16} />
               {t("documents.group_new")}
             </Button>
-            <Button
-              className="text-button"
-              type="button"
-              disabled={groups.length === 0}
-              onClick={selectAllGroups}
-            >
-              {t("documents.select_all_groups")}
-            </Button>
           </div>
           {groupCreateMessage ? (
             <p className="status-message success">{groupCreateMessage}</p>
           ) : null}
-          {groups.length > 0 ? (
-            <div className="checkbox-grid">
-              {groups.map((group) => (
-                <Checkbox
-                  className="checkbox-field"
-                  key={group.id}
-                  label={group.name}
-                  checked={allowedGroupIds.includes(group.id)}
-                  onCheckedChange={() => toggleGroup(group.id)}
-                />
-              ))}
+          {orgUnitsError ? (
+            <p className="status-message error" role="alert">
+              {orgUnitsError}
+            </p>
+          ) : null}
+          {rules.length === 0 ? (
+            <p className="muted-copy">{t("documents.access_rules_required")}</p>
+          ) : null}
+          {rules.map((rule, index) => (
+            <div className="access-rule" key={index}>
+              <div className="access-rule-header">
+                <span className="access-rule-title">
+                  {t("documents.access_rule_label", { number: index + 1 })}
+                </span>
+                <Button
+                  className="text-button"
+                  type="button"
+                  onClick={() => removeRule(index)}
+                >
+                  {t("documents.remove_access_rule")}
+                </Button>
+              </div>
+              <label className="field">
+                <span>{t("documents.rule_organizational_unit")}</span>
+                <select
+                  value={rule.organizationalUnitId ?? ""}
+                  onChange={(event) => setRuleUnit(index, event.target.value)}
+                >
+                  <option value="">{t("documents.rule_no_unit")}</option>
+                  {organizationalUnits.map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {organizationalUnitOptionLabel(
+                        unit,
+                        t("documents.rule_company_wide"),
+                      )}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <fieldset className="checkbox-list rule-groups">
+                <legend>{t("documents.rule_groups")}</legend>
+                {groups.length > 0 ? (
+                  <div className="checkbox-grid">
+                    {groups.map((group) => (
+                      <Checkbox
+                        className="checkbox-field"
+                        key={group.id}
+                        label={group.name}
+                        checked={rule.groupIds.includes(group.id)}
+                        onCheckedChange={() => toggleRuleGroup(index, group.id)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted-copy">{t("documents.no_groups")}</p>
+                )}
+              </fieldset>
+              {isRuleEmpty(rule) ? (
+                <p className="status-message error">
+                  {t("documents.access_rule_empty_invalid")}
+                </p>
+              ) : null}
             </div>
-          ) : (
-            <p className="muted-copy">{t("documents.no_groups")}</p>
-          )}
+          ))}
         </fieldset>
 
         <RichTextEditor
@@ -1009,6 +1125,7 @@ function toSummary(document: DocumentDetail): DocumentSummary {
     allowedGroupIds: document.allowedGroupIds.map((groupId) =>
       groupId.toString(),
     ),
+    accessRules: document.accessRules,
     draftVersionNumber: document.currentDraftVersion?.versionNumber ?? null,
     publishedVersionNumber:
       document.currentPublishedVersion?.versionNumber ?? null,
@@ -1017,28 +1134,65 @@ function toSummary(document: DocumentDetail): DocumentSummary {
   };
 }
 
+function initialAccessRules(detail: DocumentDetail): DocumentAccessRuleInput[] {
+  const existing = (detail.accessRules ?? []).map((rule) => ({
+    organizationalUnitId: rule.organizationalUnitId,
+    groupIds: [...rule.groupIds],
+  }));
+  if (existing.length > 0) {
+    return existing;
+  }
+
+  // Fall back to a single group-only rule for legacy documents that still expose
+  // only `allowedGroupIds`, otherwise start with one empty rule to fill in.
+  if (detail.allowedGroupIds.length > 0) {
+    return [
+      {
+        organizationalUnitId: null,
+        groupIds: detail.allowedGroupIds.map((groupId) => groupId.toString()),
+      },
+    ];
+  }
+
+  return [{ organizationalUnitId: null, groupIds: [] }];
+}
+
+function isRuleEmpty(rule: DocumentAccessRuleInput): boolean {
+  return rule.organizationalUnitId === null && rule.groupIds.length === 0;
+}
+
+function organizationalUnitOptionLabel(
+  unit: OrganizationalUnitSummary,
+  companyWideLabel: string,
+): string {
+  return unit.parentId === null
+    ? `${unit.name} (${companyWideLabel})`
+    : unit.name;
+}
+
 function documentActionPermissions(
   mode: "create" | "edit",
   document: DocumentDetail,
   userRoles: string[],
 ) {
   const isAdmin = hasRole(userRoles, "Admin");
-  const canManageDocuments = isAdmin || hasRole(userRoles, "DocumentManager");
+  const canPublishRole = isAdmin || hasRole(userRoles, "DocumentPublisher");
+  const canEditRole = canPublishRole || hasRole(userRoles, "DocumentEditor");
   const draftState = document.currentDraftVersion?.state;
 
   return {
     canSaveDraft:
-      canManageDocuments &&
+      canEditRole &&
       (mode === "create" ||
         document.state === "Draft" ||
         document.state === "Published"),
     canSendToReview:
-      canManageDocuments &&
+      canEditRole &&
       mode === "edit" &&
       document.state === "Draft" &&
       draftState === "Draft",
     canPublish:
-      isAdmin &&
+      canPublishRole &&
       mode === "edit" &&
       document.state === "In Review" &&
       draftState === "In Review",
@@ -1063,7 +1217,7 @@ function canArchive(document: DocumentSummary, userRoles: string[]) {
   }
 
   return (
-    hasRole(userRoles, "DocumentManager") &&
+    hasRole(userRoles, "DocumentPublisher") &&
     (document.state === "Draft" || document.state === "In Review") &&
     document.publishedVersionNumber === null
   );
@@ -1071,7 +1225,7 @@ function canArchive(document: DocumentSummary, userRoles: string[]) {
 
 function canRetryIndexing(document: DocumentSummary, userRoles: string[]) {
   return (
-    hasRole(userRoles, "Admin") &&
+    (hasRole(userRoles, "Admin") || hasRole(userRoles, "DocumentPublisher")) &&
     document.state === "In Review" &&
     document.indexingStatus === "Failed"
   );

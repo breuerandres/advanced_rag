@@ -24,6 +24,8 @@ import {
   updateUserStatus,
 } from '../../api/users'
 import type { GroupSummary, UserSummary } from '../../api/users'
+import { listOrganizationalUnits } from '../../api/orgUnits'
+import type { OrganizationalUnitSummary } from '../../api/orgUnits'
 import { Button, Checkbox, DataTable, Dialog, Input } from '@helpcenter/shared-ui'
 
 type LoadState = 'loading' | 'ready' | 'error'
@@ -50,7 +52,10 @@ export function UsersBudgetPage({ userRoles }: UsersBudgetPageProps) {
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('all')
   const [activeTab, setActiveTab] = useState<UsersWorkspaceTab>('users')
   const isAdmin = userRoles.includes('Admin')
-  const canManageGroups = isAdmin || userRoles.includes('DocumentManager')
+  const canManageGroups =
+    isAdmin ||
+    userRoles.includes('DocumentEditor') ||
+    userRoles.includes('DocumentPublisher')
 
   useEffect(() => {
     void loadUsers()
@@ -309,6 +314,11 @@ export function UsersBudgetPage({ userRoles }: UsersBudgetPageProps) {
                 render: (user) => joinOrDash(user.groups.map((group) => group.name)),
               },
               {
+                key: 'organizationalUnit',
+                header: t('users.organizational_unit_column'),
+                render: (user) => user.organizationalUnit?.name ?? '-',
+              },
+              {
                 key: 'status',
                 header: t('users.status_column'),
                 render: (user) => (
@@ -433,6 +443,17 @@ export function UsersBudgetPage({ userRoles }: UsersBudgetPageProps) {
                   header: t('users.users_column'),
                   render: (group) =>
                     users.filter((user) => user.groups.some((item) => item.id === group.id)).length,
+                },
+                {
+                  key: 'ownerUnit',
+                  header: t('users.owner_unit_column'),
+                  render: (group) =>
+                    group.ownerOrganizationalUnit?.name ?? t('users.no_owner_unit'),
+                },
+                {
+                  key: 'publishingPolicy',
+                  header: t('users.publishing_policy_column'),
+                  render: (group) => group.publishingPolicy ?? '-',
                 },
                 {
                   key: 'actions',
@@ -707,9 +728,31 @@ function UserDialog({
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('Viewer')
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([])
+  const [organizationalUnits, setOrganizationalUnits] = useState<OrganizationalUnitSummary[]>([])
+  const [organizationalUnitId, setOrganizationalUnitId] = useState('')
+  const [orgUnitsError, setOrgUnitsError] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      try {
+        const units = await listOrganizationalUnits()
+        if (active) {
+          setOrganizationalUnits(units)
+        }
+      } catch {
+        if (active) {
+          setOrgUnitsError('No se pudieron cargar las unidades organizativas.')
+        }
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -726,6 +769,10 @@ function UserDialog({
       setValidationError('Completá email, nombre visible y contraseña temporal.')
       return
     }
+    if (organizationalUnitId.length === 0) {
+      setValidationError('Seleccioná una unidad organizativa.')
+      return
+    }
 
     setIsSaving(true)
     try {
@@ -735,6 +782,7 @@ function UserDialog({
         password,
         roles: [role],
         groupIds: selectedGroupIds,
+        organizationalUnitId,
       })
       onSaved(user)
     } catch (error) {
@@ -758,7 +806,7 @@ function UserDialog({
       open
       className="user-dialog"
       title="Crear usuario"
-      description="Creá una cuenta local y asignale rol y grupos de acceso."
+      description="Creá una cuenta local y asignale unidad organizativa, rol y grupos de acceso."
       onOpenChange={(open) => {
         if (!open) {
           onClose()
@@ -798,6 +846,22 @@ function UserDialog({
             </label>
 
             <label className="field">
+              <span>Unidad organizativa</span>
+              <select
+                value={organizationalUnitId}
+                onChange={(event) => setOrganizationalUnitId(event.target.value)}
+                disabled={isSaving}
+              >
+                <option value="">Seleccioná una unidad</option>
+                {organizationalUnits.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {organizationalUnitLabel(unit)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
               <span>Rol</span>
               <select
                 value={role}
@@ -805,7 +869,8 @@ function UserDialog({
                 disabled={isSaving}
               >
                 <option value="Viewer">Viewer</option>
-                <option value="DocumentManager">DocumentManager</option>
+                <option value="DocumentEditor">DocumentEditor</option>
+                <option value="DocumentPublisher">DocumentPublisher</option>
                 <option value="Admin">Admin</option>
               </select>
             </label>
@@ -828,6 +893,12 @@ function UserDialog({
               <p className="muted-copy">No hay grupos disponibles.</p>
             )}
           </fieldset>
+
+          {orgUnitsError ? (
+            <p className="status-message error" role="alert">
+              {orgUnitsError}
+            </p>
+          ) : null}
 
           {validationError ? (
             <p className="status-message error" role="alert">
@@ -924,6 +995,7 @@ function UserManagementDialog({
           <div className="readonly-summary">
             <strong>{user.displayName}</strong>
             <span>{user.email}</span>
+            <span>Unidad: {user.organizationalUnit?.name ?? '-'}</span>
           </div>
 
           {canEditRole ? (
@@ -935,7 +1007,8 @@ function UserManagementDialog({
                 disabled={isSaving}
               >
                 <option value="Viewer">Viewer</option>
-                <option value="DocumentManager">DocumentManager</option>
+                <option value="DocumentEditor">DocumentEditor</option>
+                <option value="DocumentPublisher">DocumentPublisher</option>
                 <option value="Admin">Admin</option>
               </select>
             </label>
@@ -1099,9 +1172,17 @@ function primaryRole(roles: string[]) {
     return 'Admin'
   }
 
-  if (roles.includes('DocumentManager')) {
-    return 'DocumentManager'
+  if (roles.includes('DocumentPublisher')) {
+    return 'DocumentPublisher'
+  }
+
+  if (roles.includes('DocumentEditor')) {
+    return 'DocumentEditor'
   }
 
   return roles.includes('Viewer') ? 'Viewer' : (roles[0] ?? 'Viewer')
+}
+
+function organizationalUnitLabel(unit: OrganizationalUnitSummary) {
+  return unit.parentId === null ? `${unit.name} (toda la empresa)` : unit.name
 }

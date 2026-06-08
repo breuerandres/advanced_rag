@@ -166,7 +166,8 @@ export default function App() {
   const isViewerOnly =
     sessionUser.roles.includes('Viewer') &&
     !sessionUser.roles.includes('Admin') &&
-    !sessionUser.roles.includes('DocumentManager')
+    !sessionUser.roles.includes('DocumentEditor') &&
+    !sessionUser.roles.includes('DocumentPublisher')
   const activeView = allowedSections.includes(view)
     ? view
     : isViewerOnly
@@ -277,7 +278,7 @@ function SetupPage({
         <div className="setup-readiness" aria-label="Estado de instalación">
           <CheckCircle2 size={16} aria-hidden="true" />
           <span>{status?.databaseReady ? 'Base de datos lista' : 'Verificando base de datos'}</span>
-          <span>Roles: {(status?.requiredRoles ?? ['Admin', 'DocumentManager', 'Viewer']).join(', ')}</span>
+          <span>Roles: {(status?.requiredRoles ?? ['Admin', 'DocumentEditor', 'DocumentPublisher', 'Viewer']).join(', ')}</span>
         </div>
         {error ? <p className="status-message error">{error}</p> : null}
         <label className="field">

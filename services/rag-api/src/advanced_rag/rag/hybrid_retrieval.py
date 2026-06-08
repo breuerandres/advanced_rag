@@ -39,6 +39,9 @@ class HybridRetrievalParams(BaseModel):
 
     corpus: str
     user_groups: list[UUID]
+    user_organizational_unit_id: UUID
+    root_organizational_unit_id: UUID
+    is_global_admin: bool = False
     dimension_value_filter: list[UUID] | None = None
     vector_top_k: int = 20
     bm25_top_k: int = 20
@@ -46,11 +49,69 @@ class HybridRetrievalParams(BaseModel):
     final_top_k: int = 30  # before reranker reduction
 
 
+# Branch-aware document access predicate. Applied INSIDE each candidate CTE so rows
+# outside the user's scope never enter the top-K. Semantics mirror the .NET
+# `DocumentAccessPolicy`:
+#   * A global admin bypasses the filter entirely.
+#   * A document is visible when ANY of its access rules matches (OR between rules).
+#   * Within one rule the organizational-unit condition AND the group condition must
+#     both hold (each condition is trivially satisfied when that dimension is absent).
+#   * The organizational-unit condition matches the company-wide root rule, or when the
+#     rule's unit is an ancestor/descendant of the user's unit (closure join).
+#   * A rule with neither an organizational unit nor any group is invalid and is
+#     ignored defensively here, mirroring the application-layer rejection.
+_ACCESS_RULE_PREDICATE = """
+      AND (
+          CAST(:is_global_admin AS boolean)
+          OR EXISTS (
+              SELECT 1
+              FROM app.document_permissions p
+              WHERE p.document_id = chunk.document_id
+                AND (
+                    p.organizational_unit_id IS NOT NULL
+                    OR EXISTS (
+                        SELECT 1
+                        FROM app.document_permission_groups pg
+                        WHERE pg.document_permission_id = p."Id"
+                    )
+                )
+                AND (
+                    p.organizational_unit_id IS NULL
+                    OR p.organizational_unit_id = :root_organizational_unit_id
+                    OR EXISTS (
+                        SELECT 1
+                        FROM app.organizational_unit_closure c
+                        WHERE
+                            (c.ancestor_id = p.organizational_unit_id
+                                AND c.descendant_id = :user_organizational_unit_id)
+                            OR
+                            (c.ancestor_id = :user_organizational_unit_id
+                                AND c.descendant_id = p.organizational_unit_id)
+                    )
+                )
+                AND (
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM app.document_permission_groups pg
+                        WHERE pg.document_permission_id = p."Id"
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM app.document_permission_groups pg
+                        WHERE pg.document_permission_id = p."Id"
+                          AND pg.group_id = ANY(CAST(:user_groups AS uuid[]))
+                    )
+                )
+          )
+      )
+"""
+
+
 # The SQL is laid out as a single statement with two CTE candidates and one UNION /
 # aggregate that fuses them. We use named bindings throughout. The `unaccent` call on
 # the question goes through the IMMUTABLE wrapper added in the v2 BM25 migration.
 HYBRID_RETRIEVAL_SQL = text(
-    """
+    f"""
 WITH vector_candidates AS (
     SELECT
         chunk.id,
@@ -62,11 +123,7 @@ WITH vector_candidates AS (
     FROM rag.document_chunks chunk
     WHERE chunk.corpus = :corpus
       AND chunk.is_active = true
-      AND EXISTS (
-          SELECT 1 FROM app.document_permissions p
-          WHERE p.document_id = chunk.document_id
-            AND p.group_id = ANY(CAST(:user_groups AS uuid[]))
-      )
+      {_ACCESS_RULE_PREDICATE}
       AND (
           CAST(:dimension_value_filter AS uuid[]) IS NULL
           OR EXISTS (
@@ -97,11 +154,7 @@ bm25_candidates AS (
           chunk.content_tsv @@ websearch_to_tsquery('simple', rag.f_immutable_unaccent(:q_text))
           OR chunk.content % :q_text
       )
-      AND EXISTS (
-          SELECT 1 FROM app.document_permissions p
-          WHERE p.document_id = chunk.document_id
-            AND p.group_id = ANY(CAST(:user_groups AS uuid[]))
-      )
+      {_ACCESS_RULE_PREDICATE}
       AND (
           CAST(:dimension_value_filter AS uuid[]) IS NULL
           OR EXISTS (
@@ -157,7 +210,10 @@ async def hybrid_retrieve(
             "q_text": q_text,
             "q_embedding": _vector_literal(q_embedding),
             "corpus": params.corpus,
-            "user_groups": [str(g) for g in params.user_groups],
+            "is_global_admin": params.is_global_admin,
+            "user_groups": [str(group_id) for group_id in params.user_groups],
+            "user_organizational_unit_id": params.user_organizational_unit_id,
+            "root_organizational_unit_id": params.root_organizational_unit_id,
             "dimension_value_filter": (
                 [str(v) for v in params.dimension_value_filter]
                 if params.dimension_value_filter is not None

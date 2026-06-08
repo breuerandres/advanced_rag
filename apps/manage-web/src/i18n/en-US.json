@@ -11,7 +11,7 @@
   "auth": {
     "active_session": "Active session",
     "invalid_credentials": "Email or password is not valid.",
-    "login_detail": "Use your Admin or DocumentManager account to manage instructions, users, audit, and configuration.",
+    "login_detail": "Use your Admin, DocumentEditor, or DocumentPublisher account to manage instructions, users, audit, and configuration.",
     "login_error": "Could not sign in.",
     "login_eyebrow": "Management console",
     "login_submit": "Sign in",
@@ -124,7 +124,8 @@
     "editor_empty": "Open a document or create a new one to edit it.",
     "created_message": "Document created.",
     "draft_saved_message": "Draft saved.",
-    "review_validation_error": "Complete title, type, audience, groups, and content before sending to review.",
+    "save_error": "Could not save the draft. Reference: {{reference}}.",
+    "review_validation_error": "Complete title, type, audience, access rules, and content before sending to review.",
     "save_before_review_error": "Save the draft before sending it to review.",
     "sent_to_review_message": "Document sent to review.",
     "published_message": "Document published.",
@@ -175,7 +176,20 @@
     "image_save_before_upload": "Save the draft before inserting images.",
     "image_too_large": "The image exceeds the 5 MB limit.",
     "image_upload_error": "The image could not be uploaded. Try again.",
-    "generated_html": "Generated HTML"
+    "generated_html": "Generated HTML",
+    "access_rules": "Access rules",
+    "access_rules_help": "Each rule enables an organizational unit and/or groups. Within a rule both conditions are required; across rules, any match grants access.",
+    "add_access_rule": "Add rule",
+    "remove_access_rule": "Remove rule",
+    "access_rule_label": "Rule {{number}}",
+    "rule_organizational_unit": "Organizational unit",
+    "rule_no_unit": "No unit (groups only)",
+    "rule_company_wide": "company-wide",
+    "rule_groups": "Groups",
+    "access_rules_required": "Add at least one access rule.",
+    "access_rule_empty_invalid": "This rule needs an organizational unit or at least one group.",
+    "access_rule_validation_error": "Check the access rules: each rule needs a unit or a group and cannot be empty.",
+    "organizational_units_load_error": "Could not load organizational units."
   },
   "users": {
     "title": "Users & groups",
@@ -231,7 +245,16 @@
     "role_viewer": "Viewer",
     "activate": "Activate",
     "deactivate": "Deactivate",
-    "edit_budget": "Edit budget"
+    "edit_budget": "Edit budget",
+    "organizational_unit": "Organizational unit",
+    "organizational_unit_required": "Select an organizational unit.",
+    "organizational_unit_placeholder": "Select a unit",
+    "organizational_unit_column": "Unit",
+    "organizational_units_load_error": "Could not load organizational units.",
+    "company_wide": "Company-wide",
+    "owner_unit_column": "Owner unit",
+    "publishing_policy_column": "Publishing policy",
+    "no_owner_unit": "No owner unit"
   },
   "setup": {
     "title": "Initial setup",

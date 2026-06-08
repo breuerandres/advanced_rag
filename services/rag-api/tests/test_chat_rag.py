@@ -16,6 +16,7 @@ import asyncpg  # type: ignore[import-untyped]
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import create_async_engine
 from testcontainers.postgres import PostgresContainer  # type: ignore[import-untyped]
 
 from advanced_rag.auth.chat_tokens import ChatTokenClaims
@@ -26,6 +27,7 @@ from advanced_rag.providers.base import (
     ChatCompletionRequest,
     ChatUsage,
 )
+from advanced_rag.rag.hybrid_retrieval import HybridRetrievalParams, hybrid_retrieve
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +39,20 @@ USER_ID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 ALLOWED_GROUP_ID = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
 DENIED_GROUP_ID = UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
 OTHER_USER_ID = UUID("dddddddd-dddd-dddd-dddd-dddddddddddd")
+
+# Hierarchical-access fixtures. The root unit id matches both the .NET migration seed
+# and the ChatTokenClaims default, so the branch-aware SQL treats a rule scoped to it as
+# the explicit company-wide rule. The org tree is:
+#   Empresa ── Comunicación ── Marketing
+#          │                └─ Producción Audiovisual
+#          └─ Sistemas
+EMPRESA_ORG_UNIT_ID = UUID("01000000-0000-0000-0000-000000000001")
+COMUNICACION_ORG_UNIT_ID = UUID("01000000-0000-0000-0000-0000000000c0")
+MARKETING_ORG_UNIT_ID = UUID("01000000-0000-0000-0000-0000000000a1")
+AUDIOVISUAL_ORG_UNIT_ID = UUID("01000000-0000-0000-0000-0000000000a2")
+SISTEMAS_ORG_UNIT_ID = UUID("01000000-0000-0000-0000-0000000000a3")
+CRISIS_GROUP_ID = UUID("0c000000-0000-0000-0000-0000000000c1")
+HIERARCHY_AUTHOR_ID = UUID("0a000000-0000-0000-0000-00000000000a")
 
 EMBEDDING_DIMENSIONS = 1024
 EMBEDDING_MODEL = "text-embedding-3-large"
@@ -508,6 +524,95 @@ def test_budget_exhaustion_blocks_before_paid_provider_calls() -> None:
     assert llm_provider.calls == 0
 
 
+def test_hierarchical_retrieval_allows_ancestor_descendant_but_not_sibling_documents() -> None:
+    with _postgres() as database:
+        seeded = asyncio.run(database.seed_hierarchical_corpus())
+        documents = asyncio.run(
+            _retrieve_document_ids(
+                database.async_url,
+                HybridRetrievalParams(
+                    corpus="published",
+                    user_groups=[],
+                    user_organizational_unit_id=seeded["marketing"],
+                    root_organizational_unit_id=seeded["empresa"],
+                    is_global_admin=False,
+                ),
+            )
+        )
+
+    # A Marketing user sees company-wide (Empresa), its ancestor branch (Comunicación),
+    # and its own unit (Marketing); never a sibling (Producción Audiovisual) or another
+    # branch (Sistemas), and not the crisis-group document without that group.
+    assert documents == {
+        seeded["empresa_doc"],
+        seeded["comunicacion_doc"],
+        seeded["marketing_doc"],
+    }
+
+
+def test_group_rule_requires_membership_and_empty_rule_does_not_match() -> None:
+    with _postgres() as database:
+        seeded = asyncio.run(database.seed_hierarchical_corpus())
+        with_group = asyncio.run(
+            _retrieve_document_ids(
+                database.async_url,
+                HybridRetrievalParams(
+                    corpus="published",
+                    user_groups=[seeded["crisis_group"]],
+                    user_organizational_unit_id=seeded["comunicacion"],
+                    root_organizational_unit_id=seeded["empresa"],
+                ),
+            )
+        )
+        without_group = asyncio.run(
+            _retrieve_document_ids(
+                database.async_url,
+                HybridRetrievalParams(
+                    corpus="published",
+                    user_groups=[],
+                    user_organizational_unit_id=seeded["comunicacion"],
+                    root_organizational_unit_id=seeded["empresa"],
+                ),
+            )
+        )
+
+    # The crisis document requires both the Comunicación branch AND the crisis group.
+    assert seeded["crisis_doc"] in with_group
+    assert seeded["crisis_doc"] not in without_group
+    # An empty rule never grants access, regardless of group membership.
+    assert seeded["empty_doc"] not in with_group
+    assert seeded["empty_doc"] not in without_group
+
+
+def test_admin_global_scope_bypasses_rule_filter() -> None:
+    with _postgres() as database:
+        seeded = asyncio.run(database.seed_hierarchical_corpus())
+        documents = asyncio.run(
+            _retrieve_document_ids(
+                database.async_url,
+                HybridRetrievalParams(
+                    corpus="published",
+                    user_groups=[],
+                    user_organizational_unit_id=seeded["sistemas"],
+                    root_organizational_unit_id=seeded["empresa"],
+                    is_global_admin=True,
+                ),
+            )
+        )
+
+    # A global admin retrieves every published document, regardless of branch or group,
+    # and even an otherwise invalid empty rule.
+    assert documents == {
+        seeded["empresa_doc"],
+        seeded["comunicacion_doc"],
+        seeded["marketing_doc"],
+        seeded["audiovisual_doc"],
+        seeded["sistemas_doc"],
+        seeded["crisis_doc"],
+        seeded["empty_doc"],
+    }
+
+
 def _postgres() -> ChatDatabase:
     return ChatDatabase()
 
@@ -577,15 +682,51 @@ class ChatDatabase:
                 )
                 """
             )
+            # Mirrors the .NET hierarchical-access schema: organizational units with a
+            # closure table, document permissions scoped to an org unit, and a
+            # permission-to-group join. The legacy `group_id` column is kept for schema
+            # parity but the branch-aware retrieval reads `document_permission_groups`.
+            await connection.execute(
+                """
+                CREATE TABLE app.organizational_units (
+                    "Id" uuid primary key,
+                    name text not null,
+                    parent_id uuid null references app.organizational_units("Id"),
+                    is_active boolean not null default true,
+                    created_at timestamptz not null default now(),
+                    updated_at timestamptz not null default now()
+                )
+                """
+            )
+            await connection.execute(
+                """
+                CREATE TABLE app.organizational_unit_closure (
+                    ancestor_id uuid not null references app.organizational_units("Id") on delete cascade,
+                    descendant_id uuid not null references app.organizational_units("Id") on delete cascade,
+                    depth integer not null,
+                    primary key (ancestor_id, descendant_id)
+                )
+                """
+            )
             await connection.execute(
                 """
                 CREATE TABLE app.document_permissions (
                     "Id" uuid primary key,
                     document_id uuid not null,
+                    organizational_unit_id uuid null,
                     group_id uuid null,
                     attribute_key text null,
                     attribute_value text null,
                     created_at timestamptz not null default now()
+                )
+                """
+            )
+            await connection.execute(
+                """
+                CREATE TABLE app.document_permission_groups (
+                    document_permission_id uuid not null references app.document_permissions("Id") on delete cascade,
+                    group_id uuid not null references app.groups("Id") on delete cascade,
+                    primary key (document_permission_id, group_id)
                 )
                 """
             )
@@ -675,13 +816,23 @@ class ChatDatabase:
                     title,
                     USER_ID,
                 )
+                # Group-only rule in the hierarchical model: a permission with no org
+                # unit plus a permission-to-group join row.
+                permission_id = uuid4()
                 await connection.execute(
                     """
-                    INSERT INTO app.document_permissions ("Id", document_id, group_id)
-                    VALUES ($1, $2, $3)
+                    INSERT INTO app.document_permissions ("Id", document_id, organizational_unit_id)
+                    VALUES ($1, $2, NULL)
                     """,
-                    uuid4(),
+                    permission_id,
                     document_id,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO app.document_permission_groups (document_permission_id, group_id)
+                    VALUES ($1, $2)
+                    """,
+                    permission_id,
                     group_id,
                 )
             chat_price_id = uuid4()
@@ -726,6 +877,208 @@ class ChatDatabase:
             await self._insert_chunk(connection, preview_document_id, "preview", "Preview-only content.")
         finally:
             await connection.close()
+
+    async def seed_hierarchical_corpus(self) -> dict[str, UUID]:
+        """Seed an org tree, a transverse group, and published documents with rules.
+
+        Returns org-unit ids and document ids so tests can assert exact retrieval sets.
+        Document access rules:
+          * empresa_doc      -> org rule on the root unit (company-wide)
+          * comunicacion_doc -> org rule on Comunicación
+          * marketing_doc    -> org rule on Marketing
+          * audiovisual_doc  -> org rule on Producción Audiovisual
+          * sistemas_doc     -> org rule on Sistemas
+          * crisis_doc       -> org rule on Comunicación AND the crisis group
+          * empty_doc        -> an invalid empty rule (no org unit, no group)
+        """
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            await self._insert_org_unit(connection, EMPRESA_ORG_UNIT_ID, "Empresa", None)
+            await self._insert_org_unit(
+                connection, COMUNICACION_ORG_UNIT_ID, "Comunicación", EMPRESA_ORG_UNIT_ID
+            )
+            await self._insert_org_unit(
+                connection, MARKETING_ORG_UNIT_ID, "Marketing", COMUNICACION_ORG_UNIT_ID
+            )
+            await self._insert_org_unit(
+                connection, AUDIOVISUAL_ORG_UNIT_ID, "Producción Audiovisual", COMUNICACION_ORG_UNIT_ID
+            )
+            await self._insert_org_unit(
+                connection, SISTEMAS_ORG_UNIT_ID, "Sistemas", EMPRESA_ORG_UNIT_ID
+            )
+
+            # Closure rows: a self row (depth 0) plus one row per ancestor (nearest first).
+            await self._insert_closure(connection, EMPRESA_ORG_UNIT_ID, [])
+            await self._insert_closure(connection, COMUNICACION_ORG_UNIT_ID, [EMPRESA_ORG_UNIT_ID])
+            await self._insert_closure(
+                connection, MARKETING_ORG_UNIT_ID, [COMUNICACION_ORG_UNIT_ID, EMPRESA_ORG_UNIT_ID]
+            )
+            await self._insert_closure(
+                connection, AUDIOVISUAL_ORG_UNIT_ID, [COMUNICACION_ORG_UNIT_ID, EMPRESA_ORG_UNIT_ID]
+            )
+            await self._insert_closure(connection, SISTEMAS_ORG_UNIT_ID, [EMPRESA_ORG_UNIT_ID])
+
+            await connection.execute(
+                'INSERT INTO app.groups ("Id", name) VALUES ($1, $2)',
+                CRISIS_GROUP_ID,
+                "Comité de crisis",
+            )
+
+            empresa_doc = uuid4()
+            comunicacion_doc = uuid4()
+            marketing_doc = uuid4()
+            audiovisual_doc = uuid4()
+            sistemas_doc = uuid4()
+            crisis_doc = uuid4()
+            empty_doc = uuid4()
+
+            await self._insert_org_document(
+                connection,
+                document_id=empresa_doc,
+                organizational_unit_id=EMPRESA_ORG_UNIT_ID,
+                group_ids=[],
+                content="Empresa onboarding handbook.",
+            )
+            await self._insert_org_document(
+                connection,
+                document_id=comunicacion_doc,
+                organizational_unit_id=COMUNICACION_ORG_UNIT_ID,
+                group_ids=[],
+                content="Comunicación area guide.",
+            )
+            await self._insert_org_document(
+                connection,
+                document_id=marketing_doc,
+                organizational_unit_id=MARKETING_ORG_UNIT_ID,
+                group_ids=[],
+                content="Marketing campaign calendar.",
+            )
+            await self._insert_org_document(
+                connection,
+                document_id=audiovisual_doc,
+                organizational_unit_id=AUDIOVISUAL_ORG_UNIT_ID,
+                group_ids=[],
+                content="Audiovisual production checklist.",
+            )
+            await self._insert_org_document(
+                connection,
+                document_id=sistemas_doc,
+                organizational_unit_id=SISTEMAS_ORG_UNIT_ID,
+                group_ids=[],
+                content="Sistemas operations runbook.",
+            )
+            await self._insert_org_document(
+                connection,
+                document_id=crisis_doc,
+                organizational_unit_id=COMUNICACION_ORG_UNIT_ID,
+                group_ids=[CRISIS_GROUP_ID],
+                content="Crisis committee escalation protocol.",
+            )
+            await self._insert_org_document(
+                connection,
+                document_id=empty_doc,
+                organizational_unit_id=None,
+                group_ids=[],
+                content="Orphan document with an empty access rule.",
+            )
+
+            return {
+                "empresa": EMPRESA_ORG_UNIT_ID,
+                "comunicacion": COMUNICACION_ORG_UNIT_ID,
+                "marketing": MARKETING_ORG_UNIT_ID,
+                "audiovisual": AUDIOVISUAL_ORG_UNIT_ID,
+                "sistemas": SISTEMAS_ORG_UNIT_ID,
+                "crisis_group": CRISIS_GROUP_ID,
+                "empresa_doc": empresa_doc,
+                "comunicacion_doc": comunicacion_doc,
+                "marketing_doc": marketing_doc,
+                "audiovisual_doc": audiovisual_doc,
+                "sistemas_doc": sistemas_doc,
+                "crisis_doc": crisis_doc,
+                "empty_doc": empty_doc,
+            }
+        finally:
+            await connection.close()
+
+    async def _insert_org_unit(
+        self,
+        connection: asyncpg.Connection,
+        unit_id: UUID,
+        name: str,
+        parent_id: UUID | None,
+    ) -> None:
+        await connection.execute(
+            """
+            INSERT INTO app.organizational_units ("Id", name, parent_id, is_active)
+            VALUES ($1, $2, $3, true)
+            """,
+            unit_id,
+            name,
+            parent_id,
+        )
+
+    async def _insert_closure(
+        self,
+        connection: asyncpg.Connection,
+        unit_id: UUID,
+        ancestors: list[UUID],
+    ) -> None:
+        await connection.execute(
+            """
+            INSERT INTO app.organizational_unit_closure (ancestor_id, descendant_id, depth)
+            VALUES ($1, $1, 0)
+            """,
+            unit_id,
+        )
+        for depth, ancestor_id in enumerate(ancestors, start=1):
+            await connection.execute(
+                """
+                INSERT INTO app.organizational_unit_closure (ancestor_id, descendant_id, depth)
+                VALUES ($1, $2, $3)
+                """,
+                ancestor_id,
+                unit_id,
+                depth,
+            )
+
+    async def _insert_org_document(
+        self,
+        connection: asyncpg.Connection,
+        *,
+        document_id: UUID,
+        organizational_unit_id: UUID | None,
+        group_ids: list[UUID],
+        content: str,
+    ) -> None:
+        await connection.execute(
+            """
+            INSERT INTO app.documents ("Id", title, current_state, created_by_user_id)
+            VALUES ($1, $2, 'Published', $3)
+            """,
+            document_id,
+            content,
+            HIERARCHY_AUTHOR_ID,
+        )
+        permission_id = uuid4()
+        await connection.execute(
+            """
+            INSERT INTO app.document_permissions ("Id", document_id, organizational_unit_id)
+            VALUES ($1, $2, $3)
+            """,
+            permission_id,
+            document_id,
+            organizational_unit_id,
+        )
+        for group_id in group_ids:
+            await connection.execute(
+                """
+                INSERT INTO app.document_permission_groups (document_permission_id, group_id)
+                VALUES ($1, $2)
+                """,
+                permission_id,
+                group_id,
+            )
+        await self._insert_chunk(connection, document_id, "published", content)
 
     async def seed_dimension_value(self, *, document_id: UUID) -> UUID:
         """Insert one dimension/value pair and tag the given document with it.
@@ -1042,6 +1395,27 @@ def _run_migrations(async_url: str) -> None:
     config = Config(str(SERVICE_ROOT / "alembic.ini"))
     config.set_main_option("sqlalchemy.url", async_url)
     command.upgrade(config, "head")
+
+
+async def _retrieve_document_ids(async_url: str, params: HybridRetrievalParams) -> set[UUID]:
+    """Run the branch-aware retrieval directly and return the matched document ids.
+
+    Every fake chunk is embedded with the same vector, so the vector-candidate leg
+    surfaces all published chunks and the access predicate is the only thing that
+    narrows the result. This isolates the SQL access rules from ranking behaviour.
+    """
+    engine = create_async_engine(async_url)
+    try:
+        async with engine.connect() as connection:
+            candidates = await hybrid_retrieve(
+                connection,
+                q_text="policy",
+                q_embedding=[0.01] * EMBEDDING_DIMENSIONS,
+                params=params,
+            )
+    finally:
+        await engine.dispose()
+    return {candidate.document_id for candidate in candidates}
 
 
 class FakeEmbeddingProvider:

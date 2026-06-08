@@ -4,6 +4,23 @@ import userEvent from "@testing-library/user-event";
 import App from "./App";
 import i18n from "./i18n";
 
+const organizationalUnitsResponse = [
+  {
+    id: "01000000-0000-0000-0000-000000000001",
+    name: "Empresa",
+    parentId: null,
+    depth: 0,
+    isActive: true,
+  },
+  {
+    id: "0c000000-0000-0000-0000-0000000000c0",
+    name: "Comunicación",
+    parentId: "01000000-0000-0000-0000-000000000001",
+    depth: 1,
+    isActive: true,
+  },
+];
+
 const usersResponse = [
   {
     id: "11111111-1111-1111-1111-111111111111",
@@ -14,6 +31,13 @@ const usersResponse = [
     groups: [
       { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
     ],
+    organizationalUnit: {
+      id: "0a000000-0000-0000-0000-0000000000a3",
+      name: "Sistemas",
+      parentId: "01000000-0000-0000-0000-000000000001",
+      depth: 1,
+      isActive: true,
+    },
     accessScopeHash: "scope-hash",
     monthlyBudgetUsd: 5,
     currentSpendUsd: 1.25,
@@ -30,9 +54,14 @@ const sessionUser = {
   groups: [{ id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" }],
 };
 
-const documentManagerSessionUser = {
+const documentPublisherSessionUser = {
   ...sessionUser,
-  roles: ["DocumentManager"],
+  roles: ["DocumentPublisher"],
+};
+
+const documentEditorSessionUser = {
+  ...sessionUser,
+  roles: ["DocumentEditor"],
 };
 
 const viewerSessionUser = {
@@ -442,7 +471,7 @@ describe("management users and budgets", () => {
     expect(screen.queryByRole("link", { name: "Feedback" })).not.toBeInTheDocument();
   });
 
-  test("shows document-manager user read models and hides admin-only user actions", async () => {
+  test("shows document-publisher user read models and hides admin-only user actions", async () => {
     stubFetch(
       [
         jsonResponse(200, usersResponse),
@@ -450,7 +479,7 @@ describe("management users and budgets", () => {
           { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
         ]),
       ],
-      { session: documentManagerSessionUser },
+      { session: documentPublisherSessionUser },
     );
     const user = userEvent.setup();
 
@@ -825,6 +854,14 @@ describe("management users and budgets", () => {
       screen.getByLabelText("Contraseña temporal"),
       "DemoPassword!42",
     );
+    const unitSelect = await screen.findByRole("combobox", {
+      name: "Unidad organizativa",
+    });
+    await screen.findByRole("option", { name: "Empresa (toda la empresa)" });
+    await user.selectOptions(
+      unitSelect,
+      "01000000-0000-0000-0000-000000000001",
+    );
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Rol" }),
       "Viewer",
@@ -838,6 +875,91 @@ describe("management users and budgets", () => {
       "/api/users",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  test("creates a user with one organizational unit and multiple groups", async () => {
+    const createdUser = {
+      id: "55555555-5555-5555-5555-555555555555",
+      email: "editor@example.com",
+      displayName: "Editor Demo",
+      isActive: true,
+      roles: ["DocumentEditor"],
+      groups: [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+        { id: "44444444-4444-4444-4444-444444444444", name: "Compras" },
+      ],
+      organizationalUnit: {
+        id: "0c000000-0000-0000-0000-0000000000c0",
+        name: "Comunicación",
+        parentId: "01000000-0000-0000-0000-000000000001",
+        depth: 1,
+        isActive: true,
+      },
+      accessScopeHash: "editor-scope",
+      monthlyBudgetUsd: 5,
+      currentSpendUsd: 0,
+      remainingBudgetUsd: 5,
+      isBudgetDisabled: false,
+    };
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+        { id: "44444444-4444-4444-4444-444444444444", name: "Compras" },
+      ]),
+      csrfResponse(),
+      jsonResponse(201, createdUser),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Crear usuario" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Email" }),
+      "editor@example.com",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Nombre visible" }),
+      "Editor Demo",
+    );
+    await user.type(
+      screen.getByLabelText("Contraseña temporal"),
+      "EditorPass!42",
+    );
+
+    const unitSelect = await screen.findByRole("combobox", {
+      name: "Unidad organizativa",
+    });
+    await screen.findByRole("option", { name: "Comunicación" });
+    await user.selectOptions(unitSelect, "0c000000-0000-0000-0000-0000000000c0");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Rol" }),
+      "DocumentEditor",
+    );
+    await user.click(screen.getByRole("checkbox", { name: "Operaciones" }));
+    await user.click(screen.getByRole("checkbox", { name: "Compras" }));
+    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
+
+    expect(await screen.findByText("Editor Demo")).toBeInTheDocument();
+    const [, requestInit] = fetchMock.mock.calls.find(
+      ([path, init]) =>
+        path === "/api/users" &&
+        typeof init === "object" &&
+        init !== null &&
+        "method" in init &&
+        init.method === "POST",
+    )!;
+    const body = JSON.parse(requestInit!.body as string);
+    expect(body.organizationalUnitId).toBe(
+      "0c000000-0000-0000-0000-0000000000c0",
+    );
+    expect(body.groupIds).toEqual([
+      "22222222-2222-2222-2222-222222222222",
+      "44444444-4444-4444-4444-444444444444",
+    ]);
   });
 
   test("shows a safe API error state when saving a budget fails", async () => {
@@ -1141,7 +1263,7 @@ describe("management documents", () => {
     );
   }, 15000);
 
-  test("creates an access group from the document editor modal and can select every group", async () => {
+  test("creates an access group from the document editor modal and adds it to the rule", async () => {
     const newGroup = {
       id: "33333333-3333-3333-3333-333333333333",
       name: "Mantenimiento",
@@ -1181,9 +1303,6 @@ describe("management documents", () => {
     expect(
       screen.queryByRole("textbox", { name: "Nombre del grupo" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Seleccionar todos" }),
-    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Nuevo grupo" }));
 
@@ -1194,16 +1313,12 @@ describe("management documents", () => {
     );
     await user.click(within(dialog).getByRole("button", { name: "Guardar grupo" }));
 
+    // The created group is added to the first access rule and checked.
     expect(
       await screen.findByRole("checkbox", { name: newGroup.name }),
     ).toBeChecked();
     expect(screen.getByText("Grupo Mantenimiento creado.")).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Crear grupo" })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("checkbox", { name: newGroup.name }));
-    expect(screen.getByRole("checkbox", { name: newGroup.name })).not.toBeChecked();
-    await user.click(screen.getByRole("button", { name: "Seleccionar todos" }));
-    expect(screen.getByRole("checkbox", { name: newGroup.name })).toBeChecked();
 
     await user.type(
       screen.getByRole("textbox", { name: "Titulo" }),
@@ -1232,9 +1347,134 @@ describe("management documents", () => {
         "method" in init &&
         init.method === "POST",
     )!;
-    expect(JSON.parse(requestInit!.body as string).allowedGroupIds).toEqual([
-      newGroup.id,
+    expect(JSON.parse(requestInit!.body as string).accessRules).toEqual([
+      { organizationalUnitId: null, groupIds: [newGroup.id] },
     ]);
+  }, 15000);
+
+  test("document editor saves organizational-unit and group access rules", async () => {
+    const createdDocument = {
+      ...documentDetail,
+      id: "99999999-9999-9999-9999-999999999999",
+      title: "Protocolo de crisis",
+      allowedGroupIds: ["44444444-4444-4444-4444-444444444444"],
+      currentDraftVersion: {
+        ...documentDetail.currentDraftVersion!,
+        title: "Protocolo de crisis",
+        documentType: "Procedimiento",
+        audience: "Comunicación",
+        contentHtml: "<p>Escalar al comité.</p>",
+      },
+    };
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, documentsResponse),
+      jsonResponse(200, [
+        { id: "44444444-4444-4444-4444-444444444444", name: "Comité de crisis" },
+      ]),
+      csrfResponse(),
+      jsonResponse(201, createdDocument),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("link", { name: "Documentos" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Crear documento" }),
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Titulo" }),
+      "Protocolo de crisis",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Tipo" }),
+      "Procedimiento",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Audiencia" }),
+      "Comunicación",
+    );
+
+    const unitSelect = await screen.findByRole("combobox", {
+      name: "Unidad organizativa",
+    });
+    await screen.findByRole("option", { name: "Comunicación" });
+    await user.selectOptions(unitSelect, "0c000000-0000-0000-0000-0000000000c0");
+    await user.click(screen.getByRole("checkbox", { name: "Comité de crisis" }));
+
+    await user.click(screen.getByRole("button", { name: "Guardar borrador" }));
+
+    expect(await screen.findByText("Documento creado.")).toBeInTheDocument();
+    const [, requestInit] = fetchMock.mock.calls.find(
+      ([path, init]) =>
+        path === "/api/documents" &&
+        typeof init === "object" &&
+        init !== null &&
+        "method" in init &&
+        init.method === "POST",
+    )!;
+    expect(JSON.parse(requestInit!.body as string).accessRules).toEqual([
+      {
+        organizationalUnitId: "0c000000-0000-0000-0000-0000000000c0",
+        groupIds: ["44444444-4444-4444-4444-444444444444"],
+      },
+    ]);
+  }, 15000);
+
+  test("document editor surfaces invalid empty access rule errors", async () => {
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, documentsResponse),
+      jsonResponse(200, []),
+      csrfResponse(),
+      jsonResponse(400, {
+        error: {
+          code: "VALIDATION_FAILED",
+          message: "Document access rules are invalid.",
+          details: { field: "accessRules" },
+          requestId: "req-rules",
+        },
+      }),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("link", { name: "Documentos" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Crear documento" }),
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Titulo" }),
+      "Sin reglas",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Tipo" }),
+      "Procedimiento",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Audiencia" }),
+      "Comunicación",
+    );
+
+    // The default access rule is left empty (no unit, no group); the backend
+    // rejects it and the editor surfaces the Spanish validation error.
+    await user.click(screen.getByRole("button", { name: "Guardar borrador" }));
+
+    expect(
+      await screen.findByText(
+        "Revisá las reglas de acceso: cada regla necesita una unidad o un grupo y no puede quedar vacía.",
+      ),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/documents",
+      expect.objectContaining({ method: "POST" }),
+    );
   }, 15000);
 
   test("exposes the richer TipTap toolbar", async () => {
@@ -1356,7 +1596,7 @@ describe("management documents", () => {
 
     expect(
       screen.getByText(
-        "Completa titulo, tipo, audiencia, grupos y contenido antes de enviar a revision.",
+        "Completa titulo, tipo, audiencia, reglas de acceso y contenido antes de enviar a revision.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Titulo" })).toHaveAttribute(
@@ -1474,7 +1714,7 @@ describe("management documents", () => {
     ).toBeInTheDocument();
   });
 
-  test("hides publish and send-to-review actions from document managers when a document is in review", async () => {
+  test("hides publish and send-to-review actions from document editors when a document is in review", async () => {
     stubFetch(
       [
         jsonResponse(200, usersResponse),
@@ -1489,7 +1729,7 @@ describe("management documents", () => {
         ]),
         jsonResponse(200, inReviewDocumentDetail),
       ],
-      { session: documentManagerSessionUser },
+      { session: documentEditorSessionUser },
     );
     const user = userEvent.setup();
 
@@ -1906,7 +2146,7 @@ function stubFetch(responses: Response[], options: StubFetchOptions = {}) {
         setupRequired,
         adminExists: !setupRequired,
         databaseReady: true,
-        requiredRoles: ["Admin", "DocumentManager", "Viewer"],
+        requiredRoles: ["Admin", "DocumentEditor", "DocumentPublisher", "Viewer"],
       });
     }
 
@@ -1921,6 +2161,12 @@ function stubFetch(responses: Response[], options: StubFetchOptions = {}) {
               requestId: "session-request",
             },
           });
+    }
+
+    // The organizational-unit tree is fetched lazily by the user dialog and the
+    // document editor. Serve it out of band so it never disturbs the ordered queue.
+    if (path === "/api/organizational-units") {
+      return jsonResponse(200, organizationalUnitsResponse);
     }
 
     const response = responses.shift();
