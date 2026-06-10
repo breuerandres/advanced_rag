@@ -32,7 +32,8 @@
     "api_keys": "API keys",
     "configuration": "Configuration",
     "account": "My account",
-    "logout": "Sign out"
+    "logout": "Sign out",
+    "organizational_units": "Organizational units"
   },
   "documents": {
     "title": "Documents",
@@ -189,7 +190,32 @@
     "access_rules_required": "Add at least one access rule.",
     "access_rule_empty_invalid": "This rule needs an organizational unit or at least one group.",
     "access_rule_validation_error": "Check the access rules: each rule needs a unit or a group and cannot be empty.",
-    "organizational_units_load_error": "Could not load organizational units."
+    "organizational_units_load_error": "Could not load organizational units.",
+    "rule_company_wide_label": "Company-wide",
+    "access_rule_summary_separator": " · "
+  },
+  "orgUnits": {
+    "title": "Organizational units",
+    "eyebrow": "Structure",
+    "loading": "Loading units...",
+    "load_error": "Could not load organizational units.",
+    "company_wide": "company-wide",
+    "add_child": "Add child unit",
+    "add_root_child": "Add unit under root",
+    "rename": "Rename",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "inactive": "inactive",
+    "create_title": "Create unit",
+    "create_description": "Create a child organizational unit inside the hierarchy.",
+    "rename_title": "Rename unit",
+    "name_field": "Unit name",
+    "name_required": "Unit name is required.",
+    "save": "Save",
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "create_error": "Could not create the unit. Reference: {{reference}}.",
+    "update_error": "Could not update the unit. Reference: {{reference}}."
   },
   "users": {
     "title": "Users & groups",
@@ -254,7 +280,16 @@
     "company_wide": "Company-wide",
     "owner_unit_column": "Owner unit",
     "publishing_policy_column": "Publishing policy",
-    "no_owner_unit": "No owner unit"
+    "no_owner_unit": "No owner unit",
+    "owner_unit_field": "Owner unit",
+    "owner_unit_none": "No owner unit",
+    "publishing_policy_field": "Publishing policy",
+    "publishing_policy_owner_scope": "Owner unit scope",
+    "publishing_policy_explicit_grant_only": "Explicit grant only",
+    "publishing_policy_admin_only": "Admins only",
+    "change_unit_field": "Organizational unit",
+    "change_unit_select": "Select a unit",
+    "org_units_load_error": "Could not load organizational units."
   },
   "setup": {
     "title": "Initial setup",

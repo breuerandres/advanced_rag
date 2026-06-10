@@ -32,7 +32,8 @@
     "api_keys": "API keys",
     "configuration": "Configuración",
     "account": "Mi cuenta",
-    "logout": "Cerrar sesión"
+    "logout": "Cerrar sesión",
+    "organizational_units": "Unidades organizativas"
   },
   "documents": {
     "title": "Documentos",
@@ -189,7 +190,32 @@
     "access_rules_required": "Agregá al menos una regla de acceso.",
     "access_rule_empty_invalid": "Esta regla necesita una unidad organizativa o al menos un grupo.",
     "access_rule_validation_error": "Revisá las reglas de acceso: cada regla necesita una unidad o un grupo y no puede quedar vacía.",
-    "organizational_units_load_error": "No se pudieron cargar las unidades organizativas."
+    "organizational_units_load_error": "No se pudieron cargar las unidades organizativas.",
+    "rule_company_wide_label": "Toda la empresa",
+    "access_rule_summary_separator": " · "
+  },
+  "orgUnits": {
+    "title": "Unidades organizativas",
+    "eyebrow": "Estructura",
+    "loading": "Cargando unidades...",
+    "load_error": "No se pudieron cargar las unidades organizativas.",
+    "company_wide": "toda la empresa",
+    "add_child": "Agregar unidad hija",
+    "add_root_child": "Agregar unidad bajo la raíz",
+    "rename": "Renombrar",
+    "activate": "Activar",
+    "deactivate": "Desactivar",
+    "inactive": "inactiva",
+    "create_title": "Crear unidad",
+    "create_description": "Creá una unidad organizativa hija dentro de la jerarquía.",
+    "rename_title": "Renombrar unidad",
+    "name_field": "Nombre de la unidad",
+    "name_required": "El nombre de la unidad es obligatorio.",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "saving": "Guardando...",
+    "create_error": "No se pudo crear la unidad. Referencia: {{reference}}.",
+    "update_error": "No se pudo actualizar la unidad. Referencia: {{reference}}."
   },
   "users": {
     "title": "Usuarios y grupos",
@@ -254,7 +280,16 @@
     "company_wide": "Toda la empresa",
     "owner_unit_column": "Unidad dueña",
     "publishing_policy_column": "Política de publicación",
-    "no_owner_unit": "Sin unidad dueña"
+    "no_owner_unit": "Sin unidad dueña",
+    "owner_unit_field": "Unidad dueña",
+    "owner_unit_none": "Sin unidad dueña",
+    "publishing_policy_field": "Política de publicación",
+    "publishing_policy_owner_scope": "Alcance de la unidad dueña",
+    "publishing_policy_explicit_grant_only": "Solo concesión explícita",
+    "publishing_policy_admin_only": "Solo administradores",
+    "change_unit_field": "Unidad organizativa",
+    "change_unit_select": "Seleccioná una unidad",
+    "org_units_load_error": "No se pudieron cargar las unidades organizativas."
   },
   "setup": {
     "title": "Configuración inicial",
