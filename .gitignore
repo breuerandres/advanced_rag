@@ -39,3 +39,6 @@ backups/
 
 # graphify generated knowledge-graph artifacts (regenerable via `graphify update .`)
 graphify-out/
+
+# Claude Code personal/local settings (never shared)
+.claude/settings.local.json
