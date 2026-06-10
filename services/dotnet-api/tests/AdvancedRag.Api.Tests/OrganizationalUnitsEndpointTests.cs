@@ -71,6 +71,23 @@ public sealed class OrganizationalUnitsEndpointTests
     }
 
     [Fact]
+    public async Task ListOrganizationalUnits_WithIncludeInactive_AsNonAdmin_ReturnsActiveOnly()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        LoginSession session = await LoginAsync(client, FakeOrgUnitsAuthService.EditorEmail, "manage.localhost");
+
+        using HttpRequestMessage request = new(HttpMethod.Get, "/api/organizational-units?includeInactive=true");
+        request.Headers.Host = "manage.localhost";
+        request.Headers.Add("Cookie", session.SessionCookie);
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        OrganizationalUnitResponse[]? body = await response.Content.ReadFromJsonAsync<OrganizationalUnitResponse[]>();
+        body!.Should().NotContain(unit => unit.Name == "Inactive Unit");
+    }
+
+    [Fact]
     public async Task CreateOrganizationalUnit_AsAdmin_CreatesChildNode()
     {
         using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
@@ -268,13 +285,19 @@ public sealed class FakeOrgUnitsAuthService : IAuthService
 {
     public static readonly Guid AdminUserId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     public const string AdminEmail = "admin@example.com";
+    public static readonly Guid EditorUserId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    public const string EditorEmail = "editor@example.com";
     public const string ValidPassword = "password";
 
     public Task<AuthenticatedUser?> AuthenticateAsync(string email, string password, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        AuthenticatedUser? user = email.Equals(AdminEmail, StringComparison.OrdinalIgnoreCase) && password == ValidPassword
-            ? new AuthenticatedUser(AdminUserId, AdminEmail, "Admin User", ["Admin"], [])
+        AuthenticatedUser? user = password == ValidPassword
+            ? email.Equals(AdminEmail, StringComparison.OrdinalIgnoreCase)
+                ? new AuthenticatedUser(AdminUserId, AdminEmail, "Admin User", ["Admin"], [])
+                : email.Equals(EditorEmail, StringComparison.OrdinalIgnoreCase)
+                    ? new AuthenticatedUser(EditorUserId, EditorEmail, "Editor User", ["DocumentEditor"], [])
+                    : null
             : null;
         return Task.FromResult(user);
     }
@@ -284,7 +307,9 @@ public sealed class FakeOrgUnitsAuthService : IAuthService
         ct.ThrowIfCancellationRequested();
         AuthenticatedUser? user = userId == AdminUserId
             ? new AuthenticatedUser(AdminUserId, AdminEmail, "Admin User", ["Admin"], [])
-            : null;
+            : userId == EditorUserId
+                ? new AuthenticatedUser(EditorUserId, EditorEmail, "Editor User", ["DocumentEditor"], [])
+                : null;
         return Task.FromResult(user);
     }
 }

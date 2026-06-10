@@ -21,7 +21,8 @@ public sealed class OrganizationalUnitsController : ApiControllerBase
     [HttpGet]
     public async Task<IActionResult> ListAsync([FromQuery] bool includeInactive, CancellationToken ct)
     {
-        IReadOnlyList<OrganizationalUnitRecord> units = await _organizationalUnits.ListTreeAsync(includeInactive, ct);
+        bool effectiveIncludeInactive = includeInactive && User.IsInRole("Admin");
+        IReadOnlyList<OrganizationalUnitRecord> units = await _organizationalUnits.ListTreeAsync(effectiveIncludeInactive, ct);
         return Ok(units.Select(OrganizationalUnitResponse.FromUnit).ToArray());
     }
 
