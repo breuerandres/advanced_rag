@@ -19,9 +19,9 @@ public sealed class OrganizationalUnitsController : ApiControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> ListAsync(CancellationToken ct)
+    public async Task<IActionResult> ListAsync([FromQuery] bool includeInactive, CancellationToken ct)
     {
-        IReadOnlyList<OrganizationalUnitRecord> units = await _organizationalUnits.ListActiveTreeAsync(ct);
+        IReadOnlyList<OrganizationalUnitRecord> units = await _organizationalUnits.ListTreeAsync(includeInactive, ct);
         return Ok(units.Select(OrganizationalUnitResponse.FromUnit).ToArray());
     }
 

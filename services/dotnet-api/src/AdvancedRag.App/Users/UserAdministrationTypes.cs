@@ -169,7 +169,7 @@ public interface IUserAdministrationRepository
 
 public interface IOrganizationalUnitService
 {
-    Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveTreeAsync(CancellationToken ct);
+    Task<IReadOnlyList<OrganizationalUnitRecord>> ListTreeAsync(bool includeInactive, CancellationToken ct);
 
     Task<OrganizationalUnitRecord> CreateAsync(CreateOrganizationalUnitCommand command, CancellationToken ct);
 
@@ -178,7 +178,7 @@ public interface IOrganizationalUnitService
 
 public interface IOrganizationalUnitRepository
 {
-    Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveTreeAsync(CancellationToken ct);
+    Task<IReadOnlyList<OrganizationalUnitRecord>> ListTreeAsync(bool includeInactive, CancellationToken ct);
 
     Task<OrganizationalUnitRecord?> FindAsync(Guid id, CancellationToken ct);
 

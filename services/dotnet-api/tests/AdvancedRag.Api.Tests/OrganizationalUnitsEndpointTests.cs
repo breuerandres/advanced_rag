@@ -54,6 +54,23 @@ public sealed class OrganizationalUnitsEndpointTests
     }
 
     [Fact]
+    public async Task ListOrganizationalUnits_WithIncludeInactive_ReturnsInactiveUnits()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        LoginSession session = await LoginAsync(client, FakeOrgUnitsAuthService.AdminEmail, "manage.localhost");
+
+        using HttpRequestMessage request = new(HttpMethod.Get, "/api/organizational-units?includeInactive=true");
+        request.Headers.Host = "manage.localhost";
+        request.Headers.Add("Cookie", session.SessionCookie);
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        OrganizationalUnitResponse[]? body = await response.Content.ReadFromJsonAsync<OrganizationalUnitResponse[]>();
+        body!.Should().Contain(unit => unit.Name == "Inactive Unit" && !unit.IsActive);
+    }
+
+    [Fact]
     public async Task CreateOrganizationalUnit_AsAdmin_CreatesChildNode()
     {
         using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
@@ -278,14 +295,20 @@ public sealed class FakeOrganizationalUnitService : IOrganizationalUnitService
     public static readonly Guid ComunicacionId = Guid.Parse("01000000-0000-0000-0000-000000000002");
     public static readonly Guid OperacionesId = Guid.Parse("01000000-0000-0000-0000-000000000003");
 
-    public Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveTreeAsync(CancellationToken ct)
+    public Task<IReadOnlyList<OrganizationalUnitRecord>> ListTreeAsync(bool includeInactive, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        return Task.FromResult<IReadOnlyList<OrganizationalUnitRecord>>(
+        List<OrganizationalUnitRecord> units =
         [
             new OrganizationalUnitRecord(RootId, "Empresa", null, 0, true),
             new OrganizationalUnitRecord(ComunicacionId, "Comunicacion", RootId, 1, true),
-        ]);
+        ];
+        if (includeInactive)
+        {
+            units.Add(new OrganizationalUnitRecord(OperacionesId, "Inactive Unit", RootId, 1, false));
+        }
+
+        return Task.FromResult<IReadOnlyList<OrganizationalUnitRecord>>(units);
     }
 
     public Task<OrganizationalUnitRecord> CreateAsync(CreateOrganizationalUnitCommand command, CancellationToken ct)

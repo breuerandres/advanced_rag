@@ -305,9 +305,9 @@ public sealed class OrganizationalUnitService : IOrganizationalUnitService
         _repository = repository;
     }
 
-    public Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveTreeAsync(CancellationToken ct)
+    public Task<IReadOnlyList<OrganizationalUnitRecord>> ListTreeAsync(bool includeInactive, CancellationToken ct)
     {
-        return _repository.ListActiveTreeAsync(ct);
+        return _repository.ListTreeAsync(includeInactive, ct);
     }
 
     public async Task<OrganizationalUnitRecord> CreateAsync(

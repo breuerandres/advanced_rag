@@ -13,9 +13,9 @@ public sealed class EfOrganizationalUnitRepository : IOrganizationalUnitReposito
         _db = db;
     }
 
-    public async Task<IReadOnlyList<OrganizationalUnitRecord>> ListActiveTreeAsync(CancellationToken ct)
+    public async Task<IReadOnlyList<OrganizationalUnitRecord>> ListTreeAsync(bool includeInactive, CancellationToken ct)
     {
-        return await BuildRecordsAsync(activeOnly: true, ct);
+        return await BuildRecordsAsync(activeOnly: !includeInactive, ct);
     }
 
     public async Task<OrganizationalUnitRecord?> FindAsync(Guid id, CancellationToken ct)
