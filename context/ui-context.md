@@ -69,6 +69,15 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - If extraction fails because no text is extractable, the UI shows a clear error, keeps current editor content unchanged, and lets the user upload another file or enter content manually.
 - If the user cancels or leaves without saving, the UI must treat imported HTML/text as unsaved editor state and discard it like any other unsaved draft changes.
 
+## Organizational Units Management
+
+- An Admin-only "Organizational Units" page is accessible from the management sidebar. It renders the unit hierarchy as an expandable tree.
+- Actions available at each node: create a child unit, rename the unit, and activate or deactivate it. Branch moves and unit deletion are not exposed because the backend does not support them.
+- `GET /api/organizational-units?includeInactive=true` is only called when the current user is Admin; non-Admin callers receive the active-only list.
+- Group create/edit dialogs include an owner organizational unit selector and a publishing policy selector. Both fields are optional and are saved through the group API.
+- The documents list Access column summarizes each document's access rules per organizational unit. Company-wide rules (root Empresa unit with no group restriction) display a meaningful label instead of the previous "-" placeholder.
+- Changing a user's organizational unit is available to Admin from the user edit dialog. The operation calls `PUT /api/users/{id}/organizational-unit` and causes the backend to bump `users.access_scope_version` so the user's next session validation reflects the new scope.
+
 ## Feedback Review UI
 
 - `Admin` and `DocumentManager` can access feedback review from the dedicated management feedback workspace.

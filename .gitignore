@@ -36,3 +36,6 @@ v2-generic.bundle
 v2-patches/
 
 backups/
+
+# graphify generated knowledge-graph artifacts (regenerable via `graphify update .`)
+graphify-out/
