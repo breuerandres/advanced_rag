@@ -461,7 +461,13 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                   {
                     key: "access",
                     header: t("documents.access"),
-                    render: (document) => displayGroups(groups, document.allowedGroupIds),
+                    render: (document) =>
+                      displayAccessRules(
+                        groups,
+                        document,
+                        t("documents.rule_company_wide_label"),
+                        t("documents.access_rule_summary_separator"),
+                      ),
                   },
                   {
                     key: "indexing",
@@ -1299,6 +1305,33 @@ function displayGroups(groups: GroupSummary[], allowedGroupIds: string[]) {
 
 function groupName(groups: GroupSummary[], groupId: string) {
   return groups.find((group) => group.id === groupId)?.name ?? groupId;
+}
+
+// The documents list intentionally does not load the org-unit catalog, so any
+// unit-scoped rule renders the stable company-wide label here while group names
+// still render precisely. The document editor (separate) shows exact unit names.
+function displayAccessRules(
+  groups: GroupSummary[],
+  document: DocumentSummary,
+  companyWideLabel: string,
+  separator: string,
+): string {
+  const rules = document.accessRules ?? [];
+  if (rules.length === 0) {
+    return displayGroups(groups, document.allowedGroupIds);
+  }
+
+  return rules
+    .map((rule) => {
+      const unitLabel =
+        rule.organizationalUnitId === null ? null : companyWideLabel;
+      const groupLabels = rule.groupIds.map((groupId) =>
+        groupName(groups, groupId),
+      );
+      return [unitLabel, ...groupLabels].filter(Boolean).join(" + ");
+    })
+    .filter((text) => text.length > 0)
+    .join(separator);
 }
 
 function uniqueValues(values: string[]) {

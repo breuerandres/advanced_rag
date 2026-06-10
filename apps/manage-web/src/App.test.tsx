@@ -1087,6 +1087,39 @@ describe("management documents", () => {
     expect(screen.queryByText("Indexacion pendiente")).not.toBeInTheDocument();
   });
 
+  test("documents access column shows company-wide rules", async () => {
+    const companyWideDocuments = [
+      {
+        ...documentsResponse[0],
+        allowedGroupIds: [],
+        accessRules: [
+          {
+            id: "r1",
+            organizationalUnitId: "01000000-0000-0000-0000-000000000001",
+            groupIds: [],
+          },
+        ],
+      },
+    ];
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+      ]),
+      jsonResponse(200, companyWideDocuments),
+      jsonResponse(200, [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+      ]),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("link", { name: "Documentos" }));
+
+    expect(await screen.findByText(/toda la empresa/i)).toBeInTheDocument();
+  });
+
   test("shows document filters for searchable document attributes", async () => {
     stubFetch([
       jsonResponse(200, usersResponse),
