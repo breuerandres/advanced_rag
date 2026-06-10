@@ -567,10 +567,31 @@ function GroupEditDialog({
   onClose: () => void
   onSaved: (group: GroupSummary) => void
 }) {
+  const { t } = useTranslation()
   const [name, setName] = useState(group.name)
+  const [ownerUnitId, setOwnerUnitId] = useState(group.ownerOrganizationalUnit?.id ?? '')
+  const [publishingPolicy, setPublishingPolicy] = useState<string>(group.publishingPolicy ?? 'OwnerScope')
+  const [organizationalUnits, setOrganizationalUnits] = useState<OrganizationalUnitSummary[]>([])
   const [validationError, setValidationError] = useState<string | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      try {
+        const loaded = await listOrganizationalUnits()
+        if (active) {
+          setOrganizationalUnits(loaded)
+        }
+      } catch {
+        // Owner unit is optional; ignore load failure here.
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -585,7 +606,13 @@ function GroupEditDialog({
 
     setIsSaving(true)
     try {
-      onSaved(await updateGroup(group.id, { name: trimmedName }))
+      onSaved(
+        await updateGroup(group.id, {
+          name: trimmedName,
+          ownerOrganizationalUnitId: ownerUnitId === '' ? null : ownerUnitId,
+          publishingPolicy,
+        }),
+      )
     } catch (error) {
       const reference = error instanceof ApiError ? error.requestId : 'unknown'
       setApiError(`No se pudo actualizar el grupo. Referencia: ${reference}.`)
@@ -616,6 +643,37 @@ function GroupEditDialog({
             />
           </label>
 
+          <label className="field">
+            <span>{t('users.owner_unit_field')}</span>
+            <select
+              value={ownerUnitId}
+              onChange={(event) => setOwnerUnitId(event.target.value)}
+              disabled={isSaving}
+            >
+              <option value="">{t('users.owner_unit_none')}</option>
+              {organizationalUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {organizationalUnitLabel(unit)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>{t('users.publishing_policy_field')}</span>
+            <select
+              value={publishingPolicy}
+              onChange={(event) => setPublishingPolicy(event.target.value)}
+              disabled={isSaving}
+            >
+              {PUBLISHING_POLICIES.map((policy) => (
+                <option key={policy} value={policy}>
+                  {t(publishingPolicyLabelKey(policy))}
+                </option>
+              ))}
+            </select>
+          </label>
+
           {validationError ? <p className="status-message error" role="alert">{validationError}</p> : null}
           {apiError ? <p className="status-message error" role="alert">{apiError}</p> : null}
 
@@ -639,10 +697,31 @@ function GroupDialog({
   onClose: () => void
   onSaved: (group: GroupSummary) => void
 }) {
+  const { t } = useTranslation()
   const [name, setName] = useState('')
+  const [ownerUnitId, setOwnerUnitId] = useState('')
+  const [publishingPolicy, setPublishingPolicy] = useState<string>('OwnerScope')
+  const [organizationalUnits, setOrganizationalUnits] = useState<OrganizationalUnitSummary[]>([])
   const [validationError, setValidationError] = useState<string | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      try {
+        const loaded = await listOrganizationalUnits()
+        if (active) {
+          setOrganizationalUnits(loaded)
+        }
+      } catch {
+        // Owner unit is optional; ignore load failure here.
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -657,7 +736,11 @@ function GroupDialog({
 
     setIsSaving(true)
     try {
-      const group = await createGroup({ name: trimmedName })
+      const group = await createGroup({
+        name: trimmedName,
+        ownerOrganizationalUnitId: ownerUnitId === '' ? null : ownerUnitId,
+        publishingPolicy,
+      })
       onSaved(group)
     } catch (error) {
       const reference = error instanceof ApiError ? error.requestId : 'unknown'
@@ -687,6 +770,37 @@ function GroupDialog({
               onChange={(event) => setName(event.target.value)}
               disabled={isSaving}
             />
+          </label>
+
+          <label className="field">
+            <span>{t('users.owner_unit_field')}</span>
+            <select
+              value={ownerUnitId}
+              onChange={(event) => setOwnerUnitId(event.target.value)}
+              disabled={isSaving}
+            >
+              <option value="">{t('users.owner_unit_none')}</option>
+              {organizationalUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  {organizationalUnitLabel(unit)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>{t('users.publishing_policy_field')}</span>
+            <select
+              value={publishingPolicy}
+              onChange={(event) => setPublishingPolicy(event.target.value)}
+              disabled={isSaving}
+            >
+              {PUBLISHING_POLICIES.map((policy) => (
+                <option key={policy} value={policy}>
+                  {t(publishingPolicyLabelKey(policy))}
+                </option>
+              ))}
+            </select>
           </label>
 
           {validationError ? (
@@ -1185,4 +1299,17 @@ function primaryRole(roles: string[]) {
 
 function organizationalUnitLabel(unit: OrganizationalUnitSummary) {
   return unit.parentId === null ? `${unit.name} (toda la empresa)` : unit.name
+}
+
+const PUBLISHING_POLICIES = ['OwnerScope', 'ExplicitGrantOnly', 'AdminOnly'] as const
+
+function publishingPolicyLabelKey(policy: string): string {
+  switch (policy) {
+    case 'ExplicitGrantOnly':
+      return 'users.publishing_policy_explicit_grant_only'
+    case 'AdminOnly':
+      return 'users.publishing_policy_admin_only'
+    default:
+      return 'users.publishing_policy_owner_scope'
+  }
 }

@@ -811,6 +811,57 @@ describe("management users and budgets", () => {
     );
   });
 
+  test("creates a group with owner unit and publishing policy", async () => {
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      csrfResponse(),
+      jsonResponse(201, {
+        id: "33333333-3333-3333-3333-333333333333",
+        name: "Soporte",
+        ownerOrganizationalUnit: organizationalUnitsResponse[0],
+        publishingPolicy: "AdminOnly",
+      }),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("tab", { name: "Grupos" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Crear grupo" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Nombre del grupo" }),
+      "Soporte",
+    );
+    await screen.findByRole("option", { name: "Empresa (toda la empresa)" });
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Unidad dueña" }),
+      "01000000-0000-0000-0000-000000000001",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Política de publicación" }),
+      "AdminOnly",
+    );
+    await user.click(screen.getByRole("button", { name: "Guardar grupo" }));
+
+    expect(await screen.findByText("Soporte")).toBeInTheDocument();
+    const [, requestInit] = fetchMock.mock.calls.find(
+      ([path, init]) =>
+        path === "/api/groups" &&
+        typeof init === "object" &&
+        init !== null &&
+        "method" in init &&
+        init.method === "POST",
+    )!;
+    const body = JSON.parse(requestInit!.body as string);
+    expect(body.ownerOrganizationalUnitId).toBe(
+      "01000000-0000-0000-0000-000000000001",
+    );
+    expect(body.publishingPolicy).toBe("AdminOnly");
+  });
+
   test("creates a viewer user with group access from the management UI", async () => {
     const createdViewer = {
       id: "44444444-4444-4444-4444-444444444444",
