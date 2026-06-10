@@ -1958,6 +1958,48 @@ describe("management documents", () => {
   });
 });
 
+describe("management organizational units", () => {
+  test("organizational units page creates a child unit", async () => {
+    const createdUnit = {
+      id: "0c000000-0000-0000-0000-0000000000cc",
+      name: "Marketing",
+      parentId: "01000000-0000-0000-0000-000000000001",
+      depth: 1,
+      isActive: true,
+    };
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, organizationalUnitsResponse),
+      csrfResponse(),
+      jsonResponse(201, createdUnit),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("link", { name: /unidades organizativas/i }),
+    );
+    await user.click(
+      (
+        await screen.findAllByRole("button", { name: /agregar unidad hija/i })
+      )[0],
+    );
+    await user.type(
+      screen.getByLabelText(/nombre de la unidad/i),
+      "Marketing",
+    );
+    await user.click(screen.getByRole("button", { name: /^guardar$/i }));
+
+    expect(await screen.findByText("Marketing")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/organizational-units",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+});
+
 describe("management configuration", () => {
   test("shows operational defaults and hides secret values", async () => {
     stubFetch([
@@ -2134,13 +2176,14 @@ interface StubFetchOptions {
 function stubFetch(responses: Response[], options: StubFetchOptions = {}) {
   const setupRequired = options.setupRequired ?? false;
   const session = options.session === undefined ? sessionUser : options.session;
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path =
       typeof input === "string"
         ? input
         : input instanceof URL
           ? input.pathname
           : input.url;
+    const method = (init?.method ?? "GET").toUpperCase();
     if (path === "/api/setup/status") {
       return jsonResponse(200, {
         setupRequired,
@@ -2164,8 +2207,10 @@ function stubFetch(responses: Response[], options: StubFetchOptions = {}) {
     }
 
     // The organizational-unit tree is fetched lazily by the user dialog and the
-    // document editor. Serve it out of band so it never disturbs the ordered queue.
-    if (path === "/api/organizational-units") {
+    // document editor. Serve GET requests out of band so they never disturb the
+    // ordered queue. Mutations (POST/PATCH) still flow through the queue so tests
+    // can assert on created/updated units.
+    if (path === "/api/organizational-units" && method === "GET") {
       return jsonResponse(200, organizationalUnitsResponse);
     }
 

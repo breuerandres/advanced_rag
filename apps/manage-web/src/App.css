@@ -1529,3 +1529,36 @@ select {
   background: color-mix(in oklab, var(--danger) 14%, var(--bg-elevated));
   color: #fecaca;
 }
+
+.org-unit-tree,
+.org-unit-children {
+  list-style: none;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.org-unit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.org-unit-row.inactive .org-unit-name {
+  opacity: 0.55;
+}
+
+.org-unit-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.org-unit-toggle,
+.org-unit-toggle-spacer {
+  width: 1.25rem;
+  display: inline-flex;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}

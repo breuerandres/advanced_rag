@@ -4,6 +4,7 @@ import {
   FileText,
   MessageSquare,
   MessageSquareWarning,
+  Network,
   Settings,
   ShieldCheck,
   UserRound,
@@ -13,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 
 export type ManagementSection =
   | 'documents'
+  | 'organizational-units'
   | 'users'
   | 'audit'
   | 'feedback'
@@ -30,6 +32,7 @@ interface ManagementNavProps {
 
 const links = [
   { id: 'documents', labelKey: 'nav.documents', icon: FileText },
+  { id: 'organizational-units', labelKey: 'nav.organizational_units', icon: Network },
   { id: 'users', labelKey: 'nav.users', icon: Users },
   { id: 'audit', labelKey: 'nav.audit', icon: ClipboardList },
   { id: 'feedback', labelKey: 'nav.feedback', icon: MessageSquareWarning },
@@ -115,6 +118,10 @@ function canAccessSection(section: ManagementSection, userRoles: string[]) {
 
   if (section === 'configuration') {
     return true
+  }
+
+  if (section === 'organizational-units') {
+    return userRoles.includes('Admin')
   }
 
   if (

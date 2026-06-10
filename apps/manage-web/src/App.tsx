@@ -34,6 +34,7 @@ import { AccountPage } from './features/account/AccountPage'
 import { AuditPage } from './features/audit/AuditPage'
 import { ConfigurationPage } from './features/configuration/ConfigurationPage'
 import { DocumentsPage } from './features/documents/DocumentsPage'
+import { OrganizationalUnitsPage } from './features/orgUnits/OrganizationalUnitsPage'
 import { FeedbackReviewPage } from './features/reporting/FeedbackReviewPage'
 import { UsersBudgetPage } from './features/users/UsersBudgetPage'
 import { ApiError } from './lib/api-error'
@@ -227,6 +228,7 @@ export default function App() {
           </p>
         ) : null}
         {activeView === 'documents' ? <DocumentsPage userRoles={sessionUser.roles} /> : null}
+        {activeView === 'organizational-units' ? <OrganizationalUnitsPage /> : null}
         {activeView === 'users' ? <UsersBudgetPage userRoles={sessionUser.roles} /> : null}
         {activeView === 'audit' ? <AuditPage /> : null}
         {activeView === 'feedback' ? <FeedbackReviewPage /> : null}
