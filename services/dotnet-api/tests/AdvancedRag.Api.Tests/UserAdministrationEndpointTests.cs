@@ -131,6 +131,28 @@ public sealed class UserAdministrationEndpointTests
     }
 
     [Fact]
+    public async Task SetUserOrganizationalUnit_AsAdmin_ReturnsUpdatedUnit()
+    {
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        var session = await LoginAsync(client, FakeAuthService.AdminEmail, "manage.localhost");
+
+        var unitId = Guid.Parse("01000000-0000-0000-0000-000000000009");
+        using var response = await SendJsonAsync(
+            client,
+            HttpMethod.Put,
+            $"/api/users/{FakeAuthService.TargetUserId}/organizational-unit",
+            new { organizationalUnitId = unitId },
+            "manage.localhost",
+            session.Csrf,
+            session.SessionCookie);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<UserResponse>();
+        body!.OrganizationalUnit.Should().NotBeNull();
+        body.OrganizationalUnit!.Id.Should().Be(unitId);
+    }
+
+    [Fact]
     public async Task SetUserRoles_AsDocumentPublisher_ReturnsForbidden()
     {
         using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
@@ -678,6 +700,15 @@ public sealed class FakeUserAdministrationService : IUserAdministrationService
     {
         ct.ThrowIfCancellationRequested();
         return Task.FromResult(CreateTargetUser(isActive: true) with { AccessScopeHash = "scope-hash-v2" });
+    }
+
+    public Task<UserManagementUser> SetUserOrganizationalUnitAsync(
+        SetUserOrganizationalUnitCommand command,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var unit = new OrganizationalUnitRecord(command.OrganizationalUnitId, "Reassigned", RootUnitId, 2, true);
+        return Task.FromResult(CreateTargetUser(isActive: true) with { OrganizationalUnit = unit });
     }
 
     public Task<UserManagementUser> SetUserActiveStatusAsync(SetUserActiveStatusCommand command, CancellationToken ct)

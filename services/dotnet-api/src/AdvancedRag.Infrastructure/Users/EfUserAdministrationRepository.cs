@@ -220,6 +220,24 @@ public sealed class EfUserAdministrationRepository : IUserAdministrationReposito
         return await FindUserAsync(userId, ct);
     }
 
+    public async Task<UserManagementUser?> SetUserOrganizationalUnitAsync(
+        Guid userId,
+        Guid organizationalUnitId,
+        Guid actorUserId,
+        CancellationToken ct)
+    {
+        var user = await _db.Users.SingleOrDefaultAsync(item => item.Id == userId, ct);
+        if (user is null)
+        {
+            return null;
+        }
+
+        user.OrganizationalUnitId = organizationalUnitId;
+        IncrementAccessScopeVersion(user);
+        await _db.SaveChangesAsync(ct);
+        return await FindUserAsync(userId, ct);
+    }
+
     public async Task<UserManagementUser?> SetUserAiBudgetAsync(
         Guid userId,
         decimal? monthlyBudgetUsd,

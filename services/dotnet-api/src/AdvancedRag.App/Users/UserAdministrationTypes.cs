@@ -30,6 +30,11 @@ public sealed record SetUserAiBudgetCommand(
     bool IsDisabled,
     Guid ActorUserId);
 
+public sealed record SetUserOrganizationalUnitCommand(
+    Guid UserId,
+    Guid OrganizationalUnitId,
+    Guid ActorUserId);
+
 public sealed record CreateGroupCommand(
     string Name,
     Guid ActorUserId,
@@ -163,6 +168,12 @@ public interface IUserAdministrationRepository
         Guid userId,
         decimal? monthlyBudgetUsd,
         bool isDisabled,
+        Guid actorUserId,
+        CancellationToken ct);
+
+    Task<UserManagementUser?> SetUserOrganizationalUnitAsync(
+        Guid userId,
+        Guid organizationalUnitId,
         Guid actorUserId,
         CancellationToken ct);
 }

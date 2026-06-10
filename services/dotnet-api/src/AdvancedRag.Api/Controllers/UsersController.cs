@@ -93,6 +93,26 @@ public sealed class UsersController : ApiControllerBase
         }
     }
 
+    [HttpPut("{id:guid}/organizational-unit")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SetUserOrganizationalUnitAsync(
+        Guid id,
+        [FromBody] SetUserOrganizationalUnitRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            UserManagementUser updated = await _users.SetUserOrganizationalUnitAsync(
+                new SetUserOrganizationalUnitCommand(id, request.OrganizationalUnitId, ActorUserId()),
+                ct);
+            return Ok(UserResponse.FromUser(updated));
+        }
+        catch (UserAdministrationException exception)
+        {
+            return Error(exception.HttpStatus, exception.Code, exception.Message, exception.Details);
+        }
+    }
+
     private IReadOnlyList<string> ActorRoles()
     {
         return User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value).ToArray();

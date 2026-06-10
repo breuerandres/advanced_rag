@@ -301,6 +301,23 @@ public sealed class UserAdministrationServiceTests
             return FindUserAsync(userId, ct);
         }
 
+        public Task<UserManagementUser?> SetUserOrganizationalUnitAsync(
+            Guid userId,
+            Guid organizationalUnitId,
+            Guid actorUserId,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            var index = Users.FindIndex(user => user.Id == userId);
+            if (index < 0)
+            {
+                return Task.FromResult<UserManagementUser?>(null);
+            }
+
+            Users[index] = Users[index] with { OrganizationalUnitId = organizationalUnitId };
+            return FindUserAsync(userId, ct);
+        }
+
         public void AddExistingUser(
             Guid id,
             string email,

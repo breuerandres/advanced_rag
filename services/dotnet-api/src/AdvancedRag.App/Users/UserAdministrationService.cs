@@ -23,6 +23,8 @@ public interface IUserAdministrationService
     Task<UserManagementUser> SetUserActiveStatusAsync(SetUserActiveStatusCommand command, CancellationToken ct);
 
     Task<UserManagementUser> SetUserAiBudgetAsync(SetUserAiBudgetCommand command, CancellationToken ct);
+
+    Task<UserManagementUser> SetUserOrganizationalUnitAsync(SetUserOrganizationalUnitCommand command, CancellationToken ct);
 }
 
 public sealed class UserAdministrationService : IUserAdministrationService
@@ -175,6 +177,21 @@ public sealed class UserAdministrationService : IUserAdministrationService
             command.UserId,
             command.IsDisabled ? null : command.MonthlyBudgetUsd,
             command.IsDisabled,
+            command.ActorUserId,
+            ct);
+
+        return RequireFound(updated);
+    }
+
+    public async Task<UserManagementUser> SetUserOrganizationalUnitAsync(
+        SetUserOrganizationalUnitCommand command,
+        CancellationToken ct)
+    {
+        await RequireKnownOrganizationalUnitAsync(command.OrganizationalUnitId, ct);
+
+        var updated = await _repository.SetUserOrganizationalUnitAsync(
+            command.UserId,
+            command.OrganizationalUnitId,
             command.ActorUserId,
             ct);
 
