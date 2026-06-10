@@ -30,6 +30,8 @@ export interface SetAiBudgetRequest {
 
 export interface CreateGroupRequest {
   name: string
+  ownerOrganizationalUnitId?: string | null
+  publishingPolicy?: string
 }
 
 export interface CreateUserRequest {
@@ -53,8 +55,14 @@ export interface SetUserGroupsRequest {
   groupIds: string[]
 }
 
+export interface SetUserOrganizationalUnitRequest {
+  organizationalUnitId: string
+}
+
 export interface UpdateGroupRequest {
   name: string
+  ownerOrganizationalUnitId?: string | null
+  publishingPolicy?: string
 }
 
 let csrfToken: string | null = null
@@ -104,6 +112,18 @@ export async function updateUserGroups(
   await ensureCsrfToken()
 
   return requestJson<UserSummary>(`/api/users/${userId}/groups`, jsonRequest('PUT', request))
+}
+
+export async function updateUserOrganizationalUnit(
+  userId: string,
+  request: SetUserOrganizationalUnitRequest,
+): Promise<UserSummary> {
+  await ensureCsrfToken()
+
+  return requestJson<UserSummary>(
+    `/api/users/${userId}/organizational-unit`,
+    jsonRequest('PUT', request),
+  )
 }
 
 export async function updateUserBudget(
