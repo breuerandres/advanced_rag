@@ -1013,6 +1013,57 @@ describe("management users and budgets", () => {
     ]);
   });
 
+  test("changes a user's organizational unit from the management dialog", async () => {
+    const updatedUser = {
+      ...usersResponse[0],
+      organizationalUnit: organizationalUnitsResponse[1],
+    };
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+      ]),
+      csrfResponse(),
+      jsonResponse(200, updatedUser),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Editar usuario Ana Gomez" }),
+    );
+
+    const unitSelect = await screen.findByRole("combobox", {
+      name: "Unidad organizativa",
+    });
+    await screen.findByRole("option", { name: "Comunicación" });
+    await user.selectOptions(unitSelect, "0c000000-0000-0000-0000-0000000000c0");
+    await user.click(screen.getByRole("button", { name: "Guardar usuario" }));
+
+    const [, requestInit] = (
+      await vi.waitFor(() => {
+        const call = fetchMock.mock.calls.find(
+          ([path, init]) =>
+            path ===
+              "/api/users/11111111-1111-1111-1111-111111111111/organizational-unit" &&
+            typeof init === "object" &&
+            init !== null &&
+            "method" in init &&
+            init.method === "PUT",
+        );
+        if (!call) {
+          throw new Error("Organizational-unit PUT not issued yet.");
+        }
+        return call;
+      })
+    );
+    const body = JSON.parse(requestInit!.body as string);
+    expect(body.organizationalUnitId).toBe(
+      "0c000000-0000-0000-0000-0000000000c0",
+    );
+  });
+
   test("shows a safe API error state when saving a budget fails", async () => {
     stubFetch([
       jsonResponse(200, usersResponse),

@@ -20,6 +20,7 @@ import {
   updateGroup,
   updateUserBudget,
   updateUserGroups,
+  updateUserOrganizationalUnit,
   updateUserRoles,
   updateUserStatus,
 } from '../../api/users'
@@ -1052,12 +1053,37 @@ function UserManagementDialog({
   onClose: () => void
   onSaved: (user: UserSummary) => void
 }) {
+  const { t } = useTranslation()
   const [role, setRole] = useState(primaryRole(user.roles))
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(
     user.groups.map((group) => group.id),
   )
+  const [organizationalUnitId, setOrganizationalUnitId] = useState(
+    user.organizationalUnit?.id ?? '',
+  )
+  const [organizationalUnits, setOrganizationalUnits] = useState<OrganizationalUnitSummary[]>([])
   const [apiError, setApiError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    if (!canEditRole) {
+      return
+    }
+    let active = true
+    void (async () => {
+      try {
+        const loaded = await listOrganizationalUnits()
+        if (active) {
+          setOrganizationalUnits(loaded)
+        }
+      } catch {
+        // Unit change is optional; ignore load failure.
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [canEditRole])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1074,6 +1100,10 @@ function UserManagementDialog({
       const nextGroupIds = [...selectedGroupIds].sort().join(',')
       if (nextGroupIds !== originalGroupIds) {
         updatedUser = await updateUserGroups(user.id, { groupIds: selectedGroupIds })
+      }
+
+      if (canEditRole && organizationalUnitId !== (user.organizationalUnit?.id ?? '')) {
+        updatedUser = await updateUserOrganizationalUnit(user.id, { organizationalUnitId })
       }
 
       onSaved(updatedUser)
@@ -1109,7 +1139,9 @@ function UserManagementDialog({
           <div className="readonly-summary">
             <strong>{user.displayName}</strong>
             <span>{user.email}</span>
-            <span>Unidad: {user.organizationalUnit?.name ?? '-'}</span>
+            {!canEditRole ? (
+              <span>Unidad: {user.organizationalUnit?.name ?? '-'}</span>
+            ) : null}
           </div>
 
           {canEditRole ? (
@@ -1124,6 +1156,24 @@ function UserManagementDialog({
                 <option value="DocumentEditor">DocumentEditor</option>
                 <option value="DocumentPublisher">DocumentPublisher</option>
                 <option value="Admin">Admin</option>
+              </select>
+            </label>
+          ) : null}
+
+          {canEditRole ? (
+            <label className="field">
+              <span>{t('users.change_unit_field')}</span>
+              <select
+                value={organizationalUnitId}
+                onChange={(event) => setOrganizationalUnitId(event.target.value)}
+                disabled={isSaving}
+              >
+                <option value="">{t('users.change_unit_select')}</option>
+                {organizationalUnits.map((unit) => (
+                  <option key={unit.id} value={unit.id}>
+                    {organizationalUnitLabel(unit)}
+                  </option>
+                ))}
               </select>
             </label>
           ) : null}
