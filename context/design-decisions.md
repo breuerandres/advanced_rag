@@ -1974,3 +1974,17 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Tradeoffs:** Navigation requires an API request before opening the target app, and the code is briefly visible in the target tab URL until consumption. The code is short-lived, one-time, target-scoped, and not the main session token.
 
 **Consequences:** Root links from Manage to Chat/Docs open in a new tab with `noopener,noreferrer`. Chat and Docs must attempt handoff consumption on boot before showing login when a `handoff` query parameter is present.
+
+## 2026-06-10 - Docs Host Gains Document-Scoped Mini Chat Routed Directly To FastAPI
+
+**Context:** The docs-web redesign adds an ephemeral mini chat that answers questions strictly from the open document. docs-web previously called only the .NET API; the RAG pipeline lives in FastAPI.
+
+**Options Considered:** Route doc-chat paths on the docs host directly to FastAPI through Caddy (same pattern as `chat.*`), or keep "docs -> .NET only" and make .NET an SSE pass-through proxy to FastAPI.
+
+**Decision:** Caddy routes `docs.<domain>/api/chat` and `/api/feedback*` to FastAPI. `POST /api/chat` accepts an optional `documentId` that scopes retrieval to one document. Doc-scoped requests force the `published` corpus, bypass the semantic cache (read and write), persist `scope_document_id` on `rag.query_audit_events`, and are excluded from the chat session list so chat-web's drawer never shows ephemeral doc-chat turns. Spec: `docs/superpowers/specs/2026-06-10-docs-web-redesign-and-doc-chat-design.md`.
+
+**Rationale:** FastAPI already validates the `__Host-session` cookie against .NET on every request and owns budget, audit, and streaming; reusing the chat-host pattern adds no new auth mechanism. A .NET streaming proxy would duplicate error surface in the backend that by design never touches RAG.
+
+**Tradeoffs:** The routing invariant relaxes from "docs -> .NET only" to "docs -> .NET, plus FastAPI for doc-chat/feedback only". Cache bypass forgoes reuse for repeated per-document questions, in exchange for provable scope correctness without re-keying the cache.
+
+**Consequences:** The branch-aware access predicate still applies inside retrieval SQL, so inaccessible documents yield zero chunks and a generic no-info answer (no existence leak). The mini chat renders only on Published documents. `architecture.md` and `ui-context.md` must be updated when the implementation lands.
