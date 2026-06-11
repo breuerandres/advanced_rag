@@ -352,6 +352,7 @@ class ChatService:
                         from rag.query_audit_events
                         where user_id = :user_id
                           and session_id is not null
+                          and scope_document_id is null
                     )
                     select
                         session_id,

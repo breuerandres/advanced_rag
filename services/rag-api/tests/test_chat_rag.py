@@ -715,6 +715,77 @@ def test_doc_scoped_chat_outside_access_returns_scoped_no_results_message() -> N
     assert state["citation_document_ids"] == []
 
 
+def test_doc_scoped_turns_are_excluded_from_session_list() -> None:
+    with _postgres() as database:
+        allowed_document_id = uuid4()
+        denied_document_id = uuid4()
+        preview_document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=allowed_document_id,
+                denied_document_id=denied_document_id,
+                preview_document_id=preview_document_id,
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        app = create_app(
+            Settings(
+                rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+                customer_timezone="UTC",
+                enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+            llm_provider=FakeLlmProvider(),
+            session_validator=FakeSessionValidator(
+                ChatTokenClaims(
+                    user_id=str(USER_ID),
+                    role="Viewer",
+                    groups=[str(ALLOWED_GROUP_ID)],
+                    access_scope_hash="scope-allowed",
+                    corpus="published",
+                )
+            ),
+        )
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        doc_session_id = uuid4()
+        corpus_session_id = uuid4()
+        with client.stream(
+            "POST",
+            "/api/chat",
+            json={
+                "question": "What credential rule applies?",
+                "documentId": str(allowed_document_id),
+                "sessionId": str(doc_session_id),
+            },
+            headers={"X-Request-ID": "req-list-1"},
+        ) as scoped:
+            scoped.read()
+        with client.stream(
+            "POST",
+            "/api/chat",
+            json={
+                "question": "What credential rule applies everywhere?",
+                "sessionId": str(corpus_session_id),
+            },
+            headers={"X-Request-ID": "req-list-2"},
+        ) as unscoped:
+            unscoped.read()
+
+        sessions_response = client.get("/api/chat/sessions")
+
+    assert sessions_response.status_code == 200
+    session_ids = [item["sessionId"] for item in sessions_response.json()["sessions"]]
+    # The ephemeral doc-chat session never appears in chat-web's drawer.
+    assert session_ids == [str(corpus_session_id)]
+
+
 def test_hierarchical_retrieval_allows_ancestor_descendant_but_not_sibling_documents() -> None:
     with _postgres() as database:
         seeded = asyncio.run(database.seed_hierarchical_corpus())
