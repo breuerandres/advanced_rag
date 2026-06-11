@@ -362,6 +362,83 @@ test('renders list content inside the document content surface', async () => {
   expect(document.querySelector('.document-content ol')).not.toBeNull()
 })
 
+test('shows the doc chat bubble only for published documents', async () => {
+  mockFetch([jsonResponse({ ...PUBLISHED_DOCUMENT, state: 'Draft' })])
+
+  render(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Procedimiento publicado' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Preguntale a este documento' })).not.toBeInTheDocument()
+})
+
+test('asks the document mini chat and renders the streamed answer with feedback', async () => {
+  const fetch = mockFetch([
+    jsonResponse(PUBLISHED_DOCUMENT),
+    jsonResponse({ status: 'ok' }, { 'X-CSRF-Token': 'csrf-token' }),
+    docChatSse('La respuesta sale de este documento.'),
+    jsonResponse({ status: 'ok' }, { 'X-CSRF-Token': 'csrf-token' }),
+    jsonResponse({
+      queryAuditEventId: '11111111-1111-1111-1111-111111111111',
+      value: 'up',
+      comment: 'Muy claro',
+    }),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.click(await screen.findByRole('button', { name: 'Preguntale a este documento' }))
+  await user.click(screen.getByRole('button', { name: '¿De qué trata este documento?' }))
+
+  expect(await screen.findByText('La respuesta sale de este documento.')).toBeInTheDocument()
+  const chatCall = fetch.mock.calls.find(([url]) => url === '/api/chat')
+  expect(chatCall).toBeDefined()
+  expect(JSON.parse((chatCall![1] as RequestInit).body as string)).toMatchObject({
+    question: '¿De qué trata este documento?',
+    documentId: '55555555-5555-5555-5555-555555555555',
+  })
+
+  await user.click(screen.getByRole('button', { name: 'Respuesta útil' }))
+  await user.type(
+    screen.getByPlaceholderText('Contanos qué mejorarías (opcional)'),
+    'Muy claro',
+  )
+  await user.click(screen.getByRole('button', { name: 'Enviar feedback' }))
+
+  expect(await screen.findByText('Gracias por tu feedback.')).toBeInTheDocument()
+  const feedbackCall = fetch.mock.calls.find(([url]) =>
+    String(url).startsWith('/api/feedback/11111111-1111-1111-1111-111111111111'),
+  )
+  expect(feedbackCall).toBeDefined()
+  expect(JSON.parse((feedbackCall![1] as RequestInit).body as string)).toEqual({
+    value: 'up',
+    comment: 'Muy claro',
+  })
+})
+
+test('shows the budget-limited message and retry when the doc chat is over budget', async () => {
+  mockFetch([
+    jsonResponse(PUBLISHED_DOCUMENT),
+    jsonResponse({ status: 'ok' }, { 'X-CSRF-Token': 'csrf-token' }),
+    errorResponse('AI_BUDGET_EXCEEDED', 429),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.click(await screen.findByRole('button', { name: 'Preguntale a este documento' }))
+  await user.click(screen.getByRole('button', { name: 'Resumime los puntos principales.' }))
+
+  expect(
+    await screen.findByText(
+      'Alcanzaste tu límite mensual de uso de IA. Podés seguir leyendo el documento sin problema.',
+    ),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+  // The failed question was rolled back from the transcript.
+  expect(screen.queryByText('Resumime los puntos principales.', { selector: '.bubble' })).not.toBeInTheDocument()
+})
+
 function setLocation(url: string) {
   Object.defineProperty(window, 'location', {
     configurable: true,
@@ -384,7 +461,7 @@ function jsonResponse(body: unknown, headers: Record<string, string> = {}) {
   })
 }
 
-function errorResponse(code: string) {
+function errorResponse(code: string, status?: number) {
   return new Response(
     JSON.stringify({
       error: {
@@ -395,8 +472,36 @@ function errorResponse(code: string) {
       },
     }),
     {
-      status: code === 'AUTH_FORBIDDEN' ? 403 : code === 'NOT_FOUND' ? 404 : 410,
+      status: status ?? (code === 'AUTH_FORBIDDEN' ? 403 : code === 'NOT_FOUND' ? 404 : 410),
       headers: { 'Content-Type': 'application/json' },
     },
   )
+}
+
+function sseResponse(events: string) {
+  return new Response(events, {
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream' },
+  })
+}
+
+function docChatSse(answer: string, auditId = '11111111-1111-1111-1111-111111111111') {
+  return sseResponse(
+    `event: request-id\ndata: {"request_id":"req-1"}\n\n` +
+      `event: answer-token\ndata: ${JSON.stringify({ delta: answer })}\n\n` +
+      `event: citations\ndata: ${JSON.stringify({ query_audit_event_id: auditId, citations: [] })}\n\n` +
+      `event: usage\ndata: {"input_tokens":1,"cached_tokens":0,"output_tokens":1,"cost_usd":0.0001}\n\n` +
+      `event: done\ndata: {}\n\n`,
+  )
+}
+
+const PUBLISHED_DOCUMENT = {
+  documentId: '55555555-5555-5555-5555-555555555555',
+  documentVersionId: 'version-1',
+  title: 'Procedimiento publicado',
+  state: 'Published',
+  documentType: 'Politica',
+  audience: 'Operaciones',
+  contentHtml: '<p>Usa el equipo de seguridad.</p>',
+  tokenExpiresAt: '2026-05-18T12:15:00Z',
 }

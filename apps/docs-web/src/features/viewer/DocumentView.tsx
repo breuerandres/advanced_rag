@@ -1,3 +1,4 @@
+import { createElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ViewerDocument } from '../../api/viewer'
 import { formatDateTime } from '../../lib/dates'
@@ -7,7 +8,6 @@ import { typeIcon, typeTintIndex } from '../../lib/documentType'
 export function DocumentView({ document }: { document: ViewerDocument }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.resolvedLanguage ?? i18n.language
-  const Icon = typeIcon(document.documentType)
   const stateKey = documentStateKey(document.state)
 
   return (
@@ -20,7 +20,7 @@ export function DocumentView({ document }: { document: ViewerDocument }) {
       <header className="document-titleblock">
         <div className="document-chips">
           <span className={`type-chip tint-${typeTintIndex(document.documentType)}`}>
-            <Icon size={13} aria-hidden="true" />
+            {createElement(typeIcon(document.documentType), { size: 13, 'aria-hidden': true })}
             {document.documentType}
           </span>
           <span className="meta-chip">{document.audience}</span>

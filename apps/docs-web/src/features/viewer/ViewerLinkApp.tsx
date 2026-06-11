@@ -10,6 +10,7 @@ import {
 } from '../../api/viewer'
 import { removeHandoffFromUrl } from '../../lib/url'
 import { DocumentView } from './DocumentView'
+import { DocChatWidget } from '../docChat/DocChatWidget'
 
 type ViewerState =
   | { status: 'loading' }
@@ -97,7 +98,14 @@ export function ViewerLinkApp({
           />
         ) : null}
 
-        {state.status === 'ready' ? <DocumentView document={state.document} /> : null}
+        {state.status === 'ready' ? (
+          <>
+            <DocumentView document={state.document} />
+            {state.document.state === 'Published' ? (
+              <DocChatWidget documentId={state.document.documentId} />
+            ) : null}
+          </>
+        ) : null}
       </div>
     </AppShell>
   )
