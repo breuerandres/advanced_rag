@@ -23,7 +23,7 @@ import {
   type ViewerCatalogDocument,
   type ViewerDocument,
   type ViewerDocumentCatalog,
-  viewerErrorMessage,
+  viewerErrorKey,
 } from './api/viewer'
 import { ApiError } from './lib/api-error'
 import './i18n'
@@ -55,7 +55,7 @@ function ViewerLinkApp({ documentId, handoffCode }: { documentId: string; handof
   const { t, i18n } = useTranslation()
   const [state, setState] = useState<ViewerState>({
     status: 'loading',
-    message: 'Validando enlace...',
+    message: 'viewer.loading',
   })
 
   useEffect(() => {
@@ -74,7 +74,7 @@ function ViewerLinkApp({ documentId, handoffCode }: { documentId: string; handof
         }
       } catch (error) {
         if (isMounted) {
-          setState({ status: 'error', message: viewerErrorMessage(error) })
+          setState({ status: 'error', message: viewerErrorKey(error) })
         }
       }
     }
@@ -120,7 +120,7 @@ function ViewerLinkApp({ documentId, handoffCode }: { documentId: string; handof
         {state.status === 'loading' ? (
           <EmptyState
             className="state-panel"
-            title={state.message}
+            title={t(state.message)}
             aria-live="polite"
             icon={<FileText size={22} aria-hidden="true" />}
           />
@@ -129,7 +129,7 @@ function ViewerLinkApp({ documentId, handoffCode }: { documentId: string; handof
         {state.status === 'error' ? (
           <EmptyState
             className="state-panel error"
-            title={state.message}
+            title={t(state.message)}
             role="alert"
             icon={<AlertTriangle size={22} aria-hidden="true" />}
           />
@@ -174,7 +174,7 @@ function DocumentPortalApp({ handoffCode }: { handoffCode: string | null }) {
           return
         }
 
-        setState({ status: 'error', message: viewerErrorMessage(error) })
+        setState({ status: 'error', message: viewerErrorKey(error) })
       }
     }
 
@@ -228,7 +228,7 @@ function DocumentPortalApp({ handoffCode }: { handoffCode: string | null }) {
         {state.status === 'error' ? (
           <EmptyState
             className="state-panel error"
-            title={state.message}
+            title={t(state.message)}
             role="alert"
             icon={<AlertTriangle size={22} aria-hidden="true" />}
           />
@@ -341,6 +341,7 @@ function DocumentPortal({ user, catalog }: { user: SessionUser; catalog: ViewerD
 }
 
 function DocsLoginPage({ onAuthenticated }: { onAuthenticated: (user: SessionUser) => void }) {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -353,8 +354,8 @@ function DocsLoginPage({ onAuthenticated }: { onAuthenticated: (user: SessionUse
     try {
       const session = await login(email, password)
       onAuthenticated(session.user)
-    } catch (caught) {
-      setError(caught instanceof ApiError ? viewerErrorMessage(caught) : 'No se pudo iniciar sesion.')
+    } catch {
+      setError('login.failed')
     } finally {
       setIsSubmitting(false)
     }
@@ -364,7 +365,7 @@ function DocsLoginPage({ onAuthenticated }: { onAuthenticated: (user: SessionUse
     <AuthShell>
       <form className="auth-card" onSubmit={submit}>
         <AuthCardHeader eyebrow="Documentos" title="Iniciar sesion" />
-        {error ? <p className="status-message error">{error}</p> : null}
+        {error ? <p className="status-message error">{t(error)}</p> : null}
         <label className="field">
           <span>Email</span>
           <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />

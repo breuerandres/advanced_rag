@@ -10,34 +10,70 @@
   },
   "portal": {
     "title": "Document library",
-    "header_copy": "Documents available for your groups and permissions."
+    "header_copy": "Find guides and documentation based on your permissions.",
+    "subtitle": "Find guides and documentation based on your permissions.",
+    "search_placeholder": "Search by title, type, or audience…",
+    "filter_all": "All",
+    "filters_label": "Filter by document type",
+    "empty_title": "No documents to show",
+    "empty_no_access": "There are no documents available for your user yet.",
+    "empty_filtered": "No documents match the current filters.",
+    "clear_filters": "Clear filters",
+    "open_document": "Open {{title}}",
+    "updated_ago": "Updated {{when}}"
   },
   "viewer": {
-    "title": "Document",
     "instruction_viewer_title": "Instruction viewer",
-    "table_of_contents": "Contents",
-    "breadcrumb_home": "Home",
-    "previous": "Previous",
-    "next": "Next",
-    "favorite": "Favorite",
-    "unfavorite": "Remove from favorites",
-    "share": "Share",
-    "last_updated": "Updated {{when}}",
-    "feedback_prompt": "Was this page helpful?",
-    "feedback_helpful": "Yes",
-    "feedback_not_helpful": "No",
-    "feedback_thanks": "Thanks for your feedback.",
-    "metrics_views": "{{n}} views",
-    "metrics_likes": "{{n}} likes",
-    "metrics_favorites": "{{n}} favorites",
-    "not_found": "Document not found",
-    "access_denied": "You don't have access to this document.",
-    "session_expired": "Your session expired. Please sign in again."
+    "back_to_library": "Back to the library",
+    "nav_label": "Document navigation",
+    "session_valid_until": "Session valid until {{time}} · Access verified",
+    "draft_banner": "You are viewing a draft version. It is not visible to end users.",
+    "review_banner": "You are viewing a version in review. It is not visible to end users.",
+    "loading": "Validating link…"
   },
-  "browse": {
-    "title": "Browse",
-    "search_placeholder": "Search articles…",
-    "filter_dimension": "Filter by",
-    "empty": "No articles match the current filters."
+  "docChat": {
+    "open": "Ask this document",
+    "close": "Close chat",
+    "title": "Ask this document",
+    "subtitle": "Answers based only on this document.",
+    "empty_hint": "Ask a question about this document's content.",
+    "suggestion_1": "What is this document about?",
+    "suggestion_2": "Summarize the main points.",
+    "placeholder": "Type your question…",
+    "send": "Send",
+    "sending": "Generating answer…",
+    "retry": "Retry",
+    "feedback_up": "Helpful answer",
+    "feedback_down": "Unhelpful answer",
+    "feedback_comment_placeholder": "Tell us what you would improve (optional)",
+    "feedback_send": "Send feedback",
+    "feedback_thanks": "Thanks for your feedback.",
+    "feedback_error": "We couldn't save your feedback. Try again.",
+    "error_budget": "You reached your monthly AI usage limit. You can keep reading the document without any problem.",
+    "error_rate_limited": "Too many questions in a row. Wait a few seconds and try again.",
+    "error_generic": "We couldn't answer your question. Try again."
+  },
+  "errors": {
+    "auth_required": "Sign in to continue.",
+    "forbidden": "You don't have permission to open this document.",
+    "not_found": "We couldn't find the requested document.",
+    "handoff_expired": "The access link expired. Open the document again from the app.",
+    "handoff_invalid": "The access link is not valid. Open the document again from the app.",
+    "handoff_used": "This access link was already used. Open the document again from the app.",
+    "generic": "We couldn't open the document."
+  },
+  "states": {
+    "published": "Published",
+    "draft": "Draft",
+    "in_review": "In review",
+    "archived": "Archived"
+  },
+  "login": {
+    "eyebrow": "Documents",
+    "title": "Sign in",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "failed": "Could not sign in."
   }
 }

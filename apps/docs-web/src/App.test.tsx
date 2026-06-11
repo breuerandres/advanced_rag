@@ -25,7 +25,7 @@ test('shows loading exchange state', () => {
 
   render(<App />)
 
-  expect(screen.getByText('Validando enlace...')).toBeInTheDocument()
+  expect(screen.getByText('Validando enlace…')).toBeInTheDocument()
 })
 
 test('renders the independent document portal grouped by category', async () => {
@@ -169,8 +169,8 @@ test('shows login when the docs host has no session', async () => {
 })
 
 test.each([
-  ['AUTH_FORBIDDEN', 'No tenes permiso para abrir este documento.'],
-  ['AUTH_REQUIRED', 'Inicia sesion para abrir este documento.'],
+  ['AUTH_FORBIDDEN', 'No tenés permiso para abrir este documento.'],
+  ['AUTH_REQUIRED', 'Iniciá sesión para continuar.'],
   ['NOT_FOUND', 'No encontramos el documento solicitado.'],
 ])('shows safe error state for %s', async (code, message) => {
   mockFetch([

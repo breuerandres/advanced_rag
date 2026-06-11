@@ -10,34 +10,70 @@
   },
   "portal": {
     "title": "Biblioteca de documentos",
-    "header_copy": "Documentos disponibles segun tus grupos y permisos."
+    "header_copy": "Encontrá guías y documentación según tus permisos.",
+    "subtitle": "Encontrá guías y documentación según tus permisos.",
+    "search_placeholder": "Buscar por título, tipo o audiencia…",
+    "filter_all": "Todos",
+    "filters_label": "Filtrar por tipo de documento",
+    "empty_title": "Sin documentos para mostrar",
+    "empty_no_access": "Todavía no hay documentos disponibles para tu usuario.",
+    "empty_filtered": "No encontramos documentos con los filtros actuales.",
+    "clear_filters": "Limpiar filtros",
+    "open_document": "Abrir {{title}}",
+    "updated_ago": "Actualizado {{when}}"
   },
   "viewer": {
-    "title": "Documento",
     "instruction_viewer_title": "Visor de instrucciones",
-    "table_of_contents": "Contenido",
-    "breadcrumb_home": "Inicio",
-    "previous": "Anterior",
-    "next": "Siguiente",
-    "favorite": "Favorito",
-    "unfavorite": "Quitar de favoritos",
-    "share": "Compartir",
-    "last_updated": "Actualizado hace {{when}}",
-    "feedback_prompt": "¿Esta página fue útil?",
-    "feedback_helpful": "Sí",
-    "feedback_not_helpful": "No",
-    "feedback_thanks": "Gracias por tu feedback.",
-    "metrics_views": "{{n}} vistas",
-    "metrics_likes": "{{n}} me gusta",
-    "metrics_favorites": "{{n}} favoritos",
-    "not_found": "Documento no encontrado",
-    "access_denied": "No tenés acceso a este documento.",
-    "session_expired": "Tu sesión expiró. Iniciá sesión nuevamente."
+    "back_to_library": "Volver a la biblioteca",
+    "nav_label": "Navegación del documento",
+    "session_valid_until": "Sesión válida hasta {{time}} · Acceso verificado",
+    "draft_banner": "Estás viendo una versión en borrador. No es visible para usuarios finales.",
+    "review_banner": "Estás viendo una versión en revisión. No es visible para usuarios finales.",
+    "loading": "Validando enlace…"
   },
-  "browse": {
-    "title": "Explorar",
-    "search_placeholder": "Buscar artículos…",
-    "filter_dimension": "Filtrar por",
-    "empty": "No hay artículos que coincidan con los filtros."
+  "docChat": {
+    "open": "Preguntale a este documento",
+    "close": "Cerrar chat",
+    "title": "Preguntale a este documento",
+    "subtitle": "Respuestas basadas solo en este documento.",
+    "empty_hint": "Hacé una pregunta sobre el contenido de este documento.",
+    "suggestion_1": "¿De qué trata este documento?",
+    "suggestion_2": "Resumime los puntos principales.",
+    "placeholder": "Escribí tu pregunta…",
+    "send": "Enviar",
+    "sending": "Generando respuesta…",
+    "retry": "Reintentar",
+    "feedback_up": "Respuesta útil",
+    "feedback_down": "Respuesta no útil",
+    "feedback_comment_placeholder": "Contanos qué mejorarías (opcional)",
+    "feedback_send": "Enviar feedback",
+    "feedback_thanks": "Gracias por tu feedback.",
+    "feedback_error": "No pudimos guardar tu feedback. Probá de nuevo.",
+    "error_budget": "Alcanzaste tu límite mensual de uso de IA. Podés seguir leyendo el documento sin problema.",
+    "error_rate_limited": "Demasiadas preguntas seguidas. Esperá unos segundos y probá de nuevo.",
+    "error_generic": "No pudimos responder tu pregunta. Probá de nuevo."
+  },
+  "errors": {
+    "auth_required": "Iniciá sesión para continuar.",
+    "forbidden": "No tenés permiso para abrir este documento.",
+    "not_found": "No encontramos el documento solicitado.",
+    "handoff_expired": "El enlace de acceso expiró. Volvé a abrir el documento desde la app.",
+    "handoff_invalid": "El enlace de acceso no es válido. Volvé a abrir el documento desde la app.",
+    "handoff_used": "Este enlace de acceso ya fue usado. Volvé a abrir el documento desde la app.",
+    "generic": "No pudimos abrir el documento."
+  },
+  "states": {
+    "published": "Publicado",
+    "draft": "Borrador",
+    "in_review": "En revisión",
+    "archived": "Archivado"
+  },
+  "login": {
+    "eyebrow": "Documentos",
+    "title": "Iniciar sesión",
+    "email": "Email",
+    "password": "Contraseña",
+    "submit": "Entrar",
+    "failed": "No se pudo iniciar sesión."
   }
 }
