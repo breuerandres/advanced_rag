@@ -10,6 +10,7 @@ import {
 } from '../../api/orgUnits'
 import type { OrganizationalUnitSummary } from '../../api/orgUnits'
 import { Button, Dialog, Input } from '@helpcenter/shared-ui'
+import { UnitLevelBadge } from './UnitLevelBadge'
 
 type LoadState = 'loading' | 'ready' | 'error'
 
@@ -90,7 +91,7 @@ export function OrganizationalUnitsPage() {
     }
   }
 
-  function renderNode(unit: OrganizationalUnitSummary) {
+  function renderNode(unit: OrganizationalUnitSummary, level: number) {
     const children = childrenByParent.get(unit.id) ?? []
     const isExpanded = expanded.has(unit.id)
     const isRoot = unit.parentId === null
@@ -109,6 +110,7 @@ export function OrganizationalUnitsPage() {
           ) : (
             <span className="org-unit-toggle-spacer" aria-hidden="true" />
           )}
+          <UnitLevelBadge level={level} />
           <span className="org-unit-name">
             {unit.name}
             {isRoot ? ` (${t('orgUnits.company_wide')})` : null}
@@ -140,7 +142,9 @@ export function OrganizationalUnitsPage() {
           </span>
         </div>
         {isExpanded && children.length > 0 ? (
-          <ul className="org-unit-children">{children.map(renderNode)}</ul>
+          <ul className="org-unit-children">
+            {children.map((child) => renderNode(child, level + 1))}
+          </ul>
         ) : null}
       </li>
     )
@@ -168,7 +172,7 @@ export function OrganizationalUnitsPage() {
       ) : null}
 
       {loadState === 'ready' ? (
-        <ul className="org-unit-tree">{roots.map(renderNode)}</ul>
+        <ul className="org-unit-tree">{roots.map((unit) => renderNode(unit, 0))}</ul>
       ) : null}
 
       {dialog ? (

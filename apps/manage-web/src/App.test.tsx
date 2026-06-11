@@ -835,11 +835,7 @@ describe("management users and budgets", () => {
       screen.getByRole("textbox", { name: "Nombre del grupo" }),
       "Soporte",
     );
-    await screen.findByRole("option", { name: "Empresa (toda la empresa)" });
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Unidad dueña" }),
-      "01000000-0000-0000-0000-000000000001",
-    );
+    await selectUnitOption(user, "Unidad dueña", "Empresa (toda la empresa)");
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Política de publicación" }),
       "AdminOnly",
@@ -905,14 +901,7 @@ describe("management users and budgets", () => {
       screen.getByLabelText("Contraseña temporal"),
       "DemoPassword!42",
     );
-    const unitSelect = await screen.findByRole("combobox", {
-      name: "Unidad organizativa",
-    });
-    await screen.findByRole("option", { name: "Empresa (toda la empresa)" });
-    await user.selectOptions(
-      unitSelect,
-      "01000000-0000-0000-0000-000000000001",
-    );
+    await selectUnitOption(user, "Unidad organizativa", "Empresa (toda la empresa)");
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Rol" }),
       "Viewer",
@@ -981,11 +970,7 @@ describe("management users and budgets", () => {
       "EditorPass!42",
     );
 
-    const unitSelect = await screen.findByRole("combobox", {
-      name: "Unidad organizativa",
-    });
-    await screen.findByRole("option", { name: "Comunicación" });
-    await user.selectOptions(unitSelect, "0c000000-0000-0000-0000-0000000000c0");
+    await selectUnitOption(user, "Unidad organizativa", "Comunicación");
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Rol" }),
       "DocumentEditor",
@@ -1034,11 +1019,7 @@ describe("management users and budgets", () => {
       await screen.findByRole("button", { name: "Editar usuario Ana Gomez" }),
     );
 
-    const unitSelect = await screen.findByRole("combobox", {
-      name: "Unidad organizativa",
-    });
-    await screen.findByRole("option", { name: "Comunicación" });
-    await user.selectOptions(unitSelect, "0c000000-0000-0000-0000-0000000000c0");
+    await selectUnitOption(user, "Unidad organizativa", "Comunicación");
     await user.click(screen.getByRole("button", { name: "Guardar usuario" }));
 
     const [, requestInit] = (
@@ -1168,7 +1149,61 @@ describe("management documents", () => {
 
     await user.click(await screen.findByRole("link", { name: "Documentos" }));
 
-    expect(await screen.findByText(/toda la empresa/i)).toBeInTheDocument();
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText(/toda la empresa/i)).toBeInTheDocument();
+  });
+
+  test("documents access column shows the unit name for unit-scoped rules", async () => {
+    const unitScopedDocuments = [
+      {
+        ...documentsResponse[0],
+        allowedGroupIds: [],
+        accessRules: [
+          {
+            id: "r1",
+            organizationalUnitId: "0c000000-0000-0000-0000-0000000000c0",
+            groupIds: [],
+          },
+        ],
+      },
+    ];
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+      ]),
+      jsonResponse(200, unitScopedDocuments),
+      jsonResponse(200, [
+        { id: "22222222-2222-2222-2222-222222222222", name: "Operaciones" },
+      ]),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("link", { name: "Documentos" }));
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Comunicación")).toBeInTheDocument();
+    expect(
+      within(table).queryByText(/toda la empresa/i),
+    ).not.toBeInTheDocument();
+
+    // The unit filter keeps documents whose rules reference the selected unit
+    // and hides the rest.
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Unidad" }),
+      "0c000000-0000-0000-0000-0000000000c0",
+    );
+    expect(screen.getByText("Politica de seguridad")).toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Unidad" }),
+      "01000000-0000-0000-0000-000000000001",
+    );
+    expect(
+      screen.getByText("No hay documentos que coincidan con los filtros."),
+    ).toBeInTheDocument();
   });
 
   test("shows document filters for searchable document attributes", async () => {
@@ -1238,8 +1273,8 @@ describe("management documents", () => {
       "Compras",
     );
     await user.selectOptions(
-      screen.getByRole("combobox", { name: "Acceso" }),
-      "with-groups",
+      screen.getByRole("combobox", { name: "Grupo" }),
+      "44444444-4444-4444-4444-444444444444",
     );
 
     expect(screen.getByText("Procedimiento de compras")).toBeInTheDocument();
@@ -1533,12 +1568,15 @@ describe("management documents", () => {
       "Comunicación",
     );
 
-    const unitSelect = await screen.findByRole("combobox", {
-      name: "Unidad organizativa",
-    });
-    await screen.findByRole("option", { name: "Comunicación" });
-    await user.selectOptions(unitSelect, "0c000000-0000-0000-0000-0000000000c0");
+    await selectUnitOption(user, "Unidad organizativa", "Comunicación");
     await user.click(screen.getByRole("checkbox", { name: "Comité de crisis" }));
+
+    // The rule card explains the AND/OR semantics in natural language.
+    expect(
+      screen.getByText(
+        "Acceden: usuarios de la rama de Comunicación que además pertenezcan a Comité de crisis.",
+      ),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Guardar borrador" }));
 
@@ -2133,6 +2171,31 @@ describe("management organizational units", () => {
       expect.objectContaining({ method: "POST" }),
     );
   });
+
+  test("organizational units page shows a level badge per depth", async () => {
+    stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, organizationalUnitsResponse),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("link", { name: /unidades organizativas/i }),
+    );
+
+    // Root "Empresa" sits at level 0, its child "Comunicación" at level 1.
+    const empresaRow = (
+      await screen.findByText("Empresa", { exact: false })
+    ).closest(".org-unit-row") as HTMLElement;
+    const comunicacionRow = screen
+      .getByText("Comunicación")
+      .closest(".org-unit-row") as HTMLElement;
+    expect(within(empresaRow).getByText("N0")).toBeInTheDocument();
+    expect(within(comunicacionRow).getByText("N1")).toBeInTheDocument();
+  });
 });
 
 describe("management configuration", () => {
@@ -2377,6 +2440,18 @@ function jsonResponse(
 
 function csrfResponse() {
   return jsonResponse(200, { status: "ok" }, { "X-CSRF-Token": "csrf-token" });
+}
+
+// The organizational-unit dropdowns use the Radix Select, which renders options
+// in a portal only while open, so a value is picked by opening the trigger and
+// clicking the option (not the native selectOptions used by plain <select>s).
+async function selectUnitOption(
+  user: ReturnType<typeof userEvent.setup>,
+  comboboxName: string,
+  optionName: string,
+) {
+  await user.click(await screen.findByRole("combobox", { name: comboboxName }));
+  await user.click(await screen.findByRole("option", { name: optionName }));
 }
 
 function expectActionTooltip(button: HTMLElement) {

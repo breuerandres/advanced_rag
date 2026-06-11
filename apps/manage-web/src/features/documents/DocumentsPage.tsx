@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -34,8 +34,10 @@ import type {
 import { createGroup, listGroups, type GroupSummary } from "../../api/users";
 import { listOrganizationalUnits } from "../../api/orgUnits";
 import type { OrganizationalUnitSummary } from "../../api/orgUnits";
+import { UnitLevelBadge } from "../orgUnits/UnitLevelBadge";
 import { RichTextEditor } from "./RichTextEditor";
-import { Button, Checkbox, DataTable, Dialog, Input } from "@helpcenter/shared-ui";
+import { Button, Checkbox, DataTable, Dialog, Input, Select } from "@helpcenter/shared-ui";
+import type { SelectOption } from "@helpcenter/shared-ui";
 
 type DocumentStateFilter =
   | "all"
@@ -44,8 +46,13 @@ type DocumentStateFilter =
   | "Published"
   | "Archived";
 type IndexingFilter = "all" | "None" | "Pending" | "Succeeded" | "Failed";
-type AccessFilter = "all" | "with-groups" | "without-groups";
 type DocumentWorkspaceTab = "list" | "editor";
+
+// Local editing shape: the stable key keeps React state and per-rule UI
+// attached to the right card when rules are removed in the middle.
+interface EditableAccessRule extends DocumentAccessRuleInput {
+  key: string;
+}
 
 interface EditorState {
   mode: "create" | "edit";
@@ -60,6 +67,9 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
   const { t, i18n } = useTranslation();
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [organizationalUnits, setOrganizationalUnits] = useState<
+    OrganizationalUnitSummary[]
+  >([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
@@ -68,7 +78,8 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
   const [indexingFilter, setIndexingFilter] = useState<IndexingFilter>("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [audienceFilter, setAudienceFilter] = useState("all");
-  const [accessFilter, setAccessFilter] = useState<AccessFilter>("all");
+  const [unitFilter, setUnitFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState("all");
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [activeTab, setActiveTab] = useState<DocumentWorkspaceTab>("list");
   const [message, setMessage] = useState<string | null>(null);
@@ -80,12 +91,14 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
   async function loadDocuments() {
     setLoadState("loading");
     try {
-      const [loadedDocuments, loadedGroups] = await Promise.all([
+      const [loadedDocuments, loadedGroups, loadedUnits] = await Promise.all([
         listDocuments(),
         listGroups(),
+        listOrganizationalUnits(),
       ]);
       setDocuments(loadedDocuments);
       setGroups(loadedGroups);
+      setOrganizationalUnits(sortUnitsInTreeOrder(loadedUnits));
       setLoadState("ready");
     } catch {
       setLoadState("error");
@@ -113,18 +126,22 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
         typeFilter === "all" || document.documentType === typeFilter;
       const matchesAudience =
         audienceFilter === "all" || document.audience === audienceFilter;
-      const matchesAccess =
-        accessFilter === "all" ||
-        (accessFilter === "with-groups"
-          ? document.allowedGroupIds.length > 0
-          : document.allowedGroupIds.length === 0);
+      const accessRules = document.accessRules ?? [];
+      const matchesUnit =
+        unitFilter === "all" ||
+        accessRules.some((rule) => rule.organizationalUnitId === unitFilter);
+      const matchesGroup =
+        groupFilter === "all" ||
+        accessRules.some((rule) => rule.groupIds.includes(groupFilter)) ||
+        document.allowedGroupIds.includes(groupFilter);
 
       if (
         !matchesState ||
         !matchesIndexing ||
         !matchesType ||
         !matchesAudience ||
-        !matchesAccess
+        !matchesUnit ||
+        !matchesGroup
       ) {
         return false;
       }
@@ -136,6 +153,20 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
       const groupNames = document.allowedGroupIds.map((groupId) =>
         groupName(groups, groupId),
       );
+      const ruleGroupNames = accessRules.flatMap((rule) =>
+        rule.groupIds.map((groupId) => groupName(groups, groupId)),
+      );
+      const ruleUnitNames = accessRules
+        .map((rule) => rule.organizationalUnitId)
+        .filter((unitId): unitId is string => unitId !== null)
+        .map((unitId) =>
+          unitDisplayName(
+            organizationalUnits,
+            unitId,
+            t("documents.rule_company_wide_label"),
+            t("documents.rule_unit_unavailable"),
+          ),
+        );
       const searchableText = [
         document.title,
         document.state,
@@ -144,6 +175,8 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
         document.audience,
         document.updatedAt,
         ...groupNames,
+        ...ruleGroupNames,
+        ...ruleUnitNames,
       ]
         .join(" ")
         .toLowerCase();
@@ -151,14 +184,17 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
       return searchableText.includes(normalizedQuery);
     });
   }, [
-    accessFilter,
     audienceFilter,
     documents,
+    groupFilter,
     groups,
     indexingFilter,
+    organizationalUnits,
     searchQuery,
     stateFilter,
+    t,
     typeFilter,
+    unitFilter,
   ]);
 
   async function openDocument(id: string) {
@@ -394,16 +430,34 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                 </select>
               </label>
               <label className="field">
-                <span>{t("documents.access")}</span>
+                <span>{t("documents.filter_unit")}</span>
                 <select
-                  value={accessFilter}
-                  onChange={(event) =>
-                    setAccessFilter(event.target.value as AccessFilter)
-                  }
+                  value={unitFilter}
+                  onChange={(event) => setUnitFilter(event.target.value)}
+                >
+                  <option value="all">{t("documents.all_feminine")}</option>
+                  {organizationalUnits.map((unit) => (
+                    <option key={unit.id} value={unit.id}>
+                      {organizationalUnitOptionLabel(
+                        unit,
+                        t("documents.rule_company_wide"),
+                      )}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>{t("documents.filter_group")}</span>
+                <select
+                  value={groupFilter}
+                  onChange={(event) => setGroupFilter(event.target.value)}
                 >
                   <option value="all">{t("documents.all")}</option>
-                  <option value="with-groups">{t("documents.with_groups")}</option>
-                  <option value="without-groups">{t("documents.without_groups")}</option>
+                  {groups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
                 </select>
               </label>
             </section>
@@ -464,8 +518,10 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                     render: (document) =>
                       displayAccessRules(
                         groups,
+                        organizationalUnits,
                         document,
                         t("documents.rule_company_wide_label"),
+                        t("documents.rule_unit_unavailable"),
                         t("documents.access_rule_summary_separator"),
                       ),
                   },
@@ -555,6 +611,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
             mode={editorState.mode}
             documentDetail={editorState.document}
             groups={groups}
+            organizationalUnits={organizationalUnits}
             userRoles={userRoles}
             onClose={closeEditor}
             onGroupCreated={addGroup}
@@ -577,6 +634,7 @@ function DocumentEditor({
   mode,
   documentDetail,
   groups,
+  organizationalUnits,
   userRoles,
   onClose,
   onGroupCreated,
@@ -585,6 +643,7 @@ function DocumentEditor({
   mode: "create" | "edit";
   documentDetail: DocumentDetail;
   groups: GroupSummary[];
+  organizationalUnits: OrganizationalUnitSummary[];
   userRoles: string[];
   onClose: () => void;
   onGroupCreated: (group: GroupSummary) => void;
@@ -597,18 +656,16 @@ function DocumentEditor({
   const [documentType, setDocumentType] = useState(editableVersion?.documentType ?? "");
   const [audience, setAudience] = useState(editableVersion?.audience ?? "");
   const [contentHtml, setContentHtml] = useState(editableVersion?.contentHtml ?? "");
-  const [rules, setRules] = useState<DocumentAccessRuleInput[]>(() =>
+  const [rules, setRules] = useState<EditableAccessRule[]>(() =>
     initialAccessRules(documentDetail),
   );
-  const [organizationalUnits, setOrganizationalUnits] = useState<
-    OrganizationalUnitSummary[]
-  >([]);
-  const [orgUnitsError, setOrgUnitsError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importFileName, setImportFileName] = useState<string | null>(null);
-  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
+  const [groupDialogRuleKey, setGroupDialogRuleKey] = useState<string | null>(
+    null,
+  );
   const [groupCreateMessage, setGroupCreateMessage] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(mode === "create");
   const [isSaving, setIsSaving] = useState(false);
@@ -622,25 +679,30 @@ function DocumentEditor({
   const reviewValidationMessage = t("documents.review_validation_error");
   const hasReviewValidationError =
     validationError === reviewValidationMessage;
-
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const units = await listOrganizationalUnits();
-        if (active) {
-          setOrganizationalUnits(units);
-        }
-      } catch {
-        if (active) {
-          setOrgUnitsError(t("documents.organizational_units_load_error"));
-        }
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [t]);
+  const hasAccessRuleValidationError =
+    hasReviewValidationError ||
+    validationError === t("documents.access_rule_validation_error");
+  const rootUnitId =
+    organizationalUnits.find((unit) => unit.parentId === null)?.id ?? null;
+  const ruleSignatures = rules.map(
+    (rule) =>
+      `${rule.organizationalUnitId ?? ""}|${[...rule.groupIds].sort().join(",")}`,
+  );
+  const duplicateRuleKeys = new Set(
+    rules
+      .filter(
+        (rule, index) =>
+          !isRuleEmpty(rule) &&
+          ruleSignatures.indexOf(ruleSignatures[index]) !== index,
+      )
+      .map((rule) => rule.key),
+  );
+  const hasCompanyWideOnlyRule = rules.some(
+    (rule) =>
+      rule.organizationalUnitId !== null &&
+      rule.organizationalUnitId === rootUnitId &&
+      rule.groupIds.length === 0,
+  );
 
   async function saveDraft() {
     setValidationError(null);
@@ -651,7 +713,7 @@ function DocumentEditor({
         documentType,
         audience,
         contentHtml: normalizeEditorHtml(contentHtml),
-        accessRules: rules,
+        accessRules: rules.map(toAccessRuleInput),
       };
       const updated =
         mode === "create"
@@ -739,19 +801,22 @@ function DocumentEditor({
   }
 
   function addRule() {
-    setRules((current) => [...current, { organizationalUnitId: null, groupIds: [] }]);
+    setRules((current) => [
+      ...current,
+      { key: newRuleKey(), organizationalUnitId: null, groupIds: [] },
+    ]);
     setIsDirty(true);
   }
 
-  function removeRule(index: number) {
-    setRules((current) => current.filter((_, ruleIndex) => ruleIndex !== index));
+  function removeRule(key: string) {
+    setRules((current) => current.filter((rule) => rule.key !== key));
     setIsDirty(true);
   }
 
-  function setRuleUnit(index: number, unitId: string) {
+  function setRuleUnit(key: string, unitId: string) {
     setRules((current) =>
-      current.map((rule, ruleIndex) =>
-        ruleIndex === index
+      current.map((rule) =>
+        rule.key === key
           ? { ...rule, organizationalUnitId: unitId === "" ? null : unitId }
           : rule,
       ),
@@ -759,10 +824,10 @@ function DocumentEditor({
     setIsDirty(true);
   }
 
-  function toggleRuleGroup(index: number, groupId: string) {
+  function toggleRuleGroup(key: string, groupId: string) {
     setRules((current) =>
-      current.map((rule, ruleIndex) =>
-        ruleIndex === index
+      current.map((rule) =>
+        rule.key === key
           ? {
               ...rule,
               groupIds: rule.groupIds.includes(groupId)
@@ -777,19 +842,15 @@ function DocumentEditor({
 
   function addCreatedAccessGroup(group: GroupSummary) {
     onGroupCreated(group);
-    setRules((current) => {
-      const base =
-        current.length > 0
-          ? current
-          : [{ organizationalUnitId: null, groupIds: [] as string[] }];
-      // Add the newly created group to the first rule so it is immediately usable.
-      return base.map((rule, index) =>
-        index === 0 && !rule.groupIds.includes(group.id)
+    const targetKey = groupDialogRuleKey;
+    setRules((current) =>
+      current.map((rule) =>
+        rule.key === targetKey && !rule.groupIds.includes(group.id)
           ? { ...rule, groupIds: [...rule.groupIds, group.id] }
           : rule,
-      );
-    });
-    setIsGroupDialogOpen(false);
+      ),
+    );
+    setGroupDialogRuleKey(null);
     setIsDirty(true);
     setGroupCreateMessage(t("documents.group_create_success", { name: group.name }));
   }
@@ -885,81 +946,38 @@ function DocumentEditor({
               <Plus size={16} />
               {t("documents.add_access_rule")}
             </Button>
-            <Button
-              className="text-button"
-              type="button"
-              onClick={() => setIsGroupDialogOpen(true)}
-            >
-              <FolderPlus size={16} />
-              {t("documents.group_new")}
-            </Button>
           </div>
           {groupCreateMessage ? (
             <p className="status-message success">{groupCreateMessage}</p>
           ) : null}
-          {orgUnitsError ? (
-            <p className="status-message error" role="alert">
-              {orgUnitsError}
-            </p>
-          ) : null}
           {rules.length === 0 ? (
             <p className="muted-copy">{t("documents.access_rules_required")}</p>
           ) : null}
+          {hasCompanyWideOnlyRule && rules.length > 1 ? (
+            <p className="status-message warning">
+              {t("documents.access_rules_company_redundant")}
+            </p>
+          ) : null}
           {rules.map((rule, index) => (
-            <div className="access-rule" key={index}>
-              <div className="access-rule-header">
-                <span className="access-rule-title">
-                  {t("documents.access_rule_label", { number: index + 1 })}
-                </span>
-                <Button
-                  className="text-button"
-                  type="button"
-                  onClick={() => removeRule(index)}
-                >
-                  {t("documents.remove_access_rule")}
-                </Button>
-              </div>
-              <label className="field">
-                <span>{t("documents.rule_organizational_unit")}</span>
-                <select
-                  value={rule.organizationalUnitId ?? ""}
-                  onChange={(event) => setRuleUnit(index, event.target.value)}
-                >
-                  <option value="">{t("documents.rule_no_unit")}</option>
-                  {organizationalUnits.map((unit) => (
-                    <option key={unit.id} value={unit.id}>
-                      {organizationalUnitOptionLabel(
-                        unit,
-                        t("documents.rule_company_wide"),
-                      )}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <fieldset className="checkbox-list rule-groups">
-                <legend>{t("documents.rule_groups")}</legend>
-                {groups.length > 0 ? (
-                  <div className="checkbox-grid">
-                    {groups.map((group) => (
-                      <Checkbox
-                        className="checkbox-field"
-                        key={group.id}
-                        label={group.name}
-                        checked={rule.groupIds.includes(group.id)}
-                        onCheckedChange={() => toggleRuleGroup(index, group.id)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="muted-copy">{t("documents.no_groups")}</p>
-                )}
-              </fieldset>
-              {isRuleEmpty(rule) ? (
-                <p className="status-message error">
-                  {t("documents.access_rule_empty_invalid")}
+            <Fragment key={rule.key}>
+              {index > 0 ? (
+                <p aria-hidden="true" className="access-rule-separator">
+                  {t("documents.access_rule_or")}
                 </p>
               ) : null}
-            </div>
+              <AccessRuleCard
+                groups={groups}
+                index={index}
+                isDuplicate={duplicateRuleKeys.has(rule.key)}
+                organizationalUnits={organizationalUnits}
+                rule={rule}
+                showValidationError={hasAccessRuleValidationError}
+                onCreateGroup={() => setGroupDialogRuleKey(rule.key)}
+                onGroupToggle={(groupId) => toggleRuleGroup(rule.key, groupId)}
+                onRemove={() => removeRule(rule.key)}
+                onUnitChange={(unitId) => setRuleUnit(rule.key, unitId)}
+              />
+            </Fragment>
           ))}
         </fieldset>
 
@@ -1026,13 +1044,179 @@ function DocumentEditor({
         </div>
       </form>
 
-      {isGroupDialogOpen ? (
+      {groupDialogRuleKey !== null ? (
         <GroupCreateDialog
-          onClose={() => setIsGroupDialogOpen(false)}
+          onClose={() => setGroupDialogRuleKey(null)}
           onSaved={addCreatedAccessGroup}
         />
       ) : null}
     </section>
+  );
+}
+
+// Radix Select forbids an empty-string item value, so the "no unit" choice
+// (which maps to a null organizational unit) uses a sentinel value.
+const NO_UNIT_VALUE = "__none__";
+
+function AccessRuleCard({
+  rule,
+  index,
+  groups,
+  organizationalUnits,
+  isDuplicate,
+  showValidationError,
+  onCreateGroup,
+  onGroupToggle,
+  onRemove,
+  onUnitChange,
+}: {
+  rule: EditableAccessRule;
+  index: number;
+  groups: GroupSummary[];
+  organizationalUnits: OrganizationalUnitSummary[];
+  isDuplicate: boolean;
+  showValidationError: boolean;
+  onCreateGroup: () => void;
+  onGroupToggle: (groupId: string) => void;
+  onRemove: () => void;
+  onUnitChange: (unitId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [groupQuery, setGroupQuery] = useState("");
+
+  const normalizedQuery = groupQuery.trim().toLowerCase();
+  const visibleGroups =
+    normalizedQuery.length === 0
+      ? groups
+      : groups.filter((group) =>
+          group.name.toLowerCase().includes(normalizedQuery),
+        );
+  const selectedUnit = organizationalUnits.find(
+    (unit) => unit.id === rule.organizationalUnitId,
+  );
+  const isUnresolvedUnit =
+    rule.organizationalUnitId !== null && selectedUnit === undefined;
+  const descendantCount =
+    selectedUnit && selectedUnit.parentId !== null
+      ? countDescendants(organizationalUnits, selectedUnit.id)
+      : 0;
+  const preview = rulePreview(rule, selectedUnit, groups, t);
+
+  const unitOptions: SelectOption[] = [
+    { value: NO_UNIT_VALUE, label: t("documents.rule_no_unit") },
+    // Preserve a unit id missing from the caller's catalog (e.g. a unit
+    // deactivated and hidden from non-admins) instead of dropping it on save.
+    ...(isUnresolvedUnit && rule.organizationalUnitId
+      ? [
+          {
+            value: rule.organizationalUnitId,
+            label: t("documents.rule_unit_unavailable"),
+          },
+        ]
+      : []),
+    ...organizationalUnits.map((unit) => ({
+      value: unit.id,
+      label:
+        unit.parentId === null
+          ? `${unit.name} (${t("documents.rule_company_wide")})`
+          : unit.name,
+      depth: unit.depth,
+      badge: <UnitLevelBadge level={unit.depth} />,
+    })),
+  ];
+
+  return (
+    <div className="access-rule">
+      <div className="access-rule-header">
+        <span className="access-rule-title">
+          {t("documents.access_rule_label", { number: index + 1 })}
+        </span>
+        <Button
+          aria-label={t("documents.remove_access_rule_for", {
+            number: index + 1,
+          })}
+          className="text-button"
+          type="button"
+          onClick={onRemove}
+        >
+          {t("documents.remove_access_rule")}
+        </Button>
+      </div>
+      <label className="field">
+        <span>{t("documents.rule_organizational_unit")}</span>
+        <Select
+          ariaLabel={t("documents.rule_organizational_unit")}
+          placeholder={t("documents.rule_no_unit")}
+          value={rule.organizationalUnitId ?? NO_UNIT_VALUE}
+          onValueChange={(next) =>
+            onUnitChange(next === NO_UNIT_VALUE ? "" : next)
+          }
+          options={unitOptions}
+        />
+      </label>
+      {descendantCount > 0 ? (
+        <p className="muted-copy">
+          {t("documents.rule_unit_branch_hint", { count: descendantCount })}
+        </p>
+      ) : null}
+      <fieldset className="checkbox-list rule-groups">
+        <legend>{t("documents.rule_groups")}</legend>
+        <div className="rule-groups-toolbar">
+          {groups.length > 0 ? (
+            <>
+              <Input
+                aria-label={t("documents.rule_groups_filter")}
+                placeholder={t("documents.rule_groups_filter")}
+                type="search"
+                value={groupQuery}
+                onChange={(event) => setGroupQuery(event.target.value)}
+              />
+              <span className="muted-copy">
+                {t("documents.rule_groups_selected", {
+                  count: rule.groupIds.length,
+                })}
+              </span>
+            </>
+          ) : null}
+          <Button className="text-button" type="button" onClick={onCreateGroup}>
+            <FolderPlus size={16} />
+            {t("documents.group_new")}
+          </Button>
+        </div>
+        {groups.length === 0 ? (
+          <p className="muted-copy">{t("documents.no_groups")}</p>
+        ) : visibleGroups.length === 0 ? (
+          <p className="muted-copy">{t("documents.rule_groups_no_matches")}</p>
+        ) : (
+          <div className="checkbox-grid">
+            {visibleGroups.map((group) => (
+              <Checkbox
+                className="checkbox-field"
+                key={group.id}
+                label={group.name}
+                checked={rule.groupIds.includes(group.id)}
+                onCheckedChange={() => onGroupToggle(group.id)}
+              />
+            ))}
+          </div>
+        )}
+      </fieldset>
+      {isDuplicate ? (
+        <p className="status-message warning">
+          {t("documents.access_rule_duplicate_warning")}
+        </p>
+      ) : null}
+      {preview ? <p className="access-rule-preview">{preview}</p> : null}
+      {isRuleEmpty(rule) ? (
+        showValidationError ? (
+          <p className="status-message error">
+            {t("documents.access_rule_empty_invalid")}
+          </p>
+        ) : (
+          <p className="muted-copy">{t("documents.access_rule_empty_hint")}</p>
+        )
+      ) : null}
+    </div>
   );
 }
 
@@ -1140,8 +1324,9 @@ function toSummary(document: DocumentDetail): DocumentSummary {
   };
 }
 
-function initialAccessRules(detail: DocumentDetail): DocumentAccessRuleInput[] {
+function initialAccessRules(detail: DocumentDetail): EditableAccessRule[] {
   const existing = (detail.accessRules ?? []).map((rule) => ({
+    key: newRuleKey(),
     organizationalUnitId: rule.organizationalUnitId,
     groupIds: [...rule.groupIds],
   }));
@@ -1154,13 +1339,89 @@ function initialAccessRules(detail: DocumentDetail): DocumentAccessRuleInput[] {
   if (detail.allowedGroupIds.length > 0) {
     return [
       {
+        key: newRuleKey(),
         organizationalUnitId: null,
         groupIds: detail.allowedGroupIds.map((groupId) => groupId.toString()),
       },
     ];
   }
 
-  return [{ organizationalUnitId: null, groupIds: [] }];
+  return [{ key: newRuleKey(), organizationalUnitId: null, groupIds: [] }];
+}
+
+function newRuleKey(): string {
+  if ("randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `rule-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function toAccessRuleInput(rule: EditableAccessRule): DocumentAccessRuleInput {
+  return {
+    organizationalUnitId: rule.organizationalUnitId,
+    groupIds: rule.groupIds,
+  };
+}
+
+function countDescendants(
+  units: OrganizationalUnitSummary[],
+  unitId: string,
+): number {
+  let count = 0;
+  let frontier = new Set([unitId]);
+  while (frontier.size > 0) {
+    const children = units.filter(
+      (unit) => unit.parentId !== null && frontier.has(unit.parentId),
+    );
+    count += children.length;
+    frontier = new Set(children.map((unit) => unit.id));
+  }
+  return count;
+}
+
+// "A, B o C" — the disjunction mirrors the backend rule semantics where the
+// group dimension matches when the user belongs to ANY listed group.
+function formatDisjunction(values: string[], orWord: string): string {
+  if (values.length <= 1) {
+    return values.join("");
+  }
+
+  return `${values.slice(0, -1).join(", ")} ${orWord} ${values[values.length - 1]}`;
+}
+
+function rulePreview(
+  rule: EditableAccessRule,
+  selectedUnit: OrganizationalUnitSummary | undefined,
+  groups: GroupSummary[],
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string | null {
+  if (isRuleEmpty(rule)) {
+    return null;
+  }
+
+  const groupsText = formatDisjunction(
+    rule.groupIds.map((groupId) => groupName(groups, groupId)),
+    t("documents.rule_preview_or_word"),
+  );
+
+  if (rule.organizationalUnitId === null) {
+    return t("documents.rule_preview_groups", { groups: groupsText });
+  }
+
+  const unitName = selectedUnit?.name ?? t("documents.rule_unit_unavailable");
+  if (selectedUnit?.parentId === null) {
+    return rule.groupIds.length === 0
+      ? t("documents.rule_preview_company")
+      : t("documents.rule_preview_company_groups", { groups: groupsText });
+  }
+
+  return rule.groupIds.length === 0
+    ? t("documents.rule_preview_unit", { unit: unitName })
+    : t("documents.rule_preview_unit_groups", {
+        unit: unitName,
+        groups: groupsText,
+      });
 }
 
 function isRuleEmpty(rule: DocumentAccessRuleInput): boolean {
@@ -1171,9 +1432,45 @@ function organizationalUnitOptionLabel(
   unit: OrganizationalUnitSummary,
   companyWideLabel: string,
 ): string {
-  return unit.parentId === null
-    ? `${unit.name} (${companyWideLabel})`
-    : unit.name;
+  if (unit.parentId === null) {
+    return `${unit.name} (${companyWideLabel})`;
+  }
+
+  // Non-breaking spaces survive the browser's whitespace collapsing in <option>.
+  return `${"\u00A0\u00A0\u00A0".repeat(unit.depth)}${unit.name}`;
+}
+
+// Flattens the unit list into depth-first tree order (siblings alphabetical) so
+// option indentation reads as a hierarchy. Units whose parent is not in the
+// list (e.g. under an inactive ancestor) are appended at the end unindented.
+function sortUnitsInTreeOrder(
+  units: OrganizationalUnitSummary[],
+): OrganizationalUnitSummary[] {
+  const childrenByParent = new Map<string | null, OrganizationalUnitSummary[]>();
+  const knownIds = new Set(units.map((unit) => unit.id));
+  const orphans: OrganizationalUnitSummary[] = [];
+  for (const unit of units) {
+    if (unit.parentId !== null && !knownIds.has(unit.parentId)) {
+      orphans.push(unit);
+      continue;
+    }
+    const siblings = childrenByParent.get(unit.parentId) ?? [];
+    siblings.push(unit);
+    childrenByParent.set(unit.parentId, siblings);
+  }
+  for (const siblings of childrenByParent.values()) {
+    siblings.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  const ordered: OrganizationalUnitSummary[] = [];
+  const visit = (parentId: string | null) => {
+    for (const unit of childrenByParent.get(parentId) ?? []) {
+      ordered.push(unit);
+      visit(unit.id);
+    }
+  };
+  visit(null);
+  return [...ordered, ...orphans];
 }
 
 function documentActionPermissions(
@@ -1307,13 +1604,12 @@ function groupName(groups: GroupSummary[], groupId: string) {
   return groups.find((group) => group.id === groupId)?.name ?? groupId;
 }
 
-// The documents list intentionally does not load the org-unit catalog, so any
-// unit-scoped rule renders the stable company-wide label here while group names
-// still render precisely. The document editor (separate) shows exact unit names.
 function displayAccessRules(
   groups: GroupSummary[],
+  units: OrganizationalUnitSummary[],
   document: DocumentSummary,
   companyWideLabel: string,
+  unitUnavailableLabel: string,
   separator: string,
 ): string {
   const rules = document.accessRules ?? [];
@@ -1324,7 +1620,14 @@ function displayAccessRules(
   return rules
     .map((rule) => {
       const unitLabel =
-        rule.organizationalUnitId === null ? null : companyWideLabel;
+        rule.organizationalUnitId === null
+          ? null
+          : unitDisplayName(
+              units,
+              rule.organizationalUnitId,
+              companyWideLabel,
+              unitUnavailableLabel,
+            );
       const groupLabels = rule.groupIds.map((groupId) =>
         groupName(groups, groupId),
       );
@@ -1332,6 +1635,21 @@ function displayAccessRules(
     })
     .filter((text) => text.length > 0)
     .join(separator);
+}
+
+function unitDisplayName(
+  units: OrganizationalUnitSummary[],
+  unitId: string,
+  companyWideLabel: string,
+  unitUnavailableLabel: string,
+): string {
+  const unit = units.find((item) => item.id === unitId);
+  if (!unit) {
+    // The non-admin catalog omits inactive units, so the id may not resolve.
+    return unitUnavailableLabel;
+  }
+
+  return unit.parentId === null ? companyWideLabel : unit.name;
 }
 
 function uniqueValues(values: string[]) {

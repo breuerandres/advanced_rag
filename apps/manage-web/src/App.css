@@ -381,6 +381,65 @@ h2 {
   color: #991b1b;
 }
 
+.status-message.warning {
+  border-color: #ecd3a0;
+  background: #fdf6e7;
+  color: #92400e;
+}
+
+.access-rule {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #e2d8d2;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.access-rule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.access-rule-title {
+  font-weight: 600;
+}
+
+.access-rule-separator {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3d4947;
+}
+
+.access-rule-preview {
+  margin: 0;
+  font-size: 13px;
+  color: #166534;
+}
+
+.rule-groups-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.rule-groups-toolbar input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.rule-groups-toolbar .muted-copy {
+  margin: 0;
+  white-space: nowrap;
+}
+
 .table-frame {
   max-width: 100%;
   overflow-x: auto;
@@ -1530,6 +1589,24 @@ select {
   color: #fecaca;
 }
 
+[data-theme='dark'] .status-message.warning {
+  border-color: color-mix(in oklab, #d97706 50%, var(--border));
+  background: color-mix(in oklab, #d97706 14%, var(--bg-elevated));
+  color: #fde68a;
+}
+
+[data-theme='dark'] .access-rule {
+  border-color: var(--border);
+}
+
+[data-theme='dark'] .access-rule-separator {
+  color: var(--fg-muted, #a8b3b0);
+}
+
+[data-theme='dark'] .access-rule-preview {
+  color: #bbf7d0;
+}
+
 .org-unit-tree,
 .org-unit-children {
   list-style: none;
@@ -1541,7 +1618,13 @@ select {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.25rem 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: background-color 0.12s ease;
+}
+
+.org-unit-row:hover {
+  background: var(--bg-subtle);
 }
 
 .org-unit-row.inactive .org-unit-name {
@@ -1561,4 +1644,84 @@ select {
   background: none;
   border: 0;
   cursor: pointer;
+}
+
+/* Numbered level badge: shared by the org-unit tree and the unit selects.
+   The number is the primary signal; the tone (cycling every 6 levels) only
+   reinforces it. Rendered inside Radix Select portals too, so it lives here. */
+.unit-level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  color: #3730a3;
+  background: #e0e7ff;
+}
+
+.unit-level-badge[data-tone='0'] {
+  color: #3730a3;
+  background: #e0e7ff;
+}
+
+.unit-level-badge[data-tone='1'] {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.unit-level-badge[data-tone='2'] {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.unit-level-badge[data-tone='3'] {
+  color: #6d28d9;
+  background: #ede9fe;
+}
+
+.unit-level-badge[data-tone='4'] {
+  color: #be123c;
+  background: #ffe4e6;
+}
+
+.unit-level-badge[data-tone='5'] {
+  color: #166534;
+  background: #dcfce7;
+}
+
+[data-theme='dark'] .unit-level-badge[data-tone='0'] {
+  color: #c7d2fe;
+  background: #312e81;
+}
+
+[data-theme='dark'] .unit-level-badge[data-tone='1'] {
+  color: #99f6e4;
+  background: #134e4a;
+}
+
+[data-theme='dark'] .unit-level-badge[data-tone='2'] {
+  color: #fde68a;
+  background: #78350f;
+}
+
+[data-theme='dark'] .unit-level-badge[data-tone='3'] {
+  color: #ddd6fe;
+  background: #4c1d95;
+}
+
+[data-theme='dark'] .unit-level-badge[data-tone='4'] {
+  color: #fecdd3;
+  background: #881337;
+}
+
+[data-theme='dark'] .unit-level-badge[data-tone='5'] {
+  color: #bbf7d0;
+  background: #14532d;
 }
