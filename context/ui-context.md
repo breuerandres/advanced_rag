@@ -116,9 +116,10 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 
 ## Document Viewer UI
 
-- `docs.localhost` root renders an independent authenticated document portal with search, category/group filters, and visible documents determined by the current user. Admins and document managers can see management-scope documents; viewers see only published documents allowed by their groups.
-- Document-id URLs render the focused viewer flow for citations and explicit document links.
-- The viewer must handle missing session, unauthorized, document-not-found, and successful document states.
+- `docs.localhost` root renders an independent authenticated document portal styled as a warm help center: bounded search, document-type filter chips (access groups are not navigation), and a card grid with type icon/tint, audience, relative updated date, and a state chip only for non-published documents. Visible documents are determined by the current user; management roles (`Admin`, `DocumentEditor`, `DocumentPublisher`) open documents with management purpose links.
+- Document-id URLs render the focused viewer: a sticky top bar with a "Volver a la biblioteca" link back to the portal root, type/audience chips above the title, a centered reading column (max 72ch, 17px/1.7), a quiet session-expiry footer line, and a tinted banner when viewing draft/in-review versions.
+- A floating document-chat bubble renders only on Published documents. The panel is ephemeral (state lost on reload), streams answers from FastAPI's document-scoped `/api/chat`, supports 👍/👎 feedback with optional comment per answer, shows budget-limited and rate-limited states with friendly copy, and rolls back partial turns on stream failure with a retry action. Doc-chat conversations never appear in chat-web's session drawer.
+- The viewer must handle missing session, unauthorized, document-not-found, and successful document states. All docs-web user-facing strings are i18n keys (es-AR default, en-US), including error-code mappings.
 - Credential-bearing tokens must never be visible to JavaScript or shown in the URL.
 
 ## Management Document Editor

@@ -40,7 +40,8 @@ Browser frontends should call same-origin `/api/*` routes exposed on their own h
 | `manage.client.com` | `/api/*` | .NET API |
 | `chat.client.com` | `/api/chat/*`, `/api/feedback/*`, chat health routes | FastAPI |
 | `chat.client.com` | `/api/auth/*`, `/api/session/*` | .NET API |
-| `docs.client.com` | `/api/*` | .NET API |
+| `docs.client.com` | `/api/chat`, `/api/feedback*` | FastAPI RAG API |
+| `docs.client.com` | all other `/api/*` | .NET API |
 
 This same-origin gateway pattern is the preferred browser topology for the MVP because it supports host-only cookies, reduces CORS complexity, and avoids broad parent-domain cookies.
 
@@ -58,13 +59,13 @@ Detailed endpoint-by-endpoint DTOs are finalized during implementation planning 
 | Users/groups | .NET API | Management same-origin `/api/*` | User administration, role assignment, group/department management, activation/deactivation |
 | Documents | .NET API | Management same-origin `/api/*` | Document CRUD, metadata, filters, assisted import extraction, lifecycle transitions, publish request, indexing retry, archive, restore, and management audit |
 | Viewer | .NET API | Docs same-origin `/api/*`; link creation from chat/management | Session-authenticated document links, document access validation, and document loading |
-| Chat/RAG | FastAPI | Chat same-origin `/api/chat/*` through Caddy | Question submission, retrieval, answer generation, citations, semantic cache lookup/write, RAG query audit, and token/cost/latency tracking |
+| Chat/RAG | FastAPI | Chat same-origin `/api/chat/*` through Caddy | Question submission, retrieval, answer generation, citations, semantic cache lookup/write, RAG query audit, and token/cost/latency tracking. Document-scoped chat requests force the published corpus, bypass the semantic cache, and audit scope_document_id. |
 | Feedback/reporting | FastAPI and .NET API | Chat feedback via FastAPI; management reporting via .NET | Feedback submission tied to RAG query audit, plus read-only management feedback review/reporting over RAG audit data |
 | Usage budgets | .NET API and FastAPI | Management configuration via .NET; enforcement in FastAPI | Per-user monthly AI budget configuration, usage reporting, and chat budget enforcement based on RAG cost audit |
 | Internal indexing | FastAPI, called by .NET API | Docker-network-only internal API | Indexing job creation, status/result reporting, retry support, chunking, embeddings, vector storage, and indexing audit fields |
 | Health/errors | All services | Public or internal as appropriate | Liveness/readiness endpoints, shared error envelope, request IDs, and safe error codes |
 
-Management and docs frontends call the .NET-owned contract groups. The chat frontend calls FastAPI for chat and feedback, and calls .NET through same-origin chat routes only for auth/session and viewer-link support. Management reporting reads RAG audit/feedback through .NET-controlled read-only reporting queries or views; the management frontend does not call FastAPI directly.
+Management calls only the .NET-owned contract groups. The docs frontend calls .NET for everything except the document-scoped mini chat, which posts `/api/chat` (with `documentId`) and `/api/feedback/*` to FastAPI through the same-origin docs host routes. The chat frontend calls FastAPI for chat and feedback, and calls .NET through same-origin chat routes only for auth/session and viewer-link support. Management reporting reads RAG audit/feedback through .NET-controlled read-only reporting queries or views; the management frontend does not call FastAPI directly.
 
 ## Monorepo Boundaries
 
