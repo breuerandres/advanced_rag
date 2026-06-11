@@ -243,7 +243,7 @@ test.each([
   expect(await screen.findByRole('alert')).toHaveTextContent(message)
 })
 
-test('renders document through the unified session and document id', async () => {
+test('renders the document with back navigation and session footer', async () => {
   mockFetch([
     jsonResponse({
       documentId: '55555555-5555-5555-5555-555555555555',
@@ -261,8 +261,33 @@ test('renders document through the unified session and document id', async () =>
 
   expect(await screen.findByRole('heading', { name: 'Procedimiento publicado' })).toBeInTheDocument()
   expect(screen.getByText('Usa el equipo de seguridad.')).toBeInTheDocument()
-  expect(screen.getByText('Sesion vigente hasta')).toBeInTheDocument()
-  expect(screen.getByText('Publicado')).toBeInTheDocument()
+  const backLink = screen.getByRole('link', { name: 'Volver a la biblioteca' })
+  expect(backLink).toHaveAttribute('href', '/')
+  expect(screen.getByText(/Sesión válida hasta/)).toBeInTheDocument()
+  // Published documents show no state chip or banner.
+  expect(screen.queryByText('Publicado')).not.toBeInTheDocument()
+})
+
+test('shows a draft banner when viewing an unpublished version', async () => {
+  mockFetch([
+    jsonResponse({
+      documentId: '55555555-5555-5555-5555-555555555555',
+      documentVersionId: 'version-1',
+      title: 'Borrador interno',
+      state: 'Draft',
+      documentType: 'Manual',
+      audience: 'Operaciones',
+      contentHtml: '<p>Contenido en preparación.</p>',
+      tokenExpiresAt: '2026-05-18T12:15:00Z',
+    }),
+  ])
+
+  render(<App />)
+
+  expect(await screen.findByRole('heading', { name: 'Borrador interno' })).toBeInTheDocument()
+  expect(
+    screen.getByText('Estás viendo una versión en borrador. No es visible para usuarios finales.'),
+  ).toBeInTheDocument()
 })
 
 test('consumes handoff code, removes it from the URL, then loads the document', async () => {

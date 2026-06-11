@@ -22,7 +22,6 @@
     "updated_ago": "Actualizado {{when}}"
   },
   "viewer": {
-    "instruction_viewer_title": "Visor de instrucciones",
     "back_to_library": "Volver a la biblioteca",
     "nav_label": "Navegación del documento",
     "session_valid_until": "Sesión válida hasta {{time}} · Acceso verificado",
