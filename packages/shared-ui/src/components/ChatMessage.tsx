@@ -8,6 +8,8 @@ export interface ChatMessageProps {
   author: ChatMessageAuthor;
   content: string;
   pending?: boolean;
+  /** Hide the author badge for transcript layouts where alignment already conveys the author. */
+  showAuthor?: boolean;
   className?: string;
 }
 
@@ -23,7 +25,7 @@ const displayLabels: Record<ChatMessageAuthor, string> = {
   system: 'Sistema',
 };
 
-export function ChatMessage({ author, content, pending, className }: ChatMessageProps) {
+export function ChatMessage({ author, content, pending, showAuthor = true, className }: ChatMessageProps) {
   return (
     <article
       aria-label={labels[author]}
@@ -33,10 +35,14 @@ export function ChatMessage({ author, content, pending, className }: ChatMessage
         className,
       )}
     >
-      <div className="mb-2 flex items-center gap-2">
-        <Badge tone={author === 'assistant' ? 'info' : 'neutral'}>{displayLabels[author]}</Badge>
-        {pending && <span className="text-xs text-[var(--fg-muted)]">Escribiendo...</span>}
-      </div>
+      {(showAuthor || pending) && (
+        <div className="mb-2 flex items-center gap-2">
+          {showAuthor && (
+            <Badge tone={author === 'assistant' ? 'info' : 'neutral'}>{displayLabels[author]}</Badge>
+          )}
+          {pending && <span className="text-xs text-[var(--fg-muted)]">Escribiendo...</span>}
+        </div>
+      )}
       <Markdown content={content} />
       {pending && (
         <span

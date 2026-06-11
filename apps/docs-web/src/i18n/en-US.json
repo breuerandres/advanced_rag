@@ -41,6 +41,7 @@
     "send": "Send",
     "sending": "Generating answer…",
     "retry": "Retry",
+    "clear": "Clear conversation",
     "feedback_up": "Helpful answer",
     "feedback_down": "Unhelpful answer",
     "feedback_comment_placeholder": "Tell us what you would improve (optional)",

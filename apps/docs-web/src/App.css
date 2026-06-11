@@ -518,6 +518,13 @@ h2 {
   padding: 14px 16px;
 }
 
+.doc-chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .doc-chat-header h2 {
   font-size: 15px;
 }

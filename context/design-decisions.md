@@ -1988,3 +1988,17 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Tradeoffs:** The routing invariant relaxes from "docs -> .NET only" to "docs -> .NET, plus FastAPI for doc-chat/feedback only". Cache bypass forgoes reuse for repeated per-document questions, in exchange for provable scope correctness without re-keying the cache.
 
 **Consequences:** The branch-aware access predicate still applies inside retrieval SQL, so inaccessible documents yield zero chunks and a generic no-info answer (no existence leak). The mini chat renders only on Published documents. `architecture.md` and `ui-context.md` must be updated when the implementation lands.
+
+## 2026-06-11 - Chat Citations Use A Non-Modal Inline Right Panel And Feedback Moves Per Answer
+
+**Context:** `ui-context.md` specifies that `Ver citas (n)` opens a collapsible right drawer fixed to the viewport height while the transcript scrolls independently. chat-web instead used the shared `CitationDrawer`, built on the Radix modal `Dialog`, which renders a blocking dark overlay. Separately, one global feedback form at the bottom of the workspace applied only to the latest answer, while the spec assigns feedback to each assistant turn.
+
+**Options Considered:** Make the shared `Drawer` non-modal (changes semantics for every consumer), portal a floating fixed panel (overlaps the transcript on wide screens), or render a chat-local non-modal panel as a third column of the chat layout grid.
+
+**Decision:** chat-web renders a workflow-local `CitationsPanel` (`role="dialog"`, non-modal, Esc and button close) as a third grid column (`286px / 1fr / 340px`); below 1100px it floats as a fixed right overlay without backdrop. The shared `CitationDrawer`/`Drawer` stay modal for other use cases. Feedback becomes per assistant turn: icon thumb toggles plus an inline comment/submit expansion, with drafts keyed by turn id and submitted values persisted on the turn. Shared `ChatMessage` gains an optional `showAuthor` prop (default `true`) so transcript layouts can drop the per-message author badge.
+
+**Rationale:** A layout column is the only shape that satisfies "transcript scrolls independently while the panel stays fixed" without covering content or blocking interaction. Per-turn feedback keeps feedback attached to the answer that produced it, as the spec and the FastAPI data model (`queryAuditEventId` per turn) already assume.
+
+**Tradeoffs:** chat-web now owns a local panel component instead of reusing the shared modal drawer; the shared `CitationDrawer` keeps no chat consumer. Per-turn drafts add a small client-state map keyed by turn id.
+
+**Consequences:** Dead render branches tied to the old single-answer state (`answer`, `usage`, `cacheHit`, global feedback state) were removed; the transcript auto-scrolls while streaming when the user is pinned to the bottom; the chat empty state, composer, sidebar, citations, and feedback strings moved to the existing i18n resources (es-AR values preserved verbatim for test stability).

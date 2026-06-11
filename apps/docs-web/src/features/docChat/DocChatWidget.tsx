@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MessageCircleQuestion, RotateCcw, ThumbsDown, ThumbsUp, X } from 'lucide-react'
+import { Eraser, RotateCcw, Sparkles, ThumbsDown, ThumbsUp, X } from 'lucide-react'
 import { Button, ChatComposer, Input, Markdown } from '@helpcenter/shared-ui'
 import { useDocChat, type DocChatTurn } from './useDocChat'
 
@@ -24,14 +24,28 @@ export function DocChatWidget({ documentId }: { documentId: string }) {
               <h2>{t('docChat.title')}</h2>
               <p>{t('docChat.subtitle')}</p>
             </div>
-            <button
-              type="button"
-              className="icon-button"
-              onClick={() => setIsOpen(false)}
-              aria-label={t('docChat.close')}
-            >
-              <X size={16} aria-hidden="true" />
-            </button>
+            <div className="doc-chat-header-actions">
+              {(chat.turns.length > 0 || !!chat.failure) ? (
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={chat.clearConversation}
+                  disabled={chat.isStreaming}
+                  aria-label={t('docChat.clear')}
+                  title={t('docChat.clear')}
+                >
+                  <Eraser size={15} aria-hidden="true" />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setIsOpen(false)}
+                aria-label={t('docChat.close')}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
           </header>
           <div className="doc-chat-transcript" aria-live="polite">
             {chat.turns.length === 0 && !chat.failure ? (
@@ -99,7 +113,7 @@ export function DocChatWidget({ documentId }: { documentId: string }) {
         aria-label={isOpen ? t('docChat.close') : t('docChat.open')}
         title={isOpen ? t('docChat.close') : t('docChat.open')}
       >
-        {isOpen ? <X size={22} aria-hidden="true" /> : <MessageCircleQuestion size={22} aria-hidden="true" />}
+        {isOpen ? <X size={22} aria-hidden="true" /> : <Sparkles size={22} aria-hidden="true" />}
       </button>
     </div>
   )

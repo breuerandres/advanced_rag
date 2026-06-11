@@ -41,6 +41,7 @@
     "send": "Enviar",
     "sending": "Generando respuesta…",
     "retry": "Reintentar",
+    "clear": "Limpiar conversación",
     "feedback_up": "Respuesta útil",
     "feedback_down": "Respuesta no útil",
     "feedback_comment_placeholder": "Contanos qué mejorarías (opcional)",

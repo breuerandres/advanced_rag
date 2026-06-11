@@ -1,4 +1,4 @@
-import { type ChangeEvent, type FormEvent, useLayoutEffect, useRef, useState } from 'react';
+import { type ChangeEvent, type FormEvent, type KeyboardEvent, useLayoutEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 import { Button } from './Button';
 import { Textarea } from './Textarea';
@@ -40,6 +40,16 @@ export function ChatComposer({
     setValue(event.currentTarget.value);
   }
 
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      if (!disabled && normalizedValue) {
+        onSubmit(normalizedValue);
+        setValue('');
+      }
+    }
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!normalizedValue) {
@@ -61,6 +71,7 @@ export function ChatComposer({
         className="chat-composer-textarea min-h-[2.75rem] max-h-40 resize-none overflow-y-auto"
         maxLength={maxLength}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
       />
       <div className="flex items-center justify-between gap-3 text-xs text-[var(--fg-muted)]">
         {maxLength && characterCountLabel ? (

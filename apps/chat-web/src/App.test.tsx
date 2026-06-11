@@ -649,7 +649,7 @@ function sessionResponse() {
 }
 
 function stubFetch(responses: Array<Response | Promise<Response>>) {
-  const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+  const fetchMock = vi.fn<typeof fetch>(async () => {
     const response = responses.shift()
     if (!response) {
       throw new Error('Unexpected fetch call.')

@@ -143,7 +143,13 @@ export function useDocChat(documentId: string, locale: string) {
     [turns],
   )
 
-  return { turns, isStreaming, failure, ask, retry, setFeedbackValue, setFeedbackComment, sendFeedback }
+  const clearConversation = useCallback(() => {
+    setTurns([])
+    setFailure(null)
+    sessionIdRef.current = createId()
+  }, [])
+
+  return { turns, isStreaming, failure, ask, retry, setFeedbackValue, setFeedbackComment, sendFeedback, clearConversation }
 }
 
 function chatErrorKey(error: unknown): string {

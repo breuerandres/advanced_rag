@@ -1,13 +1,24 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+  type UIEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   AlertCircle,
+  ExternalLink,
   FileText,
   LogOut,
   MessageSquareText,
   Plus,
   ThumbsDown,
   ThumbsUp,
+  X,
 } from 'lucide-react'
 import {
   AuthCardHeader,
@@ -15,7 +26,6 @@ import {
   Button,
   ChatComposer,
   ChatMessage,
-  CitationDrawer,
   CommandPalette,
   DarkModeToggle,
   EmptyState,
@@ -69,6 +79,12 @@ interface ConversationTurn {
   pending?: boolean
 }
 
+interface FeedbackDraft {
+  value: FeedbackValue | null
+  comment: string
+  saved: boolean
+}
+
 export default function App() {
   const { t, i18n } = useTranslation()
   const [initialConversationId] = useState(() => createConversationId())
@@ -76,16 +92,7 @@ export default function App() {
   const [bootError, setBootError] = useState<string | null>(null)
   const [sessionUser, setSessionUser] = useState<SessionUser | null>(null)
   const [turns, setTurns] = useState<ConversationTurn[]>([])
-  const [answer, setAnswer] = useState('')
-  const [queryAuditEventId, setQueryAuditEventId] = useState<string | null>(null)
-  const [citations, setCitations] = useState<ChatCitation[]>([])
-  const [usage, setUsage] = useState<ChatUsage | null>(null)
-  const [cacheHit, setCacheHit] = useState(false)
-  const [feedbackValue, setFeedbackValue] = useState<FeedbackValue | null>(null)
-  const [comment, setComment] = useState('')
-  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
   const [status, setStatus] = useState<ChatStatus>('idle')
-  const [isSendingFeedback, setIsSendingFeedback] = useState(false)
   const [error, setError] = useState<ChatErrorState | null>(null)
   const [conversations, setConversations] = useState<LocalConversation[]>([
     { id: initialConversationId, title: NewConversationTitle, isDraft: true },
@@ -93,19 +100,69 @@ export default function App() {
   const [activeConversationId, setActiveConversationId] = useState(initialConversationId)
   const [isCitationDrawerOpen, setIsCitationDrawerOpen] = useState(false)
   const [activeDrawerCitations, setActiveDrawerCitations] = useState<ChatCitation[]>([])
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, FeedbackDraft>>({})
+  const [sendingFeedbackTurnId, setSendingFeedbackTurnId] = useState<string | null>(null)
+  const transcriptRef = useRef<HTMLDivElement | null>(null)
+  const pinnedToBottomRef = useRef(true)
+  const pendingTurnSeqRef = useRef(0)
 
   const isSubmitting = status === 'submitting'
+  const latestTurn = turns.length > 0 ? turns[turns.length - 1] : null
+  const latestCitations = useMemo(
+    () => (latestTurn && !latestTurn.pending ? uniqueCitations(latestTurn.citations) : []),
+    [latestTurn],
+  )
+
+  const closeCitationsPanel = useCallback(() => {
+    setIsCitationDrawerOpen(false)
+    setActiveDrawerCitations([])
+  }, [])
+
+  const openCitationDrawer = useCallback((nextCitations: ChatCitation[]) => {
+    const next = uniqueCitations(nextCitations)
+    setActiveDrawerCitations(next)
+    setIsCitationDrawerOpen(next.length > 0)
+  }, [])
+
+  const openCitation = useCallback(async (citation: ChatCitation) => {
+    setError(null)
+    try {
+      const url = await createViewerLink(citation.documentId)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (caught) {
+      setError(toCitationError(caught))
+    }
+  }, [])
+
+  const startNewConversation = useCallback(() => {
+    setError(null)
+    closeCitationsPanel()
+    setFeedbackDrafts({})
+    setTurns([])
+    const nextId = createConversationId()
+    setActiveConversationId(nextId)
+    setConversations((current) => [
+      { id: nextId, title: NewConversationTitle, isDraft: true },
+      ...current.filter((conversation) => !conversation.isDraft),
+    ])
+  }, [closeCitationsPanel])
+
+  const applyHistory = useCallback((serverTurns: ChatSessionTurn[]) => {
+    pinnedToBottomRef.current = true
+    setTurns(serverTurns.map(toConversationTurn))
+    setFeedbackDrafts({})
+  }, [])
+
   const drawerCitations = useMemo(
     () =>
       uniqueCitations(activeDrawerCitations).map((citation) => ({
         id: `${citation.documentId}-${citation.documentVersionId}`,
-        title: citation.headingPath[0] ?? 'Documento citado',
+        title: citation.headingPath[0] ?? t('chat.cited_document'),
         headingPath: citation.headingPath.length > 1 ? citation.headingPath : undefined,
         onOpen: () => void openCitation(citation),
       })),
-    [activeDrawerCitations],
+    [activeDrawerCitations, openCitation, t],
   )
-  const visibleCitations = uniqueCitations(citations)
   const commandGroups = useMemo(
     () => [
       {
@@ -114,22 +171,22 @@ export default function App() {
           {
             id: 'new-question',
             label: 'Nueva pregunta',
-            hint: 'Limpia la respuesta actual',
+            hint: 'Empieza una conversación nueva',
             icon: <Plus size={16} aria-hidden="true" />,
-            onSelect: resetCurrentAnswer,
+            onSelect: startNewConversation,
             shortcut: 'Ctrl K',
           },
           {
             id: 'show-citations',
             label: 'Ver citas',
-            hint: visibleCitations.length > 0 ? `${visibleCitations.length} disponibles` : 'Sin citas',
+            hint: latestCitations.length > 0 ? `${latestCitations.length} disponibles` : 'Sin citas',
             icon: <FileText size={16} aria-hidden="true" />,
-            onSelect: () => openCitationDrawer(citations),
+            onSelect: () => openCitationDrawer(latestCitations),
           },
         ],
       },
     ],
-    [citations, visibleCitations.length],
+    [latestCitations, openCitationDrawer, startNewConversation],
   )
 
   useEffect(() => {
@@ -180,12 +237,25 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [applyHistory])
+
+  useEffect(() => {
+    const transcript = transcriptRef.current
+    if (transcript && pinnedToBottomRef.current) {
+      transcript.scrollTop = transcript.scrollHeight
+    }
+  }, [turns])
+
+  function handleTranscriptScroll(event: UIEvent<HTMLElement>) {
+    const element = event.currentTarget
+    pinnedToBottomRef.current =
+      element.scrollHeight - element.scrollTop - element.clientHeight < 96
+  }
 
   async function handleAsk(nextQuestion: string) {
     const sessionId = activeConversationId || createConversationId()
-    const pendingTurnId = `pending-${Date.now()}`
-    const latestCompletedTurn = turns[turns.length - 1] ?? null
+    pendingTurnSeqRef.current += 1
+    const pendingTurnId = `pending-${pendingTurnSeqRef.current}`
     let streamedAnswer = ''
     const pendingTurn: ConversationTurn = {
       id: pendingTurnId,
@@ -201,13 +271,7 @@ export default function App() {
     }
     setStatus('submitting')
     setError(null)
-    setAnswer('')
-    setCitations([])
-    setUsage(null)
-    setCacheHit(false)
-    setFeedbackValue(null)
-    setFeedbackSubmitted(false)
-    setComment('')
+    pinnedToBottomRef.current = true
     setTurns((current) => [...current, pendingTurn])
     setConversations((current) => upsertDraftConversation(current, sessionId, summarizeQuestion(nextQuestion)))
     try {
@@ -218,7 +282,6 @@ export default function App() {
       }, {
         onAnswerToken(delta) {
           streamedAnswer += delta
-          setAnswer(streamedAnswer)
           setTurns((current) =>
             current.map((turn) =>
               turn.id === pendingTurnId ? { ...turn, answer: streamedAnswer } : turn,
@@ -240,58 +303,23 @@ export default function App() {
       setTurns((current) =>
         current.map((turn) => (turn.id === pendingTurnId ? completedTurn : turn)),
       )
-      setAnswer(result.answer)
-      setQueryAuditEventId(result.queryAuditEventId)
-      setCitations(result.citations)
-      setCacheHit(result.cacheHit)
-      setUsage(result.usage)
       void refreshConversationList(sessionId, summarizeQuestion(nextQuestion))
     } catch (caught) {
       setTurns((current) => current.filter((turn) => turn.id !== pendingTurnId))
-      applyTurnSelection(latestCompletedTurn)
       setError(toChatError(caught))
     } finally {
       setStatus('idle')
     }
   }
 
-  function resetCurrentAnswer() {
-    setAnswer('')
-    setQueryAuditEventId(null)
-    setCitations([])
-    setUsage(null)
-    setCacheHit(false)
-    setFeedbackValue(null)
-    setFeedbackSubmitted(false)
-    setComment('')
-    setError(null)
-    setIsCitationDrawerOpen(false)
-    setActiveDrawerCitations([])
-    const nextId = createConversationId()
-    setActiveConversationId(nextId)
-    setTurns([])
-    setConversations((current) => [
-      { id: nextId, title: NewConversationTitle, isDraft: true },
-      ...current.filter((conversation) => !conversation.isDraft),
-    ])
-  }
-
   async function selectConversation(conversationId: string) {
     setActiveConversationId(conversationId)
     setError(null)
+    closeCitationsPanel()
+    setFeedbackDrafts({})
     const selected = conversations.find((conversation) => conversation.id === conversationId)
     if (selected?.isDraft) {
       setTurns([])
-      setAnswer('')
-      setQueryAuditEventId(null)
-      setCitations([])
-      setUsage(null)
-      setCacheHit(false)
-      setFeedbackValue(null)
-      setFeedbackSubmitted(false)
-      setComment('')
-      setActiveDrawerCitations([])
-      setIsCitationDrawerOpen(false)
       return
     }
 
@@ -327,76 +355,67 @@ export default function App() {
     }
   }
 
-  function applyHistory(serverTurns: ChatSessionTurn[]) {
-    const mappedTurns = serverTurns.map(toConversationTurn)
-    setTurns(mappedTurns)
-    const latestTurn = mappedTurns[mappedTurns.length - 1]
-    applyTurnSelection(latestTurn ?? null)
+  function draftFor(turn: ConversationTurn): FeedbackDraft {
+    return (
+      feedbackDrafts[turn.id] ?? {
+        value: turn.feedbackValue,
+        comment: turn.feedbackComment,
+        saved: false,
+      }
+    )
   }
 
-  function applyTurnSelection(turn: ConversationTurn | null) {
-    setAnswer(turn?.answer ?? '')
-    setQueryAuditEventId(turn?.queryAuditEventId ?? null)
-    setCitations(turn?.citations ?? [])
-    setCacheHit(turn?.cacheHit ?? false)
-    setUsage(turn?.usage ?? null)
-    setFeedbackValue(turn?.feedbackValue ?? null)
-    setComment(turn?.feedbackComment ?? '')
-    setFeedbackSubmitted(Boolean(turn?.feedbackValue))
-    setActiveDrawerCitations([])
-    setIsCitationDrawerOpen(false)
+  function toggleTurnFeedback(turn: ConversationTurn, nextValue: FeedbackValue) {
+    setFeedbackDrafts((current) => {
+      const draft = current[turn.id] ?? {
+        value: turn.feedbackValue,
+        comment: turn.feedbackComment,
+        saved: false,
+      }
+      const value = draft.value === nextValue ? null : nextValue
+      return { ...current, [turn.id]: { value, comment: value ? draft.comment : '', saved: false } }
+    })
   }
 
-  async function openCitation(citation: ChatCitation) {
-    setError(null)
-    try {
-      const url = await createViewerLink(citation.documentId)
-      window.open(url, '_blank', 'noopener,noreferrer')
-    } catch (caught) {
-      setError(toCitationError(caught))
-    }
+  function updateTurnFeedbackComment(turn: ConversationTurn, comment: string) {
+    setFeedbackDrafts((current) => {
+      const draft = current[turn.id] ?? {
+        value: turn.feedbackValue,
+        comment: turn.feedbackComment,
+        saved: false,
+      }
+      return { ...current, [turn.id]: { ...draft, comment, saved: false } }
+    })
   }
 
-  async function handleFeedback(event: FormEvent<HTMLFormElement>) {
+  async function submitTurnFeedback(turn: ConversationTurn, event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!queryAuditEventId || !feedbackValue) {
+    const draft = draftFor(turn)
+    const feedbackValue = draft.value
+    if (!turn.queryAuditEventId || !feedbackValue) {
       return
     }
 
-    setIsSendingFeedback(true)
+    setSendingFeedbackTurnId(turn.id)
     setError(null)
     try {
-      await submitFeedback(queryAuditEventId, feedbackValue, comment)
+      await submitFeedback(turn.queryAuditEventId, feedbackValue, draft.comment)
       setTurns((current) =>
-        current.map((turn) =>
-          turn.queryAuditEventId === queryAuditEventId
-            ? { ...turn, feedbackValue, feedbackComment: comment }
-            : turn,
+        current.map((candidate) =>
+          candidate.id === turn.id
+            ? { ...candidate, feedbackValue, feedbackComment: draft.comment }
+            : candidate,
         ),
       )
-      setFeedbackSubmitted(true)
+      setFeedbackDrafts((current) => ({
+        ...current,
+        [turn.id]: { value: feedbackValue, comment: draft.comment, saved: true },
+      }))
     } catch (caught) {
       setError(toFeedbackError(caught))
     } finally {
-      setIsSendingFeedback(false)
+      setSendingFeedbackTurnId(null)
     }
-  }
-
-  function openCitationDrawer(nextCitations: ChatCitation[]) {
-    const next = uniqueCitations(nextCitations)
-    setActiveDrawerCitations(next)
-    setIsCitationDrawerOpen(next.length > 0)
-  }
-
-  function toggleFeedbackValue(nextValue: FeedbackValue) {
-    setFeedbackValue((current) => {
-      if (current === nextValue) {
-        setComment('')
-        return null
-      }
-
-      return nextValue
-    })
   }
 
   async function handleLogout() {
@@ -404,16 +423,8 @@ export default function App() {
     try {
       await logout()
       setTurns([])
-      setAnswer('')
-      setQueryAuditEventId(null)
-      setCitations([])
-      setUsage(null)
-      setCacheHit(false)
-      setFeedbackValue(null)
-      setFeedbackSubmitted(false)
-      setComment('')
-      setActiveDrawerCitations([])
-      setIsCitationDrawerOpen(false)
+      setFeedbackDrafts({})
+      closeCitationsPanel()
       setSessionUser(null)
       setMode('login')
     } catch (caught) {
@@ -447,7 +458,7 @@ export default function App() {
   }
 
   return (
-    <div className="chat-app-layout">
+    <div className={isCitationDrawerOpen ? 'chat-app-layout citations-open' : 'chat-app-layout'}>
       <ChatSidebar
         conversations={conversations}
         user={sessionUser}
@@ -455,186 +466,177 @@ export default function App() {
         languageLabel={t('common.language')}
         languageValue={i18n.resolvedLanguage ?? i18n.language}
         onLanguageChange={(value) => void i18n.changeLanguage(value)}
-        onNewConversation={resetCurrentAnswer}
+        onNewConversation={startNewConversation}
         onSelectConversation={(conversationId) => void selectConversation(conversationId)}
         onLogout={() => void handleLogout()}
       />
       <main className="chat-main">
-      <CommandPalette groups={commandGroups} placeholder="Buscar acción..." />
-      <CitationDrawer
-        open={isCitationDrawerOpen}
-        onOpenChange={setIsCitationDrawerOpen}
-        citations={drawerCitations}
-      />
-      <section className="chat-shell" id="chat">
+        <CommandPalette groups={commandGroups} placeholder="Buscar acción..." />
         <section className="chat-panel" aria-label="Chat de instrucciones">
           <header className="chat-thread-header">
             <div>
               <h1>{t('chat.page_title')}</h1>
               <p className="header-copy">{t('chat.header_copy')}</p>
             </div>
-            <span className="session-badge">Sesión activa</span>
           </header>
 
           {error ? <ChatErrorMessage error={error} /> : null}
 
-          {turns.length === 0 && !error && !isSubmitting ? (
+          {turns.length === 0 && !error ? (
             <EmptyState
               className="empty-state"
-              title="Estado inicial"
-              description="Las respuestas aparecen acá con sus citas cuando terminás la consulta."
+              title={t('chat.empty_state_title')}
+              description={t('chat.empty_state_subtitle')}
               icon={<MessageSquareText size={20} aria-hidden="true" />}
             />
           ) : null}
 
-          {turns.length === 0 && isSubmitting ? (
-            <article className="answer-panel streaming-answer" aria-label="Respuesta en curso">
-              <div className="answer-heading">
-                <MessageSquareText size={18} />
-                <h2>Respuesta</h2>
-              </div>
-              <ChatMessage author="assistant" content={answer || ' '} pending />
-              <p className="status-message" role="status">
-                Buscando instrucciones y preparando la respuesta...
-              </p>
-            </article>
-          ) : null}
-
-          {turns.length === 0 && answer && !isSubmitting ? (
-            <article className="answer-panel">
-              <div className="answer-heading">
-                <MessageSquareText size={18} />
-                <h2>Respuesta</h2>
-                {cacheHit ? <span className="cache-badge">Respuesta desde caché semántico</span> : null}
-              </div>
-              <ChatMessage author="assistant" content={answer} />
-              {usage ? (
-                <dl className="usage-row" aria-label="Uso de IA">
-                  <div>
-                    <dt>Tokens</dt>
-                    <dd>
-                      Entrada {usage.inputTokens} / caché {usage.cachedTokens} / salida {usage.outputTokens}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Costo</dt>
-                    <dd>{formatUsageCost(usage.costUsd)}</dd>
-                  </div>
-                </dl>
-              ) : null}
-              <CitationSummaryButton citations={citations} onOpen={openCitationDrawer} />
-            </article>
-          ) : null}
-
           {turns.length > 0 ? (
-            <section className="conversation-transcript" aria-label="Conversación activa">
-              {turns.map((turn) => (
-                <div className="conversation-turn" key={turn.id}>
-                  <article className="answer-panel user-turn">
-                    <div className="answer-heading">
-                      <MessageSquareText size={18} />
-                      <h2>Pregunta</h2>
-                    </div>
-                    <ChatMessage author="user" content={turn.question} />
-                  </article>
-                  <article
-                    className={turn.pending ? 'answer-panel streaming-answer' : 'answer-panel'}
-                    aria-label={turn.pending ? 'Respuesta en curso' : undefined}
-                  >
-                    <div className="answer-heading">
-                      <MessageSquareText size={18} />
-                      <h2>Respuesta</h2>
-                      {turn.cacheHit ? <span className="cache-badge">Respuesta desde caché semántico</span> : null}
-                    </div>
-                    <ChatMessage author="assistant" content={turn.answer || ' '} pending={turn.pending} />
-                    {turn.pending ? (
-                      <p className="status-message" role="status">
-                        Buscando instrucciones y preparando la respuesta...
-                      </p>
-                    ) : null}
-                    {turn.usage ? (
-                      <dl className="usage-row" aria-label="Uso de IA">
-                        <div>
-                          <dt>Tokens</dt>
-                          <dd>
-                            Entrada {turn.usage.inputTokens} / caché {turn.usage.cachedTokens} / salida{' '}
-                            {turn.usage.outputTokens}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Costo</dt>
-                          <dd>{formatUsageCost(turn.usage.costUsd)}</dd>
-                        </div>
-                      </dl>
-                    ) : null}
-                    <CitationSummaryButton citations={turn.citations} onOpen={openCitationDrawer} />
-                  </article>
-                </div>
-              ))}
-            </section>
-          ) : null}
+            <div
+              className="conversation-transcript"
+              aria-label="Conversación activa"
+              ref={transcriptRef}
+              onScroll={handleTranscriptScroll}
+            >
+              {turns.map((turn) => {
+                const draft = draftFor(turn)
+                const isSendingTurnFeedback = sendingFeedbackTurnId === turn.id
+                return (
+                  <div className="conversation-turn" key={turn.id}>
+                    <ChatMessage
+                      author="user"
+                      content={turn.question}
+                      showAuthor={false}
+                      className="chat-bubble chat-bubble-user"
+                    />
+                    <article
+                      className="assistant-turn"
+                      aria-label={turn.pending ? 'Respuesta en curso' : undefined}
+                    >
+                      <ChatMessage
+                        author="assistant"
+                        content={turn.answer || ' '}
+                        pending={turn.pending}
+                        showAuthor={false}
+                        className="chat-bubble chat-bubble-assistant"
+                      />
+                      {turn.pending ? (
+                        <p className="status-message" role="status">
+                          {t('chat.preparing_answer')}
+                        </p>
+                      ) : (
+                        <footer className="turn-meta">
+                          <form
+                            className="turn-feedback"
+                            onSubmit={(event) => void submitTurnFeedback(turn, event)}
+                          >
+                            <div className="turn-actions">
+                              <CitationSummaryButton
+                                citations={turn.citations}
+                                onOpen={openCitationDrawer}
+                              />
+                              {turn.queryAuditEventId ? (
+                                <div className="feedback-actions" aria-label={t('chat.feedback_group')}>
+                                  <button
+                                    className={
+                                      draft.value === 'up' ? 'feedback-button selected' : 'feedback-button'
+                                    }
+                                    type="button"
+                                    aria-label={t('chat.feedback_helpful')}
+                                    title={t('chat.feedback_helpful')}
+                                    aria-pressed={draft.value === 'up'}
+                                    onClick={() => toggleTurnFeedback(turn, 'up')}
+                                  >
+                                    <ThumbsUp size={15} aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    className={
+                                      draft.value === 'down' ? 'feedback-button selected' : 'feedback-button'
+                                    }
+                                    type="button"
+                                    aria-label={t('chat.feedback_not_helpful')}
+                                    title={t('chat.feedback_not_helpful')}
+                                    aria-pressed={draft.value === 'down'}
+                                    onClick={() => toggleTurnFeedback(turn, 'down')}
+                                  >
+                                    <ThumbsDown size={15} aria-hidden="true" />
+                                  </button>
+                                </div>
+                              ) : null}
+                              {turn.cacheHit ? (
+                                <span className="cache-badge">{t('chat.cache_badge')}</span>
+                              ) : null}
+                            </div>
 
-          {answer && queryAuditEventId ? (
-            <form className="feedback-panel" onSubmit={handleFeedback}>
-              <div className="feedback-actions" aria-label="Feedback de la respuesta">
-                <button
-                  className={feedbackValue === 'up' ? 'feedback-button selected' : 'feedback-button'}
-                  type="button"
-                  onClick={() => toggleFeedbackValue('up')}
-                >
-                  <ThumbsUp size={16} />
-                  <span>Me sirvió</span>
-                </button>
-                <button
-                  className={feedbackValue === 'down' ? 'feedback-button selected' : 'feedback-button'}
-                  type="button"
-                  onClick={() => toggleFeedbackValue('down')}
-                >
-                  <ThumbsDown size={16} />
-                  <span>No me sirvió</span>
-                </button>
-              </div>
+                            {turn.usage ? (
+                              <dl className="usage-row" aria-label="Uso de IA">
+                                <div>
+                                  <dt>Tokens</dt>
+                                  <dd>
+                                    Entrada {turn.usage.inputTokens} / caché {turn.usage.cachedTokens} / salida{' '}
+                                    {turn.usage.outputTokens}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>Costo</dt>
+                                  <dd>{formatUsageCost(turn.usage.costUsd)}</dd>
+                                </div>
+                              </dl>
+                            ) : null}
 
-              {feedbackValue ? (
-                <label className="field">
-                  <span>Comentario opcional</span>
-                  <Textarea
-                    value={comment}
-                    maxLength={1000}
-                    onChange={(event) => setComment(event.target.value)}
-                    disabled={isSendingFeedback}
-                  />
-                </label>
-              ) : null}
-
-              {feedbackValue ? (
-                <Button className="primary-button" type="submit" disabled={isSendingFeedback}>
-                  {feedbackSubmitted ? 'Actualizar feedback' : 'Enviar feedback'}
-                </Button>
-              ) : null}
-
-              {feedbackSubmitted ? (
-                <p className="status-message success" role="status">
-                  Feedback registrado.
-                </p>
-              ) : null}
-            </form>
+                            {turn.queryAuditEventId && draft.value ? (
+                              <div className="feedback-expansion">
+                                <label className="field">
+                                  <span>{t('chat.feedback_comment_label')}</span>
+                                  <Textarea
+                                    value={draft.comment}
+                                    maxLength={1000}
+                                    onChange={(event) => updateTurnFeedbackComment(turn, event.target.value)}
+                                    disabled={isSendingTurnFeedback}
+                                  />
+                                </label>
+                                <div className="feedback-submit-row">
+                                  <Button type="submit" disabled={isSendingTurnFeedback}>
+                                    {turn.feedbackValue || draft.saved
+                                      ? t('chat.feedback_update')
+                                      : t('chat.feedback_submit')}
+                                  </Button>
+                                  {draft.saved ? (
+                                    <p className="status-message success" role="status">
+                                      {t('chat.feedback_saved')}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ) : null}
+                          </form>
+                        </footer>
+                      )}
+                    </article>
+                  </div>
+                )
+              })}
+            </div>
           ) : null}
 
           <section className="question-form">
             <ChatComposer
               disabled={isSubmitting}
               maxLength={MaxQuestionChars}
-              placeholder="Escribí tu consulta..."
+              placeholder={t('chat.composer_placeholder')}
               submitLabel={t('chat.send_question')}
-              pendingLabel="Enviando"
+              pendingLabel={t('chat.sending')}
               characterCountLabel={(count, maxLength) => `${count} / ${maxLength}`}
               onSubmit={(nextQuestion) => void handleAsk(nextQuestion)}
             />
           </section>
         </section>
-      </section>
       </main>
+      <CitationsPanel
+        open={isCitationDrawerOpen}
+        citations={drawerCitations}
+        onClose={() => setIsCitationDrawerOpen(false)}
+      />
     </div>
   )
 }
@@ -662,6 +664,8 @@ function ChatSidebar({
   onSelectConversation,
   onLogout,
 }: ChatSidebarProps) {
+  const { t } = useTranslation()
+
   return (
     <div className="chat-sidebar" role="complementary" aria-label="Menu de chat">
       <header className="chat-sidebar-brand">
@@ -675,12 +679,12 @@ function ChatSidebar({
       <div className="chat-sidebar-actions">
         <Button type="button" className="chat-new-button" onClick={onNewConversation}>
           <Plus size={16} aria-hidden="true" />
-          Nueva conversación
+          {t('chat.session_new')}
         </Button>
       </div>
 
       <nav className="chat-history-nav" aria-label="Historial de conversaciones">
-        <p className="eyebrow">Conversaciones</p>
+        <p className="eyebrow">{t('chat.session_history')}</p>
         {conversations.map((conversation) => (
           <button
             key={conversation.id}
@@ -690,7 +694,7 @@ function ChatSidebar({
             onClick={() => onSelectConversation(conversation.id)}
           >
             <span>{conversation.title}</span>
-            {conversation.isDraft ? <small>Borrador local</small> : null}
+            {conversation.isDraft ? <small>{t('chat.session_draft')}</small> : null}
           </button>
         ))}
       </nav>
@@ -706,21 +710,98 @@ function ChatSidebar({
               { value: 'en-US', label: 'EN' },
             ]}
           />
-          <DarkModeToggle label="Cambiar tema" />
+          <DarkModeToggle label={t('common.toggle_theme')} />
         </div>
         {user ? (
           <section className="chat-sidebar-session" aria-label="Sesión activa">
-            <span>Sesión activa</span>
+            <span>{t('chat.active_session')}</span>
             <strong>{user.email}</strong>
             <span>{user.roles.join(', ')}</span>
           </section>
         ) : null}
         <Button type="button" variant="secondary" className="chat-logout-button" onClick={onLogout}>
           <LogOut size={16} aria-hidden="true" />
-          Cerrar sesión
+          {t('auth.logout')}
         </Button>
       </footer>
     </div>
+  )
+}
+
+interface CitationsPanelItem {
+  id: string
+  title: string
+  headingPath?: string[] | undefined
+  onOpen?: () => void
+}
+
+function CitationsPanel({
+  open,
+  citations,
+  onClose,
+}: {
+  open: boolean
+  citations: CitationsPanelItem[]
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, onClose])
+
+  if (!open) {
+    return null
+  }
+
+  return (
+    <aside className="citations-panel" role="dialog" aria-label={t('chat.citations_title')}>
+      <header className="citations-panel-header">
+        <FileText size={16} aria-hidden="true" />
+        <h2>{t('chat.citations_title')}</h2>
+        <span className="citations-count">{citations.length}</span>
+        <button
+          type="button"
+          className="citations-close"
+          aria-label={t('chat.citations_close')}
+          title={t('chat.citations_close')}
+          onClick={onClose}
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
+      </header>
+      <p className="citations-panel-hint">{t('chat.citations_hint')}</p>
+      <div className="citations-panel-list">
+        {citations.map((citation) => (
+          <button
+            key={citation.id}
+            type="button"
+            className="citation-item"
+            aria-label={t('chat.open_citation', { title: citation.title })}
+            onClick={citation.onOpen}
+          >
+            <span className="citation-item-body">
+              <span className="citation-item-title">{citation.title}</span>
+              {citation.headingPath ? (
+                <span className="citation-item-path">{citation.headingPath.join(' / ')}</span>
+              ) : null}
+            </span>
+            <ExternalLink size={14} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+    </aside>
   )
 }
 
@@ -888,6 +969,7 @@ function CitationSummaryButton({
   citations: ChatCitation[]
   onOpen: (citations: ChatCitation[]) => void
 }) {
+  const { t } = useTranslation()
   const unique = uniqueCitations(citations)
   if (unique.length === 0) {
     return null
@@ -896,7 +978,7 @@ function CitationSummaryButton({
   return (
     <button type="button" className="citation-summary-button" onClick={() => onOpen(unique)}>
       <FileText size={15} aria-hidden="true" />
-      Ver citas ({unique.length})
+      {t('chat.citations_view', { n: unique.length })}
     </button>
   )
 }
