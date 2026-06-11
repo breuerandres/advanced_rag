@@ -254,6 +254,16 @@ rebuild_and_start_stack() {
     compose up -d --build --remove-orphans
 }
 
+reload_caddy_config() {
+    # The Caddyfile is bind-mounted, so `compose up` does not recreate the caddy
+    # container when only the file contents change, and Caddy does not watch the
+    # file. Without an explicit reload, routing changes (e.g. new per-host /api
+    # matchers) never take effect on an already-running deployment. `caddy reload`
+    # is graceful (zero-downtime) and idempotent when the config is unchanged.
+    log "Reloading Caddy configuration to apply any Caddyfile changes."
+    compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+}
+
 wait_for_service() {
     local service_name="$1"
     local timeout_seconds="$2"
@@ -358,6 +368,7 @@ main() {
     validate_compose_config
     rebuild_and_start_stack
     wait_for_stack
+    reload_caddy_config
     print_final_status
 }
 
