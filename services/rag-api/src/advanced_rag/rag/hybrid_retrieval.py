@@ -108,6 +108,29 @@ _ACCESS_RULE_PREDICATE = """
 """
 
 
+# Lifecycle predicate: retrieval never serves chunks for documents that .NET no
+# longer exposes. For the published corpus the chunk must belong to the document's
+# CURRENT published version (self-healing against missed deactivations); for the
+# preview corpus any non-archived document qualifies (version hygiene there is
+# handled by `is_active`). Applies to every caller, including global admins —
+# the admin bypass covers access rules only, not lifecycle state.
+_DOCUMENT_STATE_PREDICATE = """
+      AND EXISTS (
+          SELECT 1
+          FROM app.documents doc
+          WHERE doc."Id" = chunk.document_id
+            AND (
+                (chunk.corpus = 'published'
+                    AND doc.current_state = 'Published'
+                    AND doc.current_published_version_id = chunk.document_version_id)
+                OR
+                (chunk.corpus = 'preview'
+                    AND doc.current_state <> 'Archived')
+            )
+      )
+"""
+
+
 # Document-scope predicate for the docs-web mini chat: when a scope document is set,
 # both candidate CTEs only consider that document's chunks. The access-rule predicate
 # above still applies, so scoping to an inaccessible document retrieves nothing.
@@ -136,6 +159,7 @@ WITH vector_candidates AS (
     WHERE chunk.corpus = :corpus
       AND chunk.is_active = true
       {_ACCESS_RULE_PREDICATE}
+      {_DOCUMENT_STATE_PREDICATE}
       {_SCOPE_DOCUMENT_PREDICATE}
       AND (
           CAST(:dimension_value_filter AS uuid[]) IS NULL
@@ -168,6 +192,7 @@ bm25_candidates AS (
           OR chunk.content % :q_text
       )
       {_ACCESS_RULE_PREDICATE}
+      {_DOCUMENT_STATE_PREDICATE}
       {_SCOPE_DOCUMENT_PREDICATE}
       AND (
           CAST(:dimension_value_filter AS uuid[]) IS NULL

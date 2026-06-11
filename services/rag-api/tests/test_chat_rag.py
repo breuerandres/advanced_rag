@@ -125,6 +125,134 @@ def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() 
     assert state["audit"]["estimated_cost_usd"] > Decimal("0")
 
 
+def _published_chat_app(database: "ChatDatabase") -> Any:
+    """Build a chat app with the standard published-corpus Viewer claims."""
+    return create_app(
+        Settings(
+            rag_database_url=database.async_url,
+            openai_chat_model=CHAT_MODEL,
+            openai_embedding_model=EMBEDDING_MODEL,
+            openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+            customer_timezone="UTC",
+            enable_reranker=False,
+            csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+        ),
+        embedding_provider=FakeEmbeddingProvider(),
+        llm_provider=FakeLlmProvider(),
+        session_validator=FakeSessionValidator(
+            ChatTokenClaims(
+                user_id=str(USER_ID),
+                role="Viewer",
+                groups=[str(ALLOWED_GROUP_ID)],
+                access_scope_hash="scope-allowed",
+                corpus="published",
+            )
+        ),
+    )
+
+
+def test_archived_document_is_not_retrieved() -> None:
+    with _postgres() as database:
+        allowed_document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=allowed_document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        asyncio.run(database.archive_document(allowed_document_id))
+        app = _published_chat_app(database)
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        with client.stream(
+            "POST",
+            "/api/chat",
+            json={"question": "What credential rule applies?"},
+            headers={"X-Request-ID": "req-archived"},
+        ) as response:
+            body = "".join(response.iter_text())
+
+        state = asyncio.run(database.read_audit_state())
+
+    assert response.status_code == 200
+    assert "Wear visible credentials." not in body
+    assert state["citation_document_ids"] == []
+
+
+def test_restored_to_draft_document_is_not_retrieved() -> None:
+    with _postgres() as database:
+        allowed_document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=allowed_document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        asyncio.run(database.restore_document_to_draft(allowed_document_id))
+        app = _published_chat_app(database)
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        with client.stream(
+            "POST",
+            "/api/chat",
+            json={"question": "What credential rule applies?"},
+            headers={"X-Request-ID": "req-restored-draft"},
+        ) as response:
+            body = "".join(response.iter_text())
+
+        state = asyncio.run(database.read_audit_state())
+
+    assert response.status_code == 200
+    assert "Wear visible credentials." not in body
+    assert state["citation_document_ids"] == []
+
+
+def test_only_current_published_version_is_retrieved() -> None:
+    with _postgres() as database:
+        allowed_document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=allowed_document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        version_a = asyncio.run(database.read_published_chunk_versions(allowed_document_id))[0]
+        version_b = asyncio.run(
+            database.add_superseded_published_version(
+                allowed_document_id, "Wear visible credentials at all times."
+            )
+        )
+        app = _published_chat_app(database)
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        with client.stream(
+            "POST",
+            "/api/chat",
+            json={"question": "What credential rule applies?"},
+            headers={"X-Request-ID": "req-superseded"},
+        ) as response:
+            "".join(response.iter_text())
+
+        state = asyncio.run(database.read_audit_state())
+
+    assert response.status_code == 200
+    assert state["citation_document_ids"] == [allowed_document_id]
+    assert set(state["citation_document_version_ids"]) == {version_b}
+    assert version_a not in state["citation_document_version_ids"]
+
+
 def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated() -> None:
     with _postgres() as database:
         document_id = uuid4()
@@ -1540,13 +1668,73 @@ class ChatDatabase:
         )
         return version_id
 
+    async def archive_document(self, document_id: UUID) -> None:
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            await connection.execute(
+                "UPDATE app.documents SET current_state = 'Archived' WHERE \"Id\" = $1",
+                document_id,
+            )
+        finally:
+            await connection.close()
+
+    async def restore_document_to_draft(self, document_id: UUID) -> None:
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            await connection.execute(
+                """
+                UPDATE app.documents
+                SET current_state = 'Draft', current_published_version_id = NULL
+                WHERE "Id" = $1
+                """,
+                document_id,
+            )
+        finally:
+            await connection.close()
+
+    async def add_superseded_published_version(self, document_id: UUID, content: str) -> UUID:
+        """Insert a new active published chunk and point the document at its version.
+
+        The prior published chunk is intentionally left active to simulate the
+        pre-fix supersede bug, so retrieval correctness must come from the
+        lifecycle predicate (current_published_version_id), not `is_active`.
+        """
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            new_version_id = await self._insert_chunk(
+                connection, document_id, "published", content, document_version_id=uuid4()
+            )
+            await connection.execute(
+                "UPDATE app.documents SET current_published_version_id = $1 WHERE \"Id\" = $2",
+                new_version_id,
+                document_id,
+            )
+        finally:
+            await connection.close()
+        return new_version_id
+
+    async def read_published_chunk_versions(self, document_id: UUID) -> list[UUID]:
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            rows = await connection.fetch(
+                """
+                SELECT DISTINCT document_version_id
+                FROM rag.document_chunks
+                WHERE document_id = $1 AND corpus = 'published' AND is_active = true
+                """,
+                document_id,
+            )
+        finally:
+            await connection.close()
+        return [row["document_version_id"] for row in rows]
+
     async def read_audit_state(self) -> dict[str, Any]:
         connection = await asyncpg.connect(self.dsn)
         try:
             audit = await connection.fetchrow("SELECT * FROM rag.query_audit_events ORDER BY created_at DESC LIMIT 1")
             citation_ids = await connection.fetch(
                 """
-                SELECT document_id
+                SELECT document_id, document_version_id
                 FROM rag.query_audit_citations
                 WHERE query_audit_event_id = $1
                 ORDER BY created_at
@@ -1559,6 +1747,7 @@ class ChatDatabase:
         return {
             "audit": dict(audit),
             "citation_document_ids": [row["document_id"] for row in citation_ids],
+            "citation_document_version_ids": [row["document_version_id"] for row in citation_ids],
             "audit_count": audit_count,
         }
 
