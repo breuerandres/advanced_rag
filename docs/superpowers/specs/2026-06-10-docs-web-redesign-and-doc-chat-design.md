@@ -340,7 +340,9 @@ Within that, the docs surfaces shift from "dense admin" to "comfortable reading"
   ("Estás viendo una versión en borrador / en revisión — no visible para usuarios finales").
   Uses the same semantic state colors as manage-web badges.
 - Existing rich-content CSS (lists, tables, code, `<mark>`, images, blockquote) is preserved and
-  re-themed, not removed. `DOMPurify` sanitation on render stays exactly as is.
+  re-themed, not removed. Document HTML rendering stays exactly as is: docs-web renders the
+  server-sanitized HTML (`Ganss.Xss` on save) directly; `dompurify` is not a docs-web dependency
+  and must not be added in this change set.
 - Loading/error states keep `EmptyState` with icons, restyled to the new surface.
 
 ### 4.5 Document-scoped mini chat (`DocChatWidget`)
