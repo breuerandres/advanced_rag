@@ -24,6 +24,7 @@ class ChatRequest(BaseModel):
 
     question: str = Field(min_length=1, max_length=4000)
     session_id: UUID | None = Field(default=None, alias="sessionId")
+    document_id: UUID | None = Field(default=None, alias="documentId")
     filters: ChatFilters | None = None
     locale: str | None = None
 

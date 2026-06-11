@@ -56,6 +56,7 @@ async def post_chat(body: ChatRequest, request: Request) -> StreamingResponse:
         filters=filters,
         session_id=body.session_id,
         locale=body.locale,
+        scope_document_id=body.document_id,
     )
     return StreamingResponse(
         _stream_answer(answer, request_id),

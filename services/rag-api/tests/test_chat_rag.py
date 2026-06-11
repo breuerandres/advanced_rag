@@ -524,6 +524,197 @@ def test_budget_exhaustion_blocks_before_paid_provider_calls() -> None:
     assert llm_provider.calls == 0
 
 
+def test_doc_scoped_chat_answers_from_scoped_document_and_bypasses_cache() -> None:
+    with _postgres() as database:
+        allowed_document_id = uuid4()
+        denied_document_id = uuid4()
+        preview_document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=allowed_document_id,
+                denied_document_id=denied_document_id,
+                preview_document_id=preview_document_id,
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        app = create_app(
+            Settings(
+                rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+                customer_timezone="UTC",
+                enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+            llm_provider=FakeLlmProvider(),
+            session_validator=FakeSessionValidator(
+                ChatTokenClaims(
+                    user_id=str(USER_ID),
+                    role="Viewer",
+                    groups=[str(ALLOWED_GROUP_ID)],
+                    access_scope_hash="scope-allowed",
+                    corpus="published",
+                )
+            ),
+        )
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        request_body = {
+            "question": "What credential rule applies?",
+            "documentId": str(allowed_document_id),
+            "sessionId": str(uuid4()),
+        }
+        with client.stream(
+            "POST", "/api/chat", json=request_body, headers={"X-Request-ID": "req-doc-1"}
+        ) as first:
+            first_body = "".join(first.iter_text())
+        with client.stream(
+            "POST", "/api/chat", json=request_body, headers={"X-Request-ID": "req-doc-2"}
+        ) as second:
+            second_body = "".join(second.iter_text())
+
+        cache_entries = asyncio.run(
+            database.count_cache_entries_for_document(allowed_document_id)
+        )
+        state = asyncio.run(database.read_audit_state())
+
+    assert first.status_code == 200
+    assert "Wear visible credentials." in first_body
+    # Identical repeated question: a corpus-wide chat would hit the semantic cache here.
+    assert "event: cache-hit" not in second_body
+    assert cache_entries == 0
+    assert state["audit"]["cache_hit"] is False
+    assert state["audit"]["scope_document_id"] == allowed_document_id
+    assert state["audit"]["corpus"] == "published"
+
+
+def test_doc_scoped_chat_forces_published_corpus_for_management_roles() -> None:
+    with _postgres() as database:
+        allowed_document_id = uuid4()
+        denied_document_id = uuid4()
+        preview_document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=allowed_document_id,
+                denied_document_id=denied_document_id,
+                preview_document_id=preview_document_id,
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        app = create_app(
+            Settings(
+                rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+                customer_timezone="UTC",
+                enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+            llm_provider=FakeLlmProvider(),
+            session_validator=FakeSessionValidator(
+                ChatTokenClaims(
+                    user_id=str(USER_ID),
+                    role="DocumentEditor",
+                    is_global_admin=False,
+                    groups=[str(ALLOWED_GROUP_ID)],
+                    access_scope_hash="scope-editor",
+                    corpus="management",
+                )
+            ),
+        )
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        with client.stream(
+            "POST",
+            "/api/chat",
+            json={
+                "question": "What credential rule applies?",
+                "documentId": str(allowed_document_id),
+            },
+            headers={"X-Request-ID": "req-doc-3"},
+        ) as response:
+            body = "".join(response.iter_text())
+
+        state = asyncio.run(database.read_audit_state())
+
+    assert response.status_code == 200
+    # The published chunk is found even though the claims corpus is "management",
+    # proving the doc-scoped path forces the published corpus.
+    assert "Wear visible credentials." in body
+    assert state["audit"]["corpus"] == "published"
+
+
+def test_doc_scoped_chat_outside_access_returns_scoped_no_results_message() -> None:
+    with _postgres() as database:
+        allowed_document_id = uuid4()
+        denied_document_id = uuid4()
+        preview_document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=allowed_document_id,
+                denied_document_id=denied_document_id,
+                preview_document_id=preview_document_id,
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        app = create_app(
+            Settings(
+                rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+                customer_timezone="UTC",
+                enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+            llm_provider=FakeLlmProvider(),
+            session_validator=FakeSessionValidator(
+                ChatTokenClaims(
+                    user_id=str(USER_ID),
+                    role="Viewer",
+                    groups=[str(ALLOWED_GROUP_ID)],
+                    access_scope_hash="scope-allowed",
+                    corpus="published",
+                )
+            ),
+        )
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        with client.stream(
+            "POST",
+            "/api/chat",
+            json={
+                "question": "What credential rule applies?",
+                # The user is NOT in the denied document's group.
+                "documentId": str(denied_document_id),
+                "locale": "en-US",
+            },
+            headers={"X-Request-ID": "req-doc-4"},
+        ) as response:
+            body = "".join(response.iter_text())
+
+        state = asyncio.run(database.read_audit_state())
+
+    assert response.status_code == 200
+    # ASCII assertion on purpose: the SSE payload is JSON with ensure_ascii escapes,
+    # so the Spanish copy would appear as é sequences in the raw body.
+    assert "I couldn't find information in this document" in body
+    assert "Denied group content." not in body
+    assert state["audit"]["scope_document_id"] == denied_document_id
+    assert state["citation_document_ids"] == []
+
+
 def test_hierarchical_retrieval_allows_ancestor_descendant_but_not_sibling_documents() -> None:
     with _postgres() as database:
         seeded = asyncio.run(database.seed_hierarchical_corpus())

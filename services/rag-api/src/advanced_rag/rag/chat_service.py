@@ -124,6 +124,7 @@ class ChatService:
         filters: list[UUID] | None = None,
         session_id: UUID | None = None,
         locale: str | None = None,
+        scope_document_id: UUID | None = None,
     ) -> ChatAnswer:
         normalized_question = question.strip()
         if not normalized_question:
@@ -133,7 +134,12 @@ class ChatService:
                 "Question is required.",
                 details={"field": "question"},
             )
-        corpus = "published" if claims.role == "Viewer" else claims.corpus
+        if scope_document_id is not None:
+            # Doc-scoped mini chat always answers from published content, regardless of
+            # role, preserving the "public chat retrieves only Published content" invariant.
+            corpus = "published"
+        else:
+            corpus = "published" if claims.role == "Viewer" else claims.corpus
         active_locale = locale or self._settings.default_locale
         filters_hash = _compute_filters_hash(filters)
         started_at = datetime.now(UTC)
@@ -167,13 +173,15 @@ class ChatService:
 
             question_embedding = await self._embed_question(retrieval_question)
 
-            cache_hit = await self._lookup_cache(
-                session,
-                corpus=corpus,
-                access_scope_hash=claims.access_scope_hash,
-                filters_hash=filters_hash,
-                question_embedding=question_embedding,
-            )
+            cache_hit = None
+            if scope_document_id is None:
+                cache_hit = await self._lookup_cache(
+                    session,
+                    corpus=corpus,
+                    access_scope_hash=claims.access_scope_hash,
+                    filters_hash=filters_hash,
+                    question_embedding=question_embedding,
+                )
             if cache_hit is not None:
                 answer = await self._audit_cache_hit(
                     session,
@@ -199,12 +207,17 @@ class ChatService:
                 question=retrieval_question,
                 question_embedding=question_embedding,
                 filters=filters,
+                scope_document_id=scope_document_id,
             )
 
             embedding_tokens = _estimate_tokens(retrieval_question)
             if not chunks:
                 completion = AnswerGeneration(
-                    answer=_no_results_message(active_locale),
+                    answer=(
+                        _no_results_message_scoped(active_locale)
+                        if scope_document_id is not None
+                        else _no_results_message(active_locale)
+                    ),
                     cited_chunk_ids=[],
                     usage=_zero_usage(),
                 )
@@ -270,9 +283,10 @@ class ChatService:
                 filters=filters,
                 filters_hash=filters_hash,
                 rerank_audit=rerank_audit,
+                scope_document_id=scope_document_id,
             )
             await self._insert_citations(session, audit_id, citations)
-            if citations:
+            if citations and scope_document_id is None:
                 await self._write_cache(
                     session,
                     audit_id=audit_id,
@@ -435,6 +449,7 @@ class ChatService:
         question: str,
         question_embedding: list[float],
         filters: list[UUID] | None,
+        scope_document_id: UUID | None = None,
     ) -> tuple[list[RetrievedChunk], dict | None]:
         # Branch-aware access filtering runs inside the retrieval SQL: a global admin
         # bypasses the rule filter, every other user is limited to documents whose
@@ -448,6 +463,7 @@ class ChatService:
             root_organizational_unit_id=ROOT_ORGANIZATIONAL_UNIT_ID,
             user_groups=[UUID(group_id) for group_id in claims.groups],
             dimension_value_filter=filters,
+            scope_document_id=scope_document_id,
             vector_top_k=self._settings.rag_vector_top_k,
             bm25_top_k=self._settings.rag_bm25_top_k,
             rrf_k=self._settings.rag_rrf_k,
@@ -595,6 +611,7 @@ class ChatService:
             filters=filters,
             filters_hash=filters_hash,
             rerank_audit=None,
+            scope_document_id=None,
         )
         await self._insert_citations(session, audit_id, citations)
         return ChatAnswer(
@@ -701,6 +718,7 @@ class ChatService:
         filters: list[UUID] | None,
         filters_hash: str | None,
         rerank_audit: dict | None,
+        scope_document_id: UUID | None = None,
     ) -> None:
         await session.execute(
             text(
@@ -713,7 +731,8 @@ class ChatService:
                     prompt_version, chunker_version,
                     session_id, previous_event_id, rewritten_question, filters, filters_hash,
                     vector_top_k, bm25_top_k, rerank_top_k,
-                    reranker_model, reranker_score
+                    reranker_model, reranker_score,
+                    scope_document_id
                 )
                 values (
                     :id, :user_id, :request_id, :question, :answer, :cache_hit, :cached_at,
@@ -723,7 +742,8 @@ class ChatService:
                     :prompt_version, :chunker_version,
                     :session_id, :previous_event_id, :rewritten_question, cast(:filters as jsonb), :filters_hash,
                     :vector_top_k, :bm25_top_k, :rerank_top_k,
-                    :reranker_model, :reranker_score
+                    :reranker_model, :reranker_score,
+                    :scope_document_id
                 )
                 """
             ),
@@ -764,6 +784,7 @@ class ChatService:
                 "reranker_score": (
                     Decimal(str(rerank_audit["top_score"])) if rerank_audit else None
                 ),
+                "scope_document_id": scope_document_id,
             },
         )
 
@@ -894,6 +915,12 @@ def _no_results_message(locale: str) -> str:
     if locale.startswith("es"):
         return "No encontré información publicada suficiente para responder esa consulta."
     return "I couldn't find enough published information to answer that question."
+
+
+def _no_results_message_scoped(locale: str) -> str:
+    if locale.startswith("es"):
+        return "No encontré información en este documento para responder esa pregunta."
+    return "I couldn't find information in this document to answer that question."
 
 
 def _vector_literal(values: list[float]) -> str:
