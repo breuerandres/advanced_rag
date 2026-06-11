@@ -1098,18 +1098,35 @@ class ChatDatabase:
                 USER_ID,
                 monthly_budget,
             )
-            for document_id, title, group_id in [
-                (allowed_document_id, "Allowed", ALLOWED_GROUP_ID),
-                (denied_document_id, "Denied", DENIED_GROUP_ID),
-                (preview_document_id, "Preview", ALLOWED_GROUP_ID),
+            version_by_document: dict[UUID, UUID] = {
+                allowed_document_id: uuid4(),
+                denied_document_id: uuid4(),
+                preview_document_id: uuid4(),
+            }
+            for document_id, title, group_id, corpus in [
+                (allowed_document_id, "Allowed", ALLOWED_GROUP_ID, "published"),
+                (denied_document_id, "Denied", DENIED_GROUP_ID, "published"),
+                (preview_document_id, "Preview", ALLOWED_GROUP_ID, "preview"),
             ]:
+                version_id = version_by_document[document_id]
+                # Published-corpus docs pin current_published_version_id so the
+                # retrieval lifecycle predicate matches; the preview doc pins its
+                # draft pointer instead (preview corpus only checks non-archived).
+                version_column = (
+                    "current_published_version_id"
+                    if corpus == "published"
+                    else "current_draft_version_id"
+                )
                 await connection.execute(
-                    """
-                    INSERT INTO app.documents ("Id", title, current_state, created_by_user_id)
-                    VALUES ($1, $2, 'Published', $3)
+                    f"""
+                    INSERT INTO app.documents (
+                        "Id", title, current_state, {version_column}, created_by_user_id
+                    )
+                    VALUES ($1, $2, 'Published', $3, $4)
                     """,
                     document_id,
                     title,
+                    version_id,
                     USER_ID,
                 )
                 # Group-only rule in the hierarchical model: a permission with no org
@@ -1168,9 +1185,27 @@ class ChatDatabase:
                     chat_price_id,
                     existing_spend,
                 )
-            await self._insert_chunk(connection, allowed_document_id, "published", "Wear visible credentials.")
-            await self._insert_chunk(connection, denied_document_id, "published", "Denied group content.")
-            await self._insert_chunk(connection, preview_document_id, "preview", "Preview-only content.")
+            await self._insert_chunk(
+                connection,
+                allowed_document_id,
+                "published",
+                "Wear visible credentials.",
+                document_version_id=version_by_document[allowed_document_id],
+            )
+            await self._insert_chunk(
+                connection,
+                denied_document_id,
+                "published",
+                "Denied group content.",
+                document_version_id=version_by_document[denied_document_id],
+            )
+            await self._insert_chunk(
+                connection,
+                preview_document_id,
+                "preview",
+                "Preview-only content.",
+                document_version_id=version_by_document[preview_document_id],
+            )
         finally:
             await connection.close()
 
@@ -1346,13 +1381,17 @@ class ChatDatabase:
         group_ids: list[UUID],
         content: str,
     ) -> None:
+        version_id = uuid4()
         await connection.execute(
             """
-            INSERT INTO app.documents ("Id", title, current_state, created_by_user_id)
-            VALUES ($1, $2, 'Published', $3)
+            INSERT INTO app.documents (
+                "Id", title, current_state, current_published_version_id, created_by_user_id
+            )
+            VALUES ($1, $2, 'Published', $3, $4)
             """,
             document_id,
             content,
+            version_id,
             HIERARCHY_AUTHOR_ID,
         )
         permission_id = uuid4()
@@ -1374,7 +1413,13 @@ class ChatDatabase:
                 permission_id,
                 group_id,
             )
-        await self._insert_chunk(connection, document_id, "published", content)
+        await self._insert_chunk(
+            connection,
+            document_id,
+            "published",
+            content,
+            document_version_id=version_id,
+        )
 
     async def seed_dimension_value(self, *, document_id: UUID) -> UUID:
         """Insert one dimension/value pair and tag the given document with it.
@@ -1452,9 +1497,10 @@ class ChatDatabase:
         document_id: UUID,
         corpus: str,
         content: str,
-    ) -> None:
+        document_version_id: UUID | None = None,
+    ) -> UUID:
         job_id = uuid4()
-        version_id = uuid4()
+        version_id = document_version_id if document_version_id is not None else uuid4()
         await connection.execute(
             """
             INSERT INTO rag.indexing_jobs (
@@ -1492,6 +1538,7 @@ class ChatDatabase:
             f"<p>{content}</p>",
             EMBEDDING_MODEL,
         )
+        return version_id
 
     async def read_audit_state(self) -> dict[str, Any]:
         connection = await asyncpg.connect(self.dsn)
