@@ -10,7 +10,6 @@
   },
   "portal": {
     "title": "Document library",
-    "header_copy": "Find guides and documentation based on your permissions.",
     "subtitle": "Find guides and documentation based on your permissions.",
     "search_placeholder": "Search by title, type, or audience…",
     "filter_all": "All",

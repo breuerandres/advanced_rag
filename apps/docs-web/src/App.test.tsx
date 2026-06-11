@@ -28,7 +28,7 @@ test('shows loading exchange state', () => {
   expect(screen.getByText('Validando enlace…')).toBeInTheDocument()
 })
 
-test('renders the independent document portal grouped by category', async () => {
+test('renders the portal with document-type chips and cards', async () => {
   setLocation('https://docs.localhost/')
   mockFetch([
     jsonResponse({
@@ -52,16 +52,37 @@ test('renders the independent document portal grouped by category', async () => 
           allowedGroups: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legales' }],
           updatedAt: '2026-05-22T12:00:00Z',
         },
+        {
+          id: '66666666-6666-6666-6666-666666666666',
+          title: 'Política de viajes',
+          state: 'Published',
+          documentType: 'Política',
+          audience: 'Todos',
+          allowedGroups: [],
+          updatedAt: '2026-06-01T12:00:00Z',
+        },
       ],
     }),
   ])
+  const user = userEvent.setup()
 
   render(<App />)
 
   expect(await screen.findByRole('heading', { name: 'Biblioteca de documentos' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Legales' })).toBeInTheDocument()
+  // Filter chips come from document types, not access groups.
+  expect(screen.getByRole('button', { name: 'Manual' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Legales' })).not.toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Manual legal' })).toBeInTheDocument()
-  expect(screen.queryByRole('navigation', { name: /Navegacion del visor/i })).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Política' }))
+
+  expect(screen.queryByRole('heading', { name: 'Manual legal' })).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Política de viajes' })).toBeInTheDocument()
+
+  // "Todos" resets the type filter (the clear-filters button only renders on the
+  // filtered-empty state, which this flow never reaches).
+  await user.click(screen.getByRole('button', { name: 'Todos' }))
+  expect(screen.getByRole('heading', { name: 'Manual legal' })).toBeInTheDocument()
 })
 
 test('consumes manage session handoff before loading the document portal', async () => {
@@ -152,7 +173,47 @@ test('shows a semantic empty state when the document portal has no visible docum
   render(<App />)
 
   expect(await screen.findByRole('heading', { name: 'Sin documentos para mostrar' })).toBeInTheDocument()
-  expect(screen.getByText('No encontramos documentos disponibles con los filtros actuales.')).toBeInTheDocument()
+  expect(screen.getByText('Todavía no hay documentos disponibles para tu usuario.')).toBeInTheDocument()
+})
+
+test('shows the filtered empty state with a clear-filters action', async () => {
+  setLocation('https://docs.localhost/')
+  mockFetch([
+    jsonResponse({
+      user: {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        email: 'viewer@example.com',
+        displayName: 'Viewer User',
+        roles: ['Viewer'],
+        groups: [],
+      },
+    }),
+    jsonResponse({
+      groups: [],
+      documents: [
+        {
+          id: '55555555-5555-5555-5555-555555555555',
+          title: 'Manual legal',
+          state: 'Published',
+          documentType: 'Manual',
+          audience: 'Legal',
+          allowedGroups: [],
+          updatedAt: '2026-05-22T12:00:00Z',
+        },
+      ],
+    }),
+  ])
+  const user = userEvent.setup()
+
+  render(<App />)
+
+  await user.type(await screen.findByPlaceholderText('Buscar por título, tipo o audiencia…'), 'inexistente')
+
+  expect(await screen.findByText('No encontramos documentos con los filtros actuales.')).toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }))
+
+  expect(screen.getByRole('heading', { name: 'Manual legal' })).toBeInTheDocument()
 })
 
 test('shows login when the docs host has no session', async () => {
@@ -163,7 +224,7 @@ test('shows login when the docs host has no session', async () => {
 
   render(<App />)
 
-  const heading = await screen.findByRole('heading', { name: 'Iniciar sesion' })
+  const heading = await screen.findByRole('heading', { name: 'Iniciar sesión' })
   expect(heading.closest('main')).toHaveClass('auth-shell')
   expect(heading.closest('form')).toHaveClass('auth-card')
 })
