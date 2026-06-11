@@ -219,6 +219,8 @@
     "load_error": "Could not load organizational units.",
     "company_wide": "company-wide",
     "level_tooltip": "Level {{level}}",
+    "expand_branch": "Expand {{name}}",
+    "collapse_branch": "Collapse {{name}}",
     "add_child": "Add child unit",
     "add_root_child": "Add unit under root",
     "rename": "Rename",

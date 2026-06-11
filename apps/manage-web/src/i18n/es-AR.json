@@ -219,6 +219,8 @@
     "load_error": "No se pudieron cargar las unidades organizativas.",
     "company_wide": "toda la empresa",
     "level_tooltip": "Nivel {{level}}",
+    "expand_branch": "Expandir {{name}}",
+    "collapse_branch": "Colapsar {{name}}",
     "add_child": "Agregar unidad hija",
     "add_root_child": "Agregar unidad bajo la raíz",
     "rename": "Renombrar",

@@ -1725,3 +1725,132 @@ select {
   color: #bbf7d0;
   background: #14532d;
 }
+
+/* Collapsible organizational-unit picker: a select-like trigger plus a popover
+   tree that mirrors the Organizational Units page (chevrons + level badges). */
+.unit-tree-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  border: 1px solid #bcc9c6;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 0 10px;
+  color: #1f1b17;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.unit-tree-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.unit-tree-trigger-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.unit-tree-trigger-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unit-tree-trigger.placeholder .unit-tree-trigger-text {
+  color: #6b7775;
+}
+
+.unit-tree-trigger-caret {
+  color: #6b7775;
+  flex-shrink: 0;
+}
+
+.unit-tree-panel {
+  max-height: 18rem;
+  overflow-y: auto;
+  min-width: 16rem;
+}
+
+.unit-tree,
+.unit-tree-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.unit-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.unit-tree-toggle,
+.unit-tree-toggle-spacer {
+  width: 1.25rem;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: #6b7775;
+}
+
+.unit-tree-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0.3rem 0.4rem;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.unit-tree-option:hover {
+  background: var(--bg-subtle);
+}
+
+.unit-tree-option[data-selected] {
+  background: var(--bg-subtle);
+  font-weight: 600;
+}
+
+.unit-tree-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unit-tree-check {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: #0f766e;
+}
+
+[data-theme='dark'] .unit-tree-trigger {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+  color: var(--fg);
+}
+
+[data-theme='dark'] .unit-tree-trigger.placeholder .unit-tree-trigger-text,
+[data-theme='dark'] .unit-tree-trigger-caret,
+[data-theme='dark'] .unit-tree-toggle,
+[data-theme='dark'] .unit-tree-toggle-spacer {
+  color: var(--fg-muted);
+}

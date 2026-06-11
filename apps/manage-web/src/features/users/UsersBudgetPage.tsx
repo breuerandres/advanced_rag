@@ -27,10 +27,8 @@ import {
 import type { GroupSummary, UserSummary } from '../../api/users'
 import { listOrganizationalUnits } from '../../api/orgUnits'
 import type { OrganizationalUnitSummary } from '../../api/orgUnits'
-import { flattenUnitsInTreeOrder } from '../orgUnits/unitTree'
-import { UnitLevelBadge } from '../orgUnits/UnitLevelBadge'
-import { Button, Checkbox, DataTable, Dialog, Input, Select } from '@helpcenter/shared-ui'
-import type { SelectOption } from '@helpcenter/shared-ui'
+import { UnitTreeSelect } from '../orgUnits/UnitTreeSelect'
+import { Button, Checkbox, DataTable, Dialog, Input } from '@helpcenter/shared-ui'
 
 type LoadState = 'loading' | 'ready' | 'error'
 type UserStatusFilter = 'all' | 'active' | 'inactive'
@@ -649,16 +647,15 @@ function GroupEditDialog({
 
           <label className="field">
             <span>{t('users.owner_unit_field')}</span>
-            <Select
+            <UnitTreeSelect
               ariaLabel={t('users.owner_unit_field')}
               placeholder={t('users.owner_unit_none')}
               value={ownerUnitId === '' ? NONE_UNIT_VALUE : ownerUnitId}
-              onValueChange={(next) => setOwnerUnitId(next === NONE_UNIT_VALUE ? '' : next)}
+              onChange={(next) => setOwnerUnitId(next === NONE_UNIT_VALUE ? '' : next)}
               disabled={isSaving}
-              options={[
-                { value: NONE_UNIT_VALUE, label: t('users.owner_unit_none') },
-                ...unitSelectOptions(organizationalUnits),
-              ]}
+              units={organizationalUnits}
+              companyWideLabel={t('orgUnits.company_wide')}
+              leadingOptions={[{ value: NONE_UNIT_VALUE, label: t('users.owner_unit_none') }]}
             />
           </label>
 
@@ -777,16 +774,15 @@ function GroupDialog({
 
           <label className="field">
             <span>{t('users.owner_unit_field')}</span>
-            <Select
+            <UnitTreeSelect
               ariaLabel={t('users.owner_unit_field')}
               placeholder={t('users.owner_unit_none')}
               value={ownerUnitId === '' ? NONE_UNIT_VALUE : ownerUnitId}
-              onValueChange={(next) => setOwnerUnitId(next === NONE_UNIT_VALUE ? '' : next)}
+              onChange={(next) => setOwnerUnitId(next === NONE_UNIT_VALUE ? '' : next)}
               disabled={isSaving}
-              options={[
-                { value: NONE_UNIT_VALUE, label: t('users.owner_unit_none') },
-                ...unitSelectOptions(organizationalUnits),
-              ]}
+              units={organizationalUnits}
+              companyWideLabel={t('orgUnits.company_wide')}
+              leadingOptions={[{ value: NONE_UNIT_VALUE, label: t('users.owner_unit_none') }]}
             />
           </label>
 
@@ -963,13 +959,14 @@ function UserDialog({
 
             <label className="field">
               <span>Unidad organizativa</span>
-              <Select
+              <UnitTreeSelect
                 ariaLabel="Unidad organizativa"
                 placeholder="Seleccioná una unidad"
-                value={organizationalUnitId || undefined}
-                onValueChange={setOrganizationalUnitId}
+                value={organizationalUnitId}
+                onChange={setOrganizationalUnitId}
                 disabled={isSaving}
-                options={unitSelectOptions(organizationalUnits)}
+                units={organizationalUnits}
+                companyWideLabel="toda la empresa"
               />
             </label>
 
@@ -1160,13 +1157,14 @@ function UserManagementDialog({
           {canEditRole ? (
             <label className="field">
               <span>{t('users.change_unit_field')}</span>
-              <Select
+              <UnitTreeSelect
                 ariaLabel={t('users.change_unit_field')}
                 placeholder={t('users.change_unit_select')}
-                value={organizationalUnitId || undefined}
-                onValueChange={setOrganizationalUnitId}
+                value={organizationalUnitId}
+                onChange={setOrganizationalUnitId}
                 disabled={isSaving}
-                options={unitSelectOptions(organizationalUnits)}
+                units={organizationalUnits}
+                companyWideLabel={t('orgUnits.company_wide')}
               />
             </label>
           ) : null}
@@ -1340,22 +1338,9 @@ function primaryRole(roles: string[]) {
   return roles.includes('Viewer') ? 'Viewer' : (roles[0] ?? 'Viewer')
 }
 
-function organizationalUnitLabel(unit: OrganizationalUnitSummary) {
-  return unit.parentId === null ? `${unit.name} (toda la empresa)` : unit.name
-}
-
-// Radix Select disallows an empty-string item value, so the optional
-// "no owner unit" choice uses a sentinel that maps back to '' on change.
+// The optional "no owner unit" choice maps to a sentinel value because the unit
+// tree itself only holds real unit ids.
 const NONE_UNIT_VALUE = '__none__'
-
-function unitSelectOptions(units: OrganizationalUnitSummary[]): SelectOption[] {
-  return flattenUnitsInTreeOrder(units).map(({ unit, level }) => ({
-    value: unit.id,
-    label: organizationalUnitLabel(unit),
-    depth: level,
-    badge: <UnitLevelBadge level={level} />,
-  }))
-}
 
 const PUBLISHING_POLICIES = ['OwnerScope', 'ExplicitGrantOnly', 'AdminOnly'] as const
 

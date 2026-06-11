@@ -1,23 +1,18 @@
 import type { OrganizationalUnitSummary } from '../../api/orgUnits'
 
-export interface FlatOrganizationalUnit {
-  unit: OrganizationalUnitSummary
-  /** Depth within the visible tree (0 = top level). */
-  level: number
+export interface UnitTree {
+  /** Children keyed by parent id; the `null` key holds the top-level units. */
+  childrenByParent: Map<string | null, OrganizationalUnitSummary[]>
+  roots: OrganizationalUnitSummary[]
 }
 
 /**
- * Flattens organizational units into depth-first tree order (parents immediately
- * followed by their children), with each entry tagged by its visible level.
- *
- * The API returns units ordered by depth, not tree order, so callers that render
- * a flat list (e.g. a select) need this to show the hierarchy. Units whose parent
- * is absent from the list (e.g. an inactive parent that was filtered out) are
- * promoted to the top level so they are never dropped.
+ * Groups organizational units into a parent→children map with alphabetically
+ * sorted siblings, used to render a collapsible tree. Units whose parent is
+ * absent from the list (e.g. an inactive parent filtered out for non-admins)
+ * are promoted to the top level so they are never hidden.
  */
-export function flattenUnitsInTreeOrder(
-  units: OrganizationalUnitSummary[],
-): FlatOrganizationalUnit[] {
+export function buildUnitTree(units: OrganizationalUnitSummary[]): UnitTree {
   const presentIds = new Set(units.map((unit) => unit.id))
   const childrenByParent = new Map<string | null, OrganizationalUnitSummary[]>()
 
@@ -33,14 +28,5 @@ export function flattenUnitsInTreeOrder(
     siblings.sort((left, right) => left.name.localeCompare(right.name))
   }
 
-  const flattened: FlatOrganizationalUnit[] = []
-  const visit = (parentId: string | null, level: number) => {
-    for (const unit of childrenByParent.get(parentId) ?? []) {
-      flattened.push({ unit, level })
-      visit(unit.id, level + 1)
-    }
-  }
-  visit(null, 0)
-
-  return flattened
+  return { childrenByParent, roots: childrenByParent.get(null) ?? [] }
 }

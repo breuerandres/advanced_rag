@@ -34,10 +34,9 @@ import type {
 import { createGroup, listGroups, type GroupSummary } from "../../api/users";
 import { listOrganizationalUnits } from "../../api/orgUnits";
 import type { OrganizationalUnitSummary } from "../../api/orgUnits";
-import { UnitLevelBadge } from "../orgUnits/UnitLevelBadge";
+import { UnitTreeSelect } from "../orgUnits/UnitTreeSelect";
 import { RichTextEditor } from "./RichTextEditor";
-import { Button, Checkbox, DataTable, Dialog, Input, Select } from "@helpcenter/shared-ui";
-import type { SelectOption } from "@helpcenter/shared-ui";
+import { Button, Checkbox, DataTable, Dialog, Input } from "@helpcenter/shared-ui";
 
 type DocumentStateFilter =
   | "all"
@@ -1102,10 +1101,11 @@ function AccessRuleCard({
       : 0;
   const preview = rulePreview(rule, selectedUnit, groups, t);
 
-  const unitOptions: SelectOption[] = [
+  // Preserve a unit id missing from the caller's catalog (e.g. a unit
+  // deactivated and hidden from non-admins) as a selectable row instead of
+  // dropping it on the next save.
+  const leadingUnitOptions = [
     { value: NO_UNIT_VALUE, label: t("documents.rule_no_unit") },
-    // Preserve a unit id missing from the caller's catalog (e.g. a unit
-    // deactivated and hidden from non-admins) instead of dropping it on save.
     ...(isUnresolvedUnit && rule.organizationalUnitId
       ? [
           {
@@ -1114,15 +1114,6 @@ function AccessRuleCard({
           },
         ]
       : []),
-    ...organizationalUnits.map((unit) => ({
-      value: unit.id,
-      label:
-        unit.parentId === null
-          ? `${unit.name} (${t("documents.rule_company_wide")})`
-          : unit.name,
-      depth: unit.depth,
-      badge: <UnitLevelBadge level={unit.depth} />,
-    })),
   ];
 
   return (
@@ -1144,14 +1135,14 @@ function AccessRuleCard({
       </div>
       <label className="field">
         <span>{t("documents.rule_organizational_unit")}</span>
-        <Select
+        <UnitTreeSelect
           ariaLabel={t("documents.rule_organizational_unit")}
           placeholder={t("documents.rule_no_unit")}
           value={rule.organizationalUnitId ?? NO_UNIT_VALUE}
-          onValueChange={(next) =>
-            onUnitChange(next === NO_UNIT_VALUE ? "" : next)
-          }
-          options={unitOptions}
+          onChange={(next) => onUnitChange(next === NO_UNIT_VALUE ? "" : next)}
+          units={organizationalUnits}
+          companyWideLabel={t("documents.rule_company_wide")}
+          leadingOptions={leadingUnitOptions}
         />
       </label>
       {descendantCount > 0 ? (

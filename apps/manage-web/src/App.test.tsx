@@ -970,7 +970,9 @@ describe("management users and budgets", () => {
       "EditorPass!42",
     );
 
-    await selectUnitOption(user, "Unidad organizativa", "Comunicación");
+    await selectUnitOption(user, "Unidad organizativa", "Comunicación", [
+      "Empresa",
+    ]);
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Rol" }),
       "DocumentEditor",
@@ -1019,7 +1021,9 @@ describe("management users and budgets", () => {
       await screen.findByRole("button", { name: "Editar usuario Ana Gomez" }),
     );
 
-    await selectUnitOption(user, "Unidad organizativa", "Comunicación");
+    await selectUnitOption(user, "Unidad organizativa", "Comunicación", [
+      "Empresa",
+    ]);
     await user.click(screen.getByRole("button", { name: "Guardar usuario" }));
 
     const [, requestInit] = (
@@ -1568,7 +1572,9 @@ describe("management documents", () => {
       "Comunicación",
     );
 
-    await selectUnitOption(user, "Unidad organizativa", "Comunicación");
+    await selectUnitOption(user, "Unidad organizativa", "Comunicación", [
+      "Empresa",
+    ]);
     await user.click(screen.getByRole("checkbox", { name: "Comité de crisis" }));
 
     // The rule card explains the AND/OR semantics in natural language.
@@ -2442,16 +2448,22 @@ function csrfResponse() {
   return jsonResponse(200, { status: "ok" }, { "X-CSRF-Token": "csrf-token" });
 }
 
-// The organizational-unit dropdowns use the Radix Select, which renders options
-// in a portal only while open, so a value is picked by opening the trigger and
-// clicking the option (not the native selectOptions used by plain <select>s).
+// The organizational-unit dropdowns are a collapsible tree popover: opening the
+// trigger shows only the roots, so reaching a child means expanding its
+// ancestors (by name) before clicking the option. Every row is a button.
 async function selectUnitOption(
   user: ReturnType<typeof userEvent.setup>,
-  comboboxName: string,
+  triggerName: string,
   optionName: string,
+  expandBranches: string[] = [],
 ) {
-  await user.click(await screen.findByRole("combobox", { name: comboboxName }));
-  await user.click(await screen.findByRole("option", { name: optionName }));
+  await user.click(await screen.findByRole("button", { name: triggerName }));
+  for (const branch of expandBranches) {
+    await user.click(
+      await screen.findByRole("button", { name: `Expandir ${branch}` }),
+    );
+  }
+  await user.click(await screen.findByRole("button", { name: optionName }));
 }
 
 function expectActionTooltip(button: HTMLElement) {
