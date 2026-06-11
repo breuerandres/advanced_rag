@@ -54,6 +54,13 @@ docs.{$PUBLIC_DOMAIN} {
   tls internal
   import security_headers
 
+  @rag path /api/chat /api/feedback /api/feedback/*
+  handle @rag {
+    reverse_proxy rag-api:8000 {
+      flush_interval -1
+    }
+  }
+
   @api path /api/*
   handle @api {
     reverse_proxy dotnet-api:8080
