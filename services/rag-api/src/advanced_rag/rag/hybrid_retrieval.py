@@ -43,6 +43,7 @@ class HybridRetrievalParams(BaseModel):
     root_organizational_unit_id: UUID
     is_global_admin: bool = False
     dimension_value_filter: list[UUID] | None = None
+    scope_document_id: UUID | None = None
     vector_top_k: int = 20
     bm25_top_k: int = 20
     rrf_k: int = 60
@@ -107,6 +108,17 @@ _ACCESS_RULE_PREDICATE = """
 """
 
 
+# Document-scope predicate for the docs-web mini chat: when a scope document is set,
+# both candidate CTEs only consider that document's chunks. The access-rule predicate
+# above still applies, so scoping to an inaccessible document retrieves nothing.
+_SCOPE_DOCUMENT_PREDICATE = """
+      AND (
+          CAST(:scope_document_id AS uuid) IS NULL
+          OR chunk.document_id = CAST(:scope_document_id AS uuid)
+      )
+"""
+
+
 # The SQL is laid out as a single statement with two CTE candidates and one UNION /
 # aggregate that fuses them. We use named bindings throughout. The `unaccent` call on
 # the question goes through the IMMUTABLE wrapper added in the v2 BM25 migration.
@@ -124,6 +136,7 @@ WITH vector_candidates AS (
     WHERE chunk.corpus = :corpus
       AND chunk.is_active = true
       {_ACCESS_RULE_PREDICATE}
+      {_SCOPE_DOCUMENT_PREDICATE}
       AND (
           CAST(:dimension_value_filter AS uuid[]) IS NULL
           OR EXISTS (
@@ -155,6 +168,7 @@ bm25_candidates AS (
           OR chunk.content % :q_text
       )
       {_ACCESS_RULE_PREDICATE}
+      {_SCOPE_DOCUMENT_PREDICATE}
       AND (
           CAST(:dimension_value_filter AS uuid[]) IS NULL
           OR EXISTS (
@@ -218,6 +232,9 @@ async def hybrid_retrieve(
                 [str(v) for v in params.dimension_value_filter]
                 if params.dimension_value_filter is not None
                 else None
+            ),
+            "scope_document_id": (
+                str(params.scope_document_id) if params.scope_document_id is not None else None
             ),
             "vector_top_k": params.vector_top_k,
             "bm25_top_k": params.bm25_top_k,

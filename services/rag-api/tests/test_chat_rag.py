@@ -613,6 +613,40 @@ def test_admin_global_scope_bypasses_rule_filter() -> None:
     }
 
 
+def test_scope_document_filter_limits_retrieval_to_one_accessible_document() -> None:
+    with _postgres() as database:
+        seeded = asyncio.run(database.seed_hierarchical_corpus())
+        scoped = asyncio.run(
+            _retrieve_document_ids(
+                database.async_url,
+                HybridRetrievalParams(
+                    corpus="published",
+                    user_groups=[],
+                    user_organizational_unit_id=seeded["marketing"],
+                    root_organizational_unit_id=seeded["empresa"],
+                    scope_document_id=seeded["comunicacion_doc"],
+                ),
+            )
+        )
+        out_of_scope = asyncio.run(
+            _retrieve_document_ids(
+                database.async_url,
+                HybridRetrievalParams(
+                    corpus="published",
+                    user_groups=[],
+                    user_organizational_unit_id=seeded["marketing"],
+                    root_organizational_unit_id=seeded["empresa"],
+                    scope_document_id=seeded["sistemas_doc"],
+                ),
+            )
+        )
+
+    # The scope narrows retrieval to exactly one accessible document; scoping to a
+    # document outside the user's branch yields nothing (access predicate still applies).
+    assert scoped == {seeded["comunicacion_doc"]}
+    assert out_of_scope == set()
+
+
 def _postgres() -> ChatDatabase:
     return ChatDatabase()
 
