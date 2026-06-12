@@ -155,6 +155,18 @@ builder.Services.AddScoped<IInternalIndexingClient>(services =>
             : "InternalService:TokenFile");
     return new FastApiInternalIndexingClient(http, token);
 });
+builder.Services.AddScoped<IInternalCacheInvalidationClient>(services =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var http = services.GetRequiredService<IHttpClientFactory>().CreateClient("InternalIndexing");
+    var token = SecretConfiguration.Read(
+        configuration,
+        "InternalService:Token",
+        configuration["InternalService:TokenFile"] is null
+            ? "InternalServiceTokenFile"
+            : "InternalService:TokenFile");
+    return new FastApiInternalCacheInvalidationClient(http, token);
+});
 builder.Services.AddSingleton<IDocumentHtmlSanitizer, GanssDocumentHtmlSanitizer>();
 builder.Services.AddSingleton<IPasswordHashService, Pbkdf2PasswordHashService>();
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();

@@ -164,11 +164,21 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
         await RequireCanManageDraftAsync(command.ActorUserId, updated.AccessRules, ct);
 
+        // Editing a previously published document (content and/or access rules) ends its
+        // published availability and may change who can see it; any cached answers sourced
+        // from the old published version are now stale. Fresh drafts have nothing cached.
+        bool wasPublished = document.CurrentPublishedVersion is not null;
+
         await _repository.SaveAsync(
             updated,
             [],
             [Audit(command.ActorUserId, "document.draft_updated", document.Id, command.RequestId)],
             ct);
+
+        if (wasPublished)
+        {
+            await _cacheInvalidation.InvalidateDocumentsAsync([document.Id], ct);
+        }
 
         return updated;
     }

@@ -406,6 +406,52 @@ public sealed class DocumentLifecycleServiceTests
         cache.Calls.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task UpdateDraftAsync_OnPublishedDocumentInvalidatesSemanticCache()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = PublishedDocument();
+        var cache = new RecordingCacheInvalidationClient();
+        var service = new DocumentLifecycleService(repository, cacheInvalidationClient: cache);
+
+        await service.UpdateDraftAsync(
+            new UpdateDraftCommand(
+                DocumentId,
+                "Updated safety policy",
+                "Policy",
+                "All staff",
+                "<p>Updated content</p>",
+                GroupRules(OperationsGroupId),
+                ActorId,
+                "request-edit-cache"),
+            CancellationToken.None);
+
+        cache.Calls.Single().Single().Should().Be(DocumentId);
+    }
+
+    [Fact]
+    public async Task UpdateDraftAsync_OnFreshDraftDoesNotInvalidateSemanticCache()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = ValidDraft();
+        var cache = new RecordingCacheInvalidationClient();
+        var service = new DocumentLifecycleService(repository, cacheInvalidationClient: cache);
+
+        await service.UpdateDraftAsync(
+            new UpdateDraftCommand(
+                DocumentId,
+                "Updated draft",
+                "Policy",
+                "All staff",
+                "<p>Updated content</p>",
+                GroupRules(OperationsGroupId),
+                ActorId,
+                "request-edit-fresh"),
+            CancellationToken.None);
+
+        cache.Calls.Should().BeEmpty();
+    }
+
     private static DocumentAggregate ValidDraft()
     {
         return DocumentAggregate.NewDraft(
