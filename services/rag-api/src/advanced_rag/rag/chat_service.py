@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-import math
+import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -44,6 +44,8 @@ from advanced_rag.rag.hybrid_retrieval import (
 )
 from advanced_rag.rag.rerank import rerank_candidates
 
+
+logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = 1
 
@@ -542,6 +544,7 @@ class ChatService:
         # is deliberately no group-presence short circuit here.
         params = HybridRetrievalParams(
             corpus=corpus,
+            embedding_model=self._settings.resolved_embedding_model,
             is_global_admin=claims.is_global_admin,
             user_organizational_unit_id=UUID(claims.organizational_unit_id),
             root_organizational_unit_id=ROOT_ORGANIZATIONAL_UNIT_ID,
@@ -585,6 +588,51 @@ class ChatService:
         ]
         return chunks, rerank_audit
 
+    async def _query_cache_candidate(
+        self,
+        session: AsyncSession,
+        *,
+        corpus: str,
+        access_scope_hash: str,
+        filters_hash: str | None,
+        question_embedding: list[float],
+    ) -> Any:
+        """Return the single nearest cache entry for the partition, or None.
+
+        Isolated so the lookup can degrade gracefully if the query fails and so tests
+        can inject a failure via this seam. The HNSW index orders globally and the WHERE
+        filters by partition + embedding model; cosine similarity (`1 - distance`) is
+        returned for the threshold check by the caller.
+        """
+        result = await session.execute(
+            text(
+                """
+                select
+                    id,
+                    answer,
+                    cached_at,
+                    citations,
+                    1 - (question_embedding <=> (:question_embedding)::vector) as similarity
+                from rag.semantic_cache_entries
+                where corpus = :corpus
+                  and access_scope_hash = :access_scope_hash
+                  and filters_hash is not distinct from :filters_hash
+                  and embedding_model = :embedding_model
+                  and expires_at > now()
+                order by question_embedding <=> (:question_embedding)::vector
+                limit 1
+                """
+            ),
+            {
+                "corpus": corpus,
+                "access_scope_hash": access_scope_hash,
+                "filters_hash": filters_hash,
+                "embedding_model": self._settings.resolved_embedding_model,
+                "question_embedding": _vector_literal(question_embedding),
+            },
+        )
+        return result.first()
+
     async def _lookup_cache(
         self,
         session: AsyncSession,
@@ -594,66 +642,41 @@ class ChatService:
         filters_hash: str | None,
         question_embedding: list[float],
     ) -> dict[str, Any] | None:
-        result = await session.execute(
-            text(
-                """
-                select id, answer, cached_at, question_embedding::text as question_embedding
-                from rag.semantic_cache_entries
-                where corpus = :corpus
-                  and access_scope_hash = :access_scope_hash
-                  and filters_hash is not distinct from :filters_hash
-                  and expires_at > now()
-                order by cached_at desc
-                """
-            ),
-            {
-                "corpus": corpus,
-                "access_scope_hash": access_scope_hash,
-                "filters_hash": filters_hash,
-            },
-        )
-        for row in result:
-            similarity = _cosine_similarity(question_embedding, _parse_vector(row.question_embedding))
-            if similarity >= Decimal(str(self._settings.rag_semantic_cache_similarity_threshold)):
-                citations = await session.execute(
-                    text(
-                        """
-                          select
-                              source.document_id,
-                              source.document_version_id,
-                              chunk.id as chunk_id,
-                              chunk.heading_path
-                          from rag.semantic_cache_sources source
-                          join lateral (
-                              select chunk.id, chunk.heading_path
-                              from rag.document_chunks chunk
-                              where chunk.document_id = source.document_id
-                                and chunk.document_version_id = source.document_version_id
-                                and chunk.is_active = true
-                              order by chunk.chunk_index
-                              limit 1
-                          ) chunk on true
-                          where source.cache_entry_id = :cache_entry_id
-                          order by source.document_id, source.document_version_id
-                          """
-                      ),
-                    {"cache_entry_id": row.id},
+        try:
+            row = await self._query_cache_candidate(
+                session,
+                corpus=corpus,
+                access_scope_hash=access_scope_hash,
+                filters_hash=filters_hash,
+                question_embedding=question_embedding,
+            )
+        except Exception:  # noqa: BLE001 - cache must never break the chat path
+            logger.warning("Semantic cache lookup failed; continuing without cache.", exc_info=True)
+            return None
+        if row is None:
+            return None
+        # The HNSW scan orders globally and the WHERE filters by partition, so a very
+        # crowded cache table can occasionally miss a valid entry (post-filtering). That
+        # is acceptable — a missed hit just runs the full RAG path. Do not add correctness
+        # logic that depends on cache hits.
+        threshold = Decimal(str(self._settings.rag_semantic_cache_similarity_threshold))
+        if Decimal(str(row.similarity)) < threshold:
+            return None
+        payload = row.citations if isinstance(row.citations, list) else json.loads(row.citations)
+        return {
+            "id": row.id,
+            "answer": row.answer,
+            "cached_at": row.cached_at,
+            "citations": [
+                Citation(
+                    chunk_id=UUID(item["chunk_id"]),
+                    document_id=UUID(item["document_id"]),
+                    document_version_id=UUID(item["document_version_id"]),
+                    heading_path=list(item["heading_path"]),
                 )
-                return {
-                    "id": row.id,
-                    "answer": row.answer,
-                    "cached_at": row.cached_at,
-                    "citations": [
-                        Citation(
-                            chunk_id=citation.chunk_id,
-                            document_id=citation.document_id,
-                            document_version_id=citation.document_version_id,
-                            heading_path=list(citation.heading_path),
-                        )
-                        for citation in citations
-                    ],
-                }
-        return None
+                for item in payload
+            ],
+        }
 
     async def _audit_cache_hit(
         self,
@@ -734,13 +757,13 @@ class ChatService:
                 """
                 insert into rag.semantic_cache_entries (
                     id, corpus, access_scope_hash, filters_hash,
-                    question_hash, question, answer,
+                    question_hash, question, answer, citations,
                     question_embedding, embedding_model, embedding_dimensions,
                     similarity_threshold, cached_at, expires_at, created_by_query_audit_event_id
                 )
                 values (
                     :id, :corpus, :access_scope_hash, :filters_hash,
-                    :question_hash, :question, :answer,
+                    :question_hash, :question, :answer, cast(:citations as jsonb),
                     (:question_embedding)::vector, :embedding_model, :embedding_dimensions,
                     :similarity_threshold, :cached_at, :expires_at, :audit_id
                 )
@@ -754,6 +777,17 @@ class ChatService:
                 "question_hash": hashlib.sha256(question.encode("utf-8")).hexdigest(),
                 "question": question,
                 "answer": answer,
+                "citations": json.dumps(
+                    [
+                        {
+                            "chunk_id": str(citation.chunk_id),
+                            "document_id": str(citation.document_id),
+                            "document_version_id": str(citation.document_version_id),
+                            "heading_path": citation.heading_path,
+                        }
+                        for citation in citations
+                    ]
+                ),
                 "question_embedding": _vector_literal(question_embedding),
                 "embedding_model": self._settings.resolved_embedding_model,
                 "embedding_dimensions": self._settings.resolved_embedding_dimensions,
@@ -1029,19 +1063,6 @@ def _no_results_message_scoped(locale: str) -> str:
 
 def _vector_literal(values: list[float]) -> str:
     return "[" + ",".join(str(value) for value in values) + "]"
-
-
-def _parse_vector(value: str) -> list[float]:
-    return [float(item) for item in value.strip("[]").split(",") if item]
-
-
-def _cosine_similarity(left: list[float], right: list[float]) -> Decimal:
-    dot = sum(a * b for a, b in zip(left, right, strict=True))
-    left_norm = math.sqrt(sum(value * value for value in left))
-    right_norm = math.sqrt(sum(value * value for value in right))
-    if left_norm == 0 or right_norm == 0:
-        return Decimal("0")
-    return Decimal(str(dot / (left_norm * right_norm)))
 
 
 def _calculate_cost(

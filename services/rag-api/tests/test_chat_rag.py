@@ -572,6 +572,157 @@ def test_semantic_cache_hit_returns_one_citation_per_source_document() -> None:
     assert second.text.count(f'"document_id":"{document_id}"') == 1
 
 
+def _cache_chat_app(
+    database: "ChatDatabase",
+    llm_provider: "FakeLlmProvider",
+    *,
+    access_scope_hash: str = "scope-allowed",
+    internal_service_token: str = "",
+) -> Any:
+    return create_app(
+        Settings(
+            rag_database_url=database.async_url,
+            openai_chat_model=CHAT_MODEL,
+            openai_embedding_model=EMBEDDING_MODEL,
+            openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+            customer_timezone="UTC",
+            rag_semantic_cache_similarity_threshold=0.90,
+            rag_semantic_cache_ttl_hours=24,
+            internal_service_token=internal_service_token,
+            enable_reranker=False,
+            csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+        ),
+        embedding_provider=FakeEmbeddingProvider(),
+        llm_provider=llm_provider,
+        session_validator=FakeSessionValidator(
+            ChatTokenClaims(
+                user_id=str(USER_ID),
+                role="Viewer",
+                groups=[str(ALLOWED_GROUP_ID)],
+                access_scope_hash=access_scope_hash,
+                corpus="published",
+            )
+        ),
+    )
+
+
+def test_cache_hit_replays_original_citations() -> None:
+    with _postgres() as database:
+        document_id = uuid4()
+        ids = asyncio.run(database.seed_cache_fidelity_corpus(document_id))
+        llm_provider = FakeLlmProvider()
+        app = _cache_chat_app(database, llm_provider)
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        first = client.post("/api/chat", json={"question": "What credential rule applies?"})
+        second = client.post("/api/chat", json={"question": "What credential rule applies?"})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    # The matching chunk (index 1) was cited, not the document's first chunk (index 0).
+    assert str(ids["cited"]) in first.text
+    assert str(ids["intro"]) not in first.text
+    assert "event: cache-hit" in second.text
+    # The cache hit replays the original citation verbatim, not "first chunk of document".
+    assert str(ids["cited"]) in second.text
+    assert str(ids["intro"]) not in second.text
+    assert llm_provider.calls == 1
+
+
+def test_cache_lookup_ignores_entries_from_other_embedding_model() -> None:
+    with _postgres() as database:
+        document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        version_id = asyncio.run(database.read_published_chunk_versions(document_id))[0]
+        asyncio.run(
+            database.insert_cache_entry_directly(
+                corpus="published",
+                access_scope_hash="scope-allowed",
+                embedding_model="other-model",
+                document_id=document_id,
+                document_version_id=version_id,
+            )
+        )
+        llm_provider = FakeLlmProvider()
+        app = _cache_chat_app(database, llm_provider)
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        response = client.post("/api/chat", json={"question": "What credential rule applies?"})
+
+    assert response.status_code == 200
+    # The stale entry was stored under a different embedding model and must be ignored.
+    assert "event: cache-hit" not in response.text
+    assert "Stale cached answer." not in response.text
+    assert llm_provider.calls == 1
+
+
+def test_cache_lookup_failure_degrades_gracefully() -> None:
+    with _postgres() as database:
+        document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        llm_provider = FakeLlmProvider()
+        app = _cache_chat_app(database, llm_provider)
+
+        async def _raise(*args: Any, **kwargs: Any) -> Any:
+            raise RuntimeError("cache backend down")
+
+        app.state.chat_service._query_cache_candidate = _raise
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        response = client.post("/api/chat", json={"question": "What credential rule applies?"})
+
+    assert response.status_code == 200
+    # Cache failure degrades to the full RAG path instead of breaking chat.
+    assert "Wear visible credentials." in response.text
+    assert llm_provider.calls == 1
+
+
+def test_retrieval_ignores_chunks_from_other_embedding_model() -> None:
+    with _postgres() as database:
+        document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        asyncio.run(database.set_document_chunks_embedding_model(document_id, "legacy-model"))
+        app = _published_chat_app(database)
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        response = client.post("/api/chat", json={"question": "What credential rule applies?"})
+        state = asyncio.run(database.read_audit_state())
+
+    assert response.status_code == 200
+    # The chunk's embedding_model no longer matches the configured model → not retrieved.
+    assert "Wear visible credentials." not in response.text
+    assert state["citation_document_ids"] == []
+
+
 def test_chat_filters_by_dimension_partitions_cache_separately() -> None:
     """Same question + same user + different filters → no cache hit between them."""
     with _postgres() as database:
@@ -1106,6 +1257,7 @@ def test_hierarchical_retrieval_allows_ancestor_descendant_but_not_sibling_docum
                 database.async_url,
                 HybridRetrievalParams(
                     corpus="published",
+                    embedding_model=EMBEDDING_MODEL,
                     user_groups=[],
                     user_organizational_unit_id=seeded["marketing"],
                     root_organizational_unit_id=seeded["empresa"],
@@ -1132,6 +1284,7 @@ def test_group_rule_requires_membership_and_empty_rule_does_not_match() -> None:
                 database.async_url,
                 HybridRetrievalParams(
                     corpus="published",
+                    embedding_model=EMBEDDING_MODEL,
                     user_groups=[seeded["crisis_group"]],
                     user_organizational_unit_id=seeded["comunicacion"],
                     root_organizational_unit_id=seeded["empresa"],
@@ -1143,6 +1296,7 @@ def test_group_rule_requires_membership_and_empty_rule_does_not_match() -> None:
                 database.async_url,
                 HybridRetrievalParams(
                     corpus="published",
+                    embedding_model=EMBEDDING_MODEL,
                     user_groups=[],
                     user_organizational_unit_id=seeded["comunicacion"],
                     root_organizational_unit_id=seeded["empresa"],
@@ -1166,6 +1320,7 @@ def test_admin_global_scope_bypasses_rule_filter() -> None:
                 database.async_url,
                 HybridRetrievalParams(
                     corpus="published",
+                    embedding_model=EMBEDDING_MODEL,
                     user_groups=[],
                     user_organizational_unit_id=seeded["sistemas"],
                     root_organizational_unit_id=seeded["empresa"],
@@ -1195,6 +1350,7 @@ def test_scope_document_filter_limits_retrieval_to_one_accessible_document() -> 
                 database.async_url,
                 HybridRetrievalParams(
                     corpus="published",
+                    embedding_model=EMBEDDING_MODEL,
                     user_groups=[],
                     user_organizational_unit_id=seeded["marketing"],
                     root_organizational_unit_id=seeded["empresa"],
@@ -1207,6 +1363,7 @@ def test_scope_document_filter_limits_retrieval_to_one_accessible_document() -> 
                 database.async_url,
                 HybridRetrievalParams(
                     corpus="published",
+                    embedding_model=EMBEDDING_MODEL,
                     user_groups=[],
                     user_organizational_unit_id=seeded["marketing"],
                     root_organizational_unit_id=seeded["empresa"],
@@ -1662,6 +1819,193 @@ class ChatDatabase:
             )
             # Build/refresh stats so the planner uses the HNSW index for the scan.
             await connection.execute("ANALYZE rag.document_chunks")
+        finally:
+            await connection.close()
+
+    async def _seed_principal_and_pricing(self, connection: asyncpg.Connection) -> None:
+        await connection.execute(
+            "INSERT INTO app.users (\"Id\", email, display_name, password_hash) VALUES ($1, $2, $3, $4)",
+            USER_ID,
+            "viewer@example.com",
+            "Viewer",
+            "hash",
+        )
+        await connection.execute(
+            "INSERT INTO app.groups (\"Id\", name) VALUES ($1, $2)", ALLOWED_GROUP_ID, "Allowed"
+        )
+        await connection.execute(
+            "INSERT INTO app.groups (\"Id\", name) VALUES ($1, $2)", DENIED_GROUP_ID, "Denied"
+        )
+        await connection.execute(
+            """
+            INSERT INTO app.user_ai_budget_limits (user_id, monthly_budget_usd, is_disabled)
+            VALUES ($1, $2, false)
+            """,
+            USER_ID,
+            Decimal("5.0000"),
+        )
+        await connection.execute(
+            """
+            INSERT INTO rag.model_pricing (
+                id, model_id, model_kind, input_token_price_usd,
+                cached_token_price_usd, output_token_price_usd, effective_from
+            )
+            VALUES ($1, $2, 'chat', 0.0000001, 0.00000001, 0.0000004, now()),
+                   ($3, $4, 'embedding', 0.00000002, null, null, now())
+            """,
+            uuid4(),
+            CHAT_MODEL,
+            uuid4(),
+            EMBEDDING_MODEL,
+        )
+
+    async def seed_cache_fidelity_corpus(self, document_id: UUID) -> dict[str, UUID]:
+        """Seed one accessible published document with two chunks where the MATCHING
+        chunk is NOT the first chunk by `chunk_index`.
+
+        Returns `{"intro": <index-0 chunk id>, "cited": <index-1 chunk id>}`. The index-0
+        chunk does not contain the query terms, so only the index-1 chunk is cited. The
+        old cache-hit logic reconstructed "first active chunk of the document" (index 0);
+        the replay logic must return the originally cited index-1 chunk.
+        """
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            await self._seed_principal_and_pricing(connection)
+            version_id = uuid4()
+            await connection.execute(
+                """
+                INSERT INTO app.documents (
+                    "Id", title, current_state, current_published_version_id, created_by_user_id
+                )
+                VALUES ($1, 'Fidelity', 'Published', $2, $3)
+                """,
+                document_id,
+                version_id,
+                USER_ID,
+            )
+            permission_id = uuid4()
+            await connection.execute(
+                """
+                INSERT INTO app.document_permissions ("Id", document_id, organizational_unit_id)
+                VALUES ($1, $2, NULL)
+                """,
+                permission_id,
+                document_id,
+            )
+            await connection.execute(
+                """
+                INSERT INTO app.document_permission_groups (document_permission_id, group_id)
+                VALUES ($1, $2)
+                """,
+                permission_id,
+                ALLOWED_GROUP_ID,
+            )
+            job_id = uuid4()
+            await connection.execute(
+                """
+                INSERT INTO rag.indexing_jobs (
+                    id, document_id, document_version_id, corpus, status,
+                    attempts, chunker_version, embedding_dimensions, chunk_count,
+                    embedding_model, embedding_tokens
+                )
+                VALUES ($1, $2, $3, 'published', 'Succeeded', 1, 1, $4, 2, $5, 8)
+                """,
+                job_id,
+                document_id,
+                version_id,
+                EMBEDDING_DIMENSIONS,
+                EMBEDDING_MODEL,
+            )
+            ids: dict[str, UUID] = {}
+            for key, index, heading, content in [
+                ("intro", 0, "Introduction", "General onboarding overview text."),
+                ("cited", 1, "Credentials", "Wear visible credentials."),
+            ]:
+                chunk_id = uuid4()
+                ids[key] = chunk_id
+                await connection.execute(
+                    f"""
+                    INSERT INTO rag.document_chunks (
+                        id, indexing_job_id, document_id, document_version_id,
+                        corpus, chunk_index, heading_path, token_count, char_count,
+                        content, content_html, embedding, embedding_model, is_active
+                    )
+                    VALUES ($1, $2, $3, $4, 'published', $5, ARRAY[$6], 4, $7, $8, $9,
+                            ('[' || repeat('0.01,', {EMBEDDING_DIMENSIONS - 1}) || '0.01]')::vector,
+                            $10, true)
+                    """,
+                    chunk_id,
+                    job_id,
+                    document_id,
+                    version_id,
+                    index,
+                    heading,
+                    len(content),
+                    content,
+                    f"<p>{content}</p>",
+                    EMBEDDING_MODEL,
+                )
+            return ids
+        finally:
+            await connection.close()
+
+    async def insert_cache_entry_directly(
+        self,
+        *,
+        corpus: str,
+        access_scope_hash: str,
+        embedding_model: str,
+        document_id: UUID,
+        document_version_id: UUID,
+    ) -> None:
+        """Insert a cache entry whose question_embedding equals the query vector.
+
+        Used to assert the lookup filters by `embedding_model`: a stored entry under a
+        different model must never be reused.
+        """
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            citations = json.dumps(
+                [
+                    {
+                        "chunk_id": str(uuid4()),
+                        "document_id": str(document_id),
+                        "document_version_id": str(document_version_id),
+                        "heading_path": ["Policy"],
+                    }
+                ]
+            )
+            await connection.execute(
+                f"""
+                INSERT INTO rag.semantic_cache_entries (
+                    id, corpus, access_scope_hash, filters_hash,
+                    question_hash, question, answer, citations,
+                    question_embedding, embedding_model, embedding_dimensions,
+                    similarity_threshold, cached_at, expires_at
+                )
+                VALUES ($1, $2, $3, NULL, $4, 'cached question', 'Stale cached answer.', $5::jsonb,
+                        ('[' || repeat('0.01,', {EMBEDDING_DIMENSIONS - 1}) || '0.01]')::vector,
+                        $6, $7, 0.90, now(), now() + interval '24 hours')
+                """,
+                uuid4(),
+                corpus,
+                access_scope_hash,
+                hashlib.sha256(b"cached question").hexdigest(),
+                citations,
+                embedding_model,
+                EMBEDDING_DIMENSIONS,
+            )
+        finally:
+            await connection.close()
+
+    async def set_document_chunks_embedding_model(self, document_id: UUID, model: str) -> None:
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            await connection.execute(
+                "UPDATE rag.document_chunks SET embedding_model = $2 WHERE document_id = $1",
+                document_id,
+                model,
+            )
         finally:
             await connection.close()
 
