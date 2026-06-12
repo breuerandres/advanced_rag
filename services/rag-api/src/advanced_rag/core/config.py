@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     chat_token_public_keys_by_kid: dict[str, str] = {}
     dotnet_jwks_url: str = ""
     dotnet_session_validate_url: str = "http://dotnet-api:8080/internal/session/validate"
+    multimodal_enabled: bool = True
+    multimodal_max_images: int = 3
+    multimodal_max_total_image_bytes: int = 5242880  # 5 MB
+    multimodal_image_detail: str = "low"
+    dotnet_internal_base_url: str = "http://dotnet-api:8080"
     session_cookie_name: str = "__Host-session"
     session_validation_cache_seconds: int = 60
     log_directory: str = "/var/log/rag-api"
