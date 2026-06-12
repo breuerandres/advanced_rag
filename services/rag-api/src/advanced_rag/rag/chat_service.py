@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import math
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -19,11 +20,23 @@ from advanced_rag.core.errors import ApiException
 from advanced_rag.providers.base import (
     IEmbeddingProvider,
     ILlmProvider,
+    ImageInput,
+    IMultimodalLlmProvider,
     IRerankerProvider,
 )
-from advanced_rag.rag.answer_generator import AnswerGeneration, generate_answer
+from advanced_rag.rag.answer_generator import (
+    AnswerGeneration,
+    generate_answer,
+    generate_multimodal_answer,
+)
 from advanced_rag.rag.chunking import CHUNKER_VERSION
 from advanced_rag.rag.conversation_memory import condense_question, load_session_history
+from advanced_rag.rag.multimodal_images import (
+    SelectedMultimodalImage,
+    fetch_selected_images,
+    load_image_candidates,
+    select_image_candidates,
+)
 from advanced_rag.rag.hybrid_retrieval import (
     HybridCandidate,
     HybridRetrievalParams,
@@ -211,6 +224,7 @@ class ChatService:
             )
 
             embedding_tokens = _estimate_tokens(retrieval_question)
+            selected_images: list[SelectedMultimodalImage] = []
             if not chunks:
                 completion = AnswerGeneration(
                     answer=(
@@ -224,17 +238,33 @@ class ChatService:
                 input_tokens = embedding_tokens
                 output_tokens = _estimate_tokens(completion.answer)
             else:
-                completion = await generate_answer(
-                    llm=self._llm_provider,
-                    question=retrieval_question,
-                    chunks=chunks,
-                    locale=active_locale,
-                    model=self._settings.resolved_chat_model,
-                    temperature=self._settings.openai_chat_temperature,
-                    max_tokens=self._settings.openai_chat_max_tokens,
-                )
+                # Query-time multimodal: select authorized images from the final
+                # retrieved chunks. Falls back to the text path when none survive.
+                selected_images = await self._select_multimodal_images(session, chunks, claims)
+                if selected_images:
+                    completion = await generate_multimodal_answer(
+                        llm=cast(IMultimodalLlmProvider, self._llm_provider),
+                        question=retrieval_question,
+                        chunks=chunks,
+                        images=[_to_image_input(image) for image in selected_images],
+                        locale=active_locale,
+                        model=self._settings.resolved_chat_model,
+                        temperature=self._settings.openai_chat_temperature,
+                        max_tokens=self._settings.openai_chat_max_tokens,
+                    )
+                else:
+                    completion = await generate_answer(
+                        llm=self._llm_provider,
+                        question=retrieval_question,
+                        chunks=chunks,
+                        locale=active_locale,
+                        model=self._settings.resolved_chat_model,
+                        temperature=self._settings.openai_chat_temperature,
+                        max_tokens=self._settings.openai_chat_max_tokens,
+                    )
                 input_tokens = (completion.usage.input_tokens or 0) + embedding_tokens
                 output_tokens = completion.usage.output_tokens or 0
+            multimodal_used = bool(selected_images)
 
             citations = [
                 Citation(
@@ -284,9 +314,18 @@ class ChatService:
                 filters_hash=filters_hash,
                 rerank_audit=rerank_audit,
                 scope_document_id=scope_document_id,
+                multimodal_used=multimodal_used,
+                multimodal_image_count=len(selected_images),
+                multimodal_image_detail=(
+                    self._settings.multimodal_image_detail if selected_images else None
+                ),
+                multimodal_image_bytes_total=sum(image.byte_count for image in selected_images),
+                multimodal_image_ids=(
+                    [str(image.image_id) for image in selected_images] or None
+                ),
             )
             await self._insert_citations(session, audit_id, citations)
-            if citations and scope_document_id is None:
+            if citations and scope_document_id is None and not multimodal_used:
                 await self._write_cache(
                     session,
                     audit_id=audit_id,
@@ -440,6 +479,38 @@ class ChatService:
                 "Embedding provider returned no vectors.",
             )
         return vectors[0]
+
+    async def _select_multimodal_images(
+        self,
+        session: AsyncSession,
+        chunks: list[RetrievedChunk],
+        claims: ChatTokenClaims,
+    ) -> list[SelectedMultimodalImage]:
+        """Select and fetch authorized images for the final retrieved chunks.
+
+        Returns an empty list (text-only path) when multimodal is disabled, the
+        provider has no `multimodal_complete`, no chunk has images, or every fetch
+        is dropped (auth/size/transport). A single fetch failure never fails chat.
+        """
+        if not (self._settings.multimodal_enabled and chunks):
+            return []
+        if getattr(self._llm_provider, "multimodal_complete", None) is None:
+            return []
+        candidates = await load_image_candidates(session, [chunk.id for chunk in chunks])
+        selected_candidates = select_image_candidates(
+            candidates, max_images=self._settings.multimodal_max_images
+        )
+        if not selected_candidates:
+            return []
+        return await fetch_selected_images(
+            selected_candidates,
+            user_id=UUID(claims.user_id),
+            roles=[claims.role],
+            internal_token=self._settings.resolved_internal_service_token,
+            base_url=self._settings.dotnet_internal_base_url,
+            max_total_bytes=self._settings.multimodal_max_total_image_bytes,
+            detail=self._settings.multimodal_image_detail,
+        )
 
     async def _retrieve_chunks(
         self,
@@ -720,6 +791,11 @@ class ChatService:
         filters_hash: str | None,
         rerank_audit: dict | None,
         scope_document_id: UUID | None = None,
+        multimodal_used: bool = False,
+        multimodal_image_count: int = 0,
+        multimodal_image_detail: str | None = None,
+        multimodal_image_bytes_total: int = 0,
+        multimodal_image_ids: list[str] | None = None,
     ) -> None:
         await session.execute(
             text(
@@ -733,7 +809,9 @@ class ChatService:
                     session_id, previous_event_id, rewritten_question, filters, filters_hash,
                     vector_top_k, bm25_top_k, rerank_top_k,
                     reranker_model, reranker_score,
-                    scope_document_id
+                    scope_document_id,
+                    multimodal_used, multimodal_image_count, multimodal_image_detail,
+                    multimodal_image_bytes_total, multimodal_image_ids
                 )
                 values (
                     :id, :user_id, :request_id, :question, :answer, :cache_hit, :cached_at,
@@ -744,7 +822,9 @@ class ChatService:
                     :session_id, :previous_event_id, :rewritten_question, cast(:filters as jsonb), :filters_hash,
                     :vector_top_k, :bm25_top_k, :rerank_top_k,
                     :reranker_model, :reranker_score,
-                    :scope_document_id
+                    :scope_document_id,
+                    :multimodal_used, :multimodal_image_count, :multimodal_image_detail,
+                    :multimodal_image_bytes_total, cast(:multimodal_image_ids as jsonb)
                 )
                 """
             ),
@@ -786,6 +866,13 @@ class ChatService:
                     Decimal(str(rerank_audit["top_score"])) if rerank_audit else None
                 ),
                 "scope_document_id": scope_document_id,
+                "multimodal_used": multimodal_used,
+                "multimodal_image_count": multimodal_image_count,
+                "multimodal_image_detail": multimodal_image_detail,
+                "multimodal_image_bytes_total": multimodal_image_bytes_total,
+                "multimodal_image_ids": (
+                    json.dumps(multimodal_image_ids) if multimodal_image_ids else None
+                ),
             },
         )
 
@@ -954,6 +1041,14 @@ def _calculate_cost(
         + Decimal(input_tokens) * chat_pricing.input_token_price_usd
         + Decimal(output_tokens) * chat_pricing.output_token_price_usd
     ).quantize(Decimal("0.00000001"))
+
+
+def _to_image_input(image: SelectedMultimodalImage) -> ImageInput:
+    return ImageInput(
+        data_base64=base64.b64encode(image.bytes_data).decode("ascii"),
+        media_type=image.content_type,
+        detail=image.detail,
+    )
 
 
 def _estimate_tokens(text: str) -> int:

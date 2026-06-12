@@ -26,8 +26,10 @@ from advanced_rag.providers.base import (
     ChatCompletionDelta,
     ChatCompletionRequest,
     ChatUsage,
+    ImageInput,
 )
 from advanced_rag.rag.hybrid_retrieval import HybridRetrievalParams, hybrid_retrieve
+from advanced_rag.rag.multimodal_images import SelectedMultimodalImage
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -251,6 +253,154 @@ def test_only_current_published_version_is_retrieved() -> None:
     assert state["citation_document_ids"] == [allowed_document_id]
     assert set(state["citation_document_version_ids"]) == {version_b}
     assert version_a not in state["citation_document_version_ids"]
+
+
+def _multimodal_chat_app(database: "ChatDatabase", llm: "MultimodalFakeLlmProvider") -> Any:
+    return create_app(
+        Settings(
+            rag_database_url=database.async_url,
+            openai_chat_model=CHAT_MODEL,
+            openai_embedding_model=EMBEDDING_MODEL,
+            openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+            customer_timezone="UTC",
+            enable_reranker=False,
+            internal_service_token="test-internal",
+            csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+        ),
+        embedding_provider=FakeEmbeddingProvider(),
+        llm_provider=llm,
+        session_validator=FakeSessionValidator(
+            ChatTokenClaims(
+                user_id=str(USER_ID),
+                role="Viewer",
+                groups=[str(ALLOWED_GROUP_ID)],
+                access_scope_hash="scope-allowed",
+                corpus="published",
+            )
+        ),
+    )
+
+
+def test_chat_uses_multimodal_generation_when_retrieved_chunks_have_images(
+    monkeypatch: Any,
+) -> None:
+    image_id = uuid4()
+
+    async def fake_fetch(candidates: list[Any], **kwargs: Any) -> list[SelectedMultimodalImage]:
+        return [
+            SelectedMultimodalImage(
+                image_id=image_id,
+                content_type="image/png",
+                bytes_data=b"\x89PNG",
+                byte_count=4,
+                detail="low",
+            )
+        ]
+
+    monkeypatch.setattr("advanced_rag.rag.chat_service.fetch_selected_images", fake_fetch)
+
+    with _postgres() as database:
+        allowed_document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=allowed_document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        asyncio.run(database.seed_chunk_image(allowed_document_id, image_id))
+        llm = MultimodalFakeLlmProvider()
+        app = _multimodal_chat_app(database, llm)
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        response = client.post("/api/chat", json={"question": "What credential rule applies?"})
+        state = asyncio.run(database.read_audit_state())
+
+    assert response.status_code == 200
+    assert len(llm.multimodal_calls) == 1
+    assert state["audit"]["multimodal_used"] is True
+    assert state["audit"]["multimodal_image_count"] == 1
+    assert state["audit"]["multimodal_image_detail"] == "low"
+    assert state["audit"]["multimodal_image_bytes_total"] == 4
+    assert state["citation_document_ids"] == [allowed_document_id]
+
+
+def test_multimodal_answer_is_not_written_to_semantic_cache(monkeypatch: Any) -> None:
+    image_id = uuid4()
+
+    async def fake_fetch(candidates: list[Any], **kwargs: Any) -> list[SelectedMultimodalImage]:
+        return [
+            SelectedMultimodalImage(
+                image_id=image_id,
+                content_type="image/png",
+                bytes_data=b"\x89PNG",
+                byte_count=4,
+                detail="low",
+            )
+        ]
+
+    monkeypatch.setattr("advanced_rag.rag.chat_service.fetch_selected_images", fake_fetch)
+
+    with _postgres() as database:
+        allowed_document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=allowed_document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        asyncio.run(database.seed_chunk_image(allowed_document_id, image_id))
+        app = _multimodal_chat_app(database, MultimodalFakeLlmProvider())
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        response = client.post("/api/chat", json={"question": "What credential rule applies?"})
+        cache_count = asyncio.run(database.count_semantic_cache_entries())
+
+    assert response.status_code == 200
+    assert cache_count == 0
+
+
+def test_chat_falls_back_to_text_when_image_fetch_returns_no_images(monkeypatch: Any) -> None:
+    image_id = uuid4()
+
+    async def fake_fetch(candidates: list[Any], **kwargs: Any) -> list[SelectedMultimodalImage]:
+        return []
+
+    monkeypatch.setattr("advanced_rag.rag.chat_service.fetch_selected_images", fake_fetch)
+
+    with _postgres() as database:
+        allowed_document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=allowed_document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        asyncio.run(database.seed_chunk_image(allowed_document_id, image_id))
+        llm = MultimodalFakeLlmProvider()
+        app = _multimodal_chat_app(database, llm)
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        response = client.post("/api/chat", json={"question": "What credential rule applies?"})
+        state = asyncio.run(database.read_audit_state())
+        cache_count = asyncio.run(database.count_semantic_cache_entries())
+
+    assert response.status_code == 200
+    assert llm.multimodal_calls == []
+    assert state["audit"]["multimodal_used"] is False
+    assert state["citation_document_ids"] == [allowed_document_id]
+    assert cache_count == 1
 
 
 def test_semantic_cache_reuses_only_matching_access_scope_and_can_be_invalidated() -> None:
@@ -1728,6 +1878,43 @@ class ChatDatabase:
             await connection.close()
         return [row["document_version_id"] for row in rows]
 
+    async def seed_chunk_image(self, document_id: UUID, image_id: UUID, ordinal: int = 0) -> None:
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            row = await connection.fetchrow(
+                """
+                SELECT id, document_version_id
+                FROM rag.document_chunks
+                WHERE document_id = $1 AND corpus = 'published' AND is_active = true
+                ORDER BY chunk_index
+                LIMIT 1
+                """,
+                document_id,
+            )
+            await connection.execute(
+                """
+                INSERT INTO rag.document_chunk_images (
+                    id, chunk_id, document_id, document_version_id, image_id, ordinal
+                )
+                VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                uuid4(),
+                row["id"],
+                document_id,
+                row["document_version_id"],
+                image_id,
+                ordinal,
+            )
+        finally:
+            await connection.close()
+
+    async def count_semantic_cache_entries(self) -> int:
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            return await connection.fetchval("SELECT count(*) FROM rag.semantic_cache_entries")
+        finally:
+            await connection.close()
+
     async def read_audit_state(self) -> dict[str, Any]:
         connection = await asyncpg.connect(self.dsn)
         try:
@@ -2030,6 +2217,24 @@ class CondensingFakeLlmProvider(FakeLlmProvider):
             self.condense_calls.append(req)
             return self.rewritten_question, ChatUsage(input_tokens=8, output_tokens=4)
         return await super().chat_complete(req)
+
+
+class MultimodalFakeLlmProvider(FakeLlmProvider):
+    """`FakeLlmProvider` that also advertises the multimodal capability.
+
+    Reuses the text answer logic so citations still resolve, while recording the
+    images it was handed so tests can assert the multimodal path ran.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.multimodal_calls: list[list[ImageInput]] = []
+
+    async def multimodal_complete(
+        self, req: ChatCompletionRequest, images: list[ImageInput]
+    ) -> tuple[str, ChatUsage]:
+        self.multimodal_calls.append(list(images))
+        return await self.chat_complete(req)
 
 
 class FakeSessionValidator:
