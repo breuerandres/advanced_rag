@@ -90,15 +90,20 @@ class InternalIndexingService:
                 if len(embeddings) != len(chunks):
                     raise RuntimeError("Embedding provider returned a mismatched embedding count.")
 
+                # Deactivate prior chunks by (document, corpus): this covers both
+                # re-indexing the same version and superseding an older published
+                # version, while a preview index never deactivates published chunks.
                 await session.execute(
                     text(
                         """
                         update rag.document_chunks
                         set is_active = false
-                        where document_version_id = :document_version_id
+                        where document_id = :document_id
+                          and corpus = :corpus
+                          and is_active = true
                         """
                     ),
-                    {"document_version_id": request.document_version_id},
+                    {"document_id": request.document_id, "corpus": request.corpus_mode},
                 )
                 for chunk, embedding in zip(chunks, embeddings, strict=True):
                     await session.execute(

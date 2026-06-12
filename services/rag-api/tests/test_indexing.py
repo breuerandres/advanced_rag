@@ -98,6 +98,101 @@ def test_valid_indexing_request_persists_job_chunks_and_embedding_dimensions() -
     assert state["job_embedding_model"] == EMBEDDING_MODEL
 
 
+def test_new_version_deactivates_previous_version_chunks() -> None:
+    with PostgresContainer(
+        image=POSTGRES_IMAGE,
+        username=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+        dbname=POSTGRES_DB,
+    ) as postgres:
+        host = postgres.get_container_host_ip()
+        port = postgres.get_exposed_port(5432)
+        async_url = _async_sqlalchemy_url(host, port)
+        asyncpg_dsn = _asyncpg_dsn(host, port)
+        asyncio.run(_bootstrap_rag_schema(asyncpg_dsn))
+        _run_migrations(async_url)
+
+        app = create_app(
+            Settings(
+                rag_database_url=async_url,
+                internal_service_token=INTERNAL_TOKEN,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+        )
+        client = TestClient(app)
+        headers = {"X-Internal-Service-Token": INTERNAL_TOKEN}
+
+        document_id = uuid4()
+        version_v1 = uuid4()
+        version_v2 = uuid4()
+        other_document_id = uuid4()
+        other_version = uuid4()
+
+        # A different document indexed first must stay active after D is reindexed.
+        other = client.post(
+            "/internal/indexing-jobs",
+            json={
+                "documentId": str(other_document_id),
+                "documentVersionId": str(other_version),
+                "contentHtml": "<h1>Other</h1><p>Unrelated content.</p>",
+                "corpusMode": "published",
+            },
+            headers=headers,
+        )
+        assert other.status_code == 200
+
+        first = client.post(
+            "/internal/indexing-jobs",
+            json={
+                "documentId": str(document_id),
+                "documentVersionId": str(version_v1),
+                "contentHtml": "<h1>Safety</h1><p>Wear visible credentials.</p>",
+                "corpusMode": "published",
+            },
+            headers=headers,
+        )
+        assert first.status_code == 200
+        assert first.json()["status"] == "Succeeded"
+
+        second = client.post(
+            "/internal/indexing-jobs",
+            json={
+                "documentId": str(document_id),
+                "documentVersionId": str(version_v2),
+                "contentHtml": "<h1>Safety</h1><p>Always wear visible credentials.</p>",
+                "corpusMode": "published",
+            },
+            headers=headers,
+        )
+        assert second.status_code == 200
+        assert second.json()["status"] == "Succeeded"
+
+        v1_active = asyncio.run(_count_active_chunks_for_version(asyncpg_dsn, version_v1))
+        v2_active = asyncio.run(_count_active_chunks_for_version(asyncpg_dsn, version_v2))
+        other_active = asyncio.run(_count_active_chunks_for_version(asyncpg_dsn, other_version))
+
+    assert v1_active == 0
+    assert v2_active >= 1
+    assert other_active >= 1
+
+
+async def _count_active_chunks_for_version(dsn: str, version_id: UUID) -> int:
+    connection = await asyncpg.connect(dsn)
+    try:
+        return await connection.fetchval(
+            """
+            select count(*)
+            from rag.document_chunks
+            where document_version_id = $1 and is_active = true
+            """,
+            version_id,
+        )
+    finally:
+        await connection.close()
+
+
 def _indexing_payload() -> dict[str, str]:
     return {
         "documentId": str(uuid4()),
