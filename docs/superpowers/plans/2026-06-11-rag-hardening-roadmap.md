@@ -39,7 +39,7 @@ Status tracking: mark the checkbox here when a slice is merged and verified.
 - [x] Slice 3 — Query-time multimodal RAG (branch `rag-hardening-s1-3`, agent-verified; Compose acceptance pending)
 - [x] Slice 4 — Retrieval scale (branch `rag-hardening-s1-3`, agent-verified; Compose acceptance pending)
 - [x] Slice 5 — Semantic cache scale + fidelity (branch `rag-hardening-s1-3`, agent-verified; Compose acceptance pending)
-- [ ] Slice 6 — Operational hardening
+- [x] Slice 6 — Operational hardening (branch `rag-hardening-s1-3`, agent-verified; Compose acceptance pending). Note: E5's budget index already existed (`ix_query_audit_events_user_created_at`), so Task 1 was skipped as redundant; purge service + internal endpoint + runbook delivered.
 - [ ] Slice 7 — True SSE streaming
 
 ## Deliberately Deferred (not in any slice)
