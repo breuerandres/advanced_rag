@@ -1215,23 +1215,13 @@ def _latency_ms(started_at: datetime) -> int:
     return max(1, int((datetime.now(UTC) - started_at).total_seconds() * 1000))
 
 
-def _zero_usage() -> Any:
-    from advanced_rag.providers.base import ChatUsage
-
+def _zero_usage() -> ChatUsage:
     return ChatUsage(input_tokens=0, output_tokens=0)
 
 
 def _month_bounds_utc(now: datetime, timezone_name: str) -> tuple[datetime, datetime]:
-    if timezone_name.upper() == "UTC":
-        local_now = now.astimezone(UTC)
-        local_start = local_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        if local_start.month == 12:
-            local_end = local_start.replace(year=local_start.year + 1, month=1)
-        else:
-            local_end = local_start.replace(month=local_start.month + 1)
-        return local_start, local_end
-    timezone = ZoneInfo(timezone_name)
-    local_now = now.astimezone(timezone)
+    tz = UTC if timezone_name.upper() == "UTC" else ZoneInfo(timezone_name)
+    local_now = now.astimezone(tz)
     local_start = local_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     if local_start.month == 12:
         local_end = local_start.replace(year=local_start.year + 1, month=1)

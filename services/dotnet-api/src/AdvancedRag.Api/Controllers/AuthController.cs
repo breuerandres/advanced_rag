@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using AdvancedRag.Api.Models.Auth;
 using AdvancedRag.Api.Security;
 using AdvancedRag.App.Auth;
@@ -135,7 +134,7 @@ public sealed class AuthController : ApiControllerBase
     [Authorize]
     public async Task<IActionResult> GetSessionAsync(CancellationToken ct)
     {
-        AuthenticatedUser? user = await ResolveCurrentUserAsync(ct);
+        AuthenticatedUser? user = await ResolveCurrentUserAsync(_auth, ct);
         return user is null
             ? Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.")
             : Ok(SessionResponse.FromUser(user));
@@ -146,27 +145,5 @@ public sealed class AuthController : ApiControllerBase
     public IActionResult GetJwks([FromServices] JwtSigningKeyStore keys)
     {
         return Ok(keys.GetJwks());
-    }
-
-    private async Task<AuthenticatedUser?> ResolveCurrentUserAsync(CancellationToken ct)
-    {
-        string? userIdValue = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(userIdValue, out var userId)
-            ? await _auth.GetActiveUserAsync(userId, ct)
-            : null;
-    }
-
-    private static ClaimsPrincipal CreatePrincipal(AuthenticatedUser user)
-    {
-        List<Claim> claims = new()
-        {
-            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Name, user.DisplayName),
-        };
-        claims.AddRange(user.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
-        claims.AddRange(user.Groups.Select(group => new Claim("group", group.Id.ToString())));
-
-        return new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
     }
 }

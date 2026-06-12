@@ -1,8 +1,4 @@
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using AdvancedRag.Api.Models.Auth;
-using AdvancedRag.Api.Security;
 using AdvancedRag.App.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,7 +10,6 @@ namespace AdvancedRag.Api.Controllers;
 [Route("internal/session")]
 public sealed class InternalSessionController : ApiControllerBase
 {
-    private const string InternalServiceTokenHeader = "X-Internal-Service-Token";
     private readonly IAuthService _auth;
     private readonly IEffectiveAccessScopeRepository _effectiveScopes;
     private readonly IConfiguration _configuration;
@@ -32,7 +27,7 @@ public sealed class InternalSessionController : ApiControllerBase
     [HttpGet("validate")]
     public async Task<IActionResult> ValidateAsync(CancellationToken ct)
     {
-        if (!IsInternalTokenValid())
+        if (!IsInternalTokenValid(_configuration))
         {
             return Error(
                 StatusCodes.Status401Unauthorized,
@@ -40,7 +35,7 @@ public sealed class InternalSessionController : ApiControllerBase
                 "Internal service token is invalid.");
         }
 
-        AuthenticatedUser? user = await ResolveCurrentUserAsync(ct);
+        AuthenticatedUser? user = await ResolveCurrentUserAsync(_auth, ct);
         if (user is null)
         {
             return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.");
@@ -63,31 +58,4 @@ public sealed class InternalSessionController : ApiControllerBase
             scope.Corpus));
     }
 
-    private async Task<AuthenticatedUser?> ResolveCurrentUserAsync(CancellationToken ct)
-    {
-        string? userIdValue = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(userIdValue, out Guid userId)
-            ? await _auth.GetActiveUserAsync(userId, ct)
-            : null;
-    }
-
-    private bool IsInternalTokenValid()
-    {
-        string? supplied = Request.Headers[InternalServiceTokenHeader].FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(supplied))
-        {
-            return false;
-        }
-
-        string expected = SecretConfiguration.Read(
-            _configuration,
-            "InternalService:Token",
-            _configuration["InternalService:TokenFile"] is null
-                ? "InternalServiceTokenFile"
-                : "InternalService:TokenFile");
-
-        byte[] suppliedBytes = Encoding.UTF8.GetBytes(supplied);
-        byte[] expectedBytes = Encoding.UTF8.GetBytes(expected);
-        return CryptographicOperations.FixedTimeEquals(suppliedBytes, expectedBytes);
-    }
 }

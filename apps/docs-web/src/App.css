@@ -22,12 +22,28 @@
   gap: 10px;
 }
 
-.auth-toolbar {
+.auth-card-stack {
+  position: relative;
+  align-self: stretch;
+  justify-self: stretch;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 24px 0;
+}
+
+.auth-surface-controls {
+  position: absolute;
+  top: 24px;
+  right: 32px;
   display: flex;
+  align-items: end;
   justify-content: flex-end;
-  gap: 10px;
-  margin: 0 auto 14px;
-  max-width: 420px;
+  gap: 8px;
+  width: auto;
+  z-index: 1;
 }
 
 h1,
@@ -717,6 +733,16 @@ h2 {
 
   .portal-controls {
     grid-template-columns: 1fr;
+  }
+
+  .auth-card-stack {
+    align-content: start;
+    padding: 84px 0 32px;
+  }
+
+  .auth-surface-controls {
+    top: 20px;
+    right: 16px;
   }
 
   .doc-chat-panel {

@@ -113,11 +113,6 @@ public sealed class UsersController : ApiControllerBase
         }
     }
 
-    private IReadOnlyList<string> ActorRoles()
-    {
-        return User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(claim => claim.Value).ToArray();
-    }
-
     [HttpPatch("{id:guid}/status")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> SetUserStatusAsync(

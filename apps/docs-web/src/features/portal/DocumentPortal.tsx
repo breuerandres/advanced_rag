@@ -72,7 +72,7 @@ export function DocumentPortal({
         <div className="category-strip">
           <button
             type="button"
-            className={selectedType === 'all' ? 'category-button selected' : 'category-button'}
+            className={`category-button${selectedType === 'all' ? ' selected' : ''}`}
             onClick={() => setSelectedType('all')}
           >
             {t('portal.filter_all')}
@@ -81,7 +81,7 @@ export function DocumentPortal({
             <button
               key={type}
               type="button"
-              className={selectedType === type ? 'category-button selected' : 'category-button'}
+              className={`category-button${selectedType === type ? ' selected' : ''}`}
               onClick={() => setSelectedType(type)}
             >
               {type}

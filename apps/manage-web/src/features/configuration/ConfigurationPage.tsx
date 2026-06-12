@@ -14,6 +14,7 @@ export function ConfigurationPage() {
 
   useEffect(() => {
     void loadConfiguration()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time mount load; loadConfiguration is stable within the component lifetime
   }, [])
 
   async function loadConfiguration() {

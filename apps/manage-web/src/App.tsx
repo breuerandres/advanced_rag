@@ -23,13 +23,11 @@ import {
   type SessionHandoffTarget,
   type SetupStatus,
 } from './api/auth'
+import { ManagementNav, type ProductSurface, type ManagementSection } from './components/ManagementNav'
 import {
-  ManagementNav,
   allowedManagementSections,
   buildProductSurfaceUrl,
-  type ProductSurface,
-  type ManagementSection,
-} from './components/ManagementNav'
+} from './components/managementNavUtils'
 import { AccountPage } from './features/account/AccountPage'
 import { AuditPage } from './features/audit/AuditPage'
 import { ConfigurationPage } from './features/configuration/ConfigurationPage'

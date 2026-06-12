@@ -17,6 +17,7 @@ export function AuditPage() {
 
   useEffect(() => {
     void loadEvents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time mount load; loadEvents is stable within the component lifetime
   }, [])
 
   async function loadEvents() {

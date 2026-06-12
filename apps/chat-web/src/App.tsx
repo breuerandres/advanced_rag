@@ -155,7 +155,7 @@ export default function App() {
 
   const drawerCitations = useMemo(
     () =>
-      uniqueCitations(activeDrawerCitations).map((citation) => ({
+      activeDrawerCitations.map((citation) => ({
         id: `${citation.documentId}-${citation.documentVersionId}`,
         title: citation.headingPath[0] ?? t('chat.cited_document'),
         headingPath: citation.headingPath.length > 1 ? citation.headingPath : undefined,
@@ -253,7 +253,7 @@ export default function App() {
   }
 
   async function handleAsk(nextQuestion: string) {
-    const sessionId = activeConversationId || createConversationId()
+    const sessionId = activeConversationId
     pendingTurnSeqRef.current += 1
     const pendingTurnId = `pending-${pendingTurnSeqRef.current}`
     let streamedAnswer = ''
@@ -458,7 +458,7 @@ export default function App() {
   }
 
   return (
-    <div className={isCitationDrawerOpen ? 'chat-app-layout citations-open' : 'chat-app-layout'}>
+    <div className={`chat-app-layout${isCitationDrawerOpen ? ' citations-open' : ''}`}>
       <ChatSidebar
         conversations={conversations}
         user={sessionUser}
@@ -538,9 +538,7 @@ export default function App() {
                               {turn.queryAuditEventId ? (
                                 <div className="feedback-actions" aria-label={t('chat.feedback_group')}>
                                   <button
-                                    className={
-                                      draft.value === 'up' ? 'feedback-button selected' : 'feedback-button'
-                                    }
+                                    className={`feedback-button${draft.value === 'up' ? ' selected' : ''}`}
                                     type="button"
                                     aria-label={t('chat.feedback_helpful')}
                                     title={t('chat.feedback_helpful')}
@@ -550,9 +548,7 @@ export default function App() {
                                     <ThumbsUp size={15} aria-hidden="true" />
                                   </button>
                                   <button
-                                    className={
-                                      draft.value === 'down' ? 'feedback-button selected' : 'feedback-button'
-                                    }
+                                    className={`feedback-button${draft.value === 'down' ? ' selected' : ''}`}
                                     type="button"
                                     aria-label={t('chat.feedback_not_helpful')}
                                     title={t('chat.feedback_not_helpful')}

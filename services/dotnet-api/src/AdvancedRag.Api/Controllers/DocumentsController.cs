@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using AdvancedRag.Api.Models.Documents;
 using AdvancedRag.App.Documents;
 using Microsoft.AspNetCore.Authorization;
@@ -206,11 +205,6 @@ public sealed class DocumentsController : ApiControllerBase
     }
 
     private const int DocumentImportExtractionServiceMaxSize = 10 * 1024 * 1024;
-
-    private IReadOnlyList<string> ActorRoles()
-    {
-        return User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray();
-    }
 
     private static IReadOnlyList<DocumentAccessRuleDraft> ToAccessRules(SaveDocumentDraftRequest request)
     {

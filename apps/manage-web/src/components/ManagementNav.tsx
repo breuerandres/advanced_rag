@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { canAccessSection, buildProductSurfaceUrl } from './managementNavUtils'
 
 export type ManagementSection =
   | 'documents'
@@ -103,60 +104,4 @@ export function ManagementNav({
       })}
     </nav>
   )
-}
-
-export function allowedManagementSections(userRoles: string[]): ManagementSection[] {
-  return links
-    .filter((link) => canAccessSection(link.id, userRoles))
-    .map((link) => link.id)
-}
-
-function canAccessSection(section: ManagementSection, userRoles: string[]) {
-  if (section === 'account') {
-    return true
-  }
-
-  if (section === 'configuration') {
-    return true
-  }
-
-  if (section === 'organizational-units') {
-    return userRoles.includes('Admin')
-  }
-
-  if (
-    userRoles.includes('Admin') ||
-    userRoles.includes('DocumentEditor') ||
-    userRoles.includes('DocumentPublisher')
-  ) {
-    return true
-  }
-
-  return false
-}
-
-export function buildProductSurfaceUrl(surface: ProductSurface): string {
-  const origin =
-    typeof window.location.origin === 'string' && window.location.origin.length > 0
-      ? window.location.origin
-      : 'https://manage.localhost'
-  const url = new URL(origin)
-  const labels = url.hostname.split('.')
-
-  if (labels[0] === 'manage') {
-    labels[0] = surface
-    url.hostname = labels.join('.')
-  } else if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-    url.protocol = 'https:'
-    url.hostname = `${surface}.localhost`
-    url.port = ''
-  } else {
-    url.hostname = `${surface}.${url.hostname}`
-  }
-
-  url.pathname = '/'
-  url.search = ''
-  url.hash = ''
-
-  return url.toString()
 }

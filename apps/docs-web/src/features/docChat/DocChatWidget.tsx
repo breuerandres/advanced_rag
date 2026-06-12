@@ -25,7 +25,7 @@ export function DocChatWidget({ documentId }: { documentId: string }) {
               <p>{t('docChat.subtitle')}</p>
             </div>
             <div className="doc-chat-header-actions">
-              {(chat.turns.length > 0 || !!chat.failure) ? (
+              {(chat.turns.length > 0 || chat.failure !== null) ? (
                 <button
                   type="button"
                   className="icon-button"
@@ -141,7 +141,7 @@ function DocChatTurnView({
             <div className="doc-chat-feedback">
               <button
                 type="button"
-                className={turn.feedback.value === 'up' ? 'feedback-button selected' : 'feedback-button'}
+                className={`feedback-button${turn.feedback.value === 'up' ? ' selected' : ''}`}
                 aria-pressed={turn.feedback.value === 'up'}
                 aria-label={t('docChat.feedback_up')}
                 title={t('docChat.feedback_up')}
@@ -151,7 +151,7 @@ function DocChatTurnView({
               </button>
               <button
                 type="button"
-                className={turn.feedback.value === 'down' ? 'feedback-button selected' : 'feedback-button'}
+                className={`feedback-button${turn.feedback.value === 'down' ? ' selected' : ''}`}
                 aria-pressed={turn.feedback.value === 'down'}
                 aria-label={t('docChat.feedback_down')}
                 title={t('docChat.feedback_down')}

@@ -33,37 +33,39 @@ export function DocsLoginPage({ onAuthenticated }: { onAuthenticated: (user: Ses
 
   return (
     <AuthShell>
-      <div className="auth-toolbar">
-        <LanguageSelect
-          label={t('common.language')}
-          value={i18n.resolvedLanguage ?? i18n.language}
-          onChange={(value) => void i18n.changeLanguage(value)}
-          options={[
-            { value: 'es-AR', label: 'ES' },
-            { value: 'en-US', label: 'EN' },
-          ]}
-        />
-        <DarkModeToggle label={t('common.toggle_theme')} />
-      </div>
-      <form className="auth-card" onSubmit={submit}>
-        <AuthCardHeader eyebrow={t('login.eyebrow')} title={t('login.title')} />
-        {errorKey ? <p className="status-message error">{t(errorKey)}</p> : null}
-        <label className="field">
-          <span>{t('login.email')}</span>
-          <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>{t('login.password')}</span>
-          <Input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
+      <section className="auth-card-stack" aria-label={t('login.title')}>
+        <div className="auth-surface-controls">
+          <LanguageSelect
+            label={t('common.language')}
+            value={i18n.resolvedLanguage ?? i18n.language}
+            onChange={(value) => void i18n.changeLanguage(value)}
+            options={[
+              { value: 'es-AR', label: 'ES' },
+              { value: 'en-US', label: 'EN' },
+            ]}
           />
-        </label>
-        <Button className="primary-button" type="submit" disabled={isSubmitting}>
-          {t('login.submit')}
-        </Button>
-      </form>
+          <DarkModeToggle label={t('common.toggle_theme')} />
+        </div>
+        <form className="auth-card" onSubmit={submit}>
+          <AuthCardHeader eyebrow={t('login.eyebrow')} title={t('login.title')} />
+          {errorKey ? <p className="status-message error">{t(errorKey)}</p> : null}
+          <label className="field">
+            <span>{t('login.email')}</span>
+            <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>{t('login.password')}</span>
+            <Input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+          <Button className="primary-button" type="submit" disabled={isSubmitting}>
+            {t('login.submit')}
+          </Button>
+        </form>
+      </section>
     </AuthShell>
   )
 }

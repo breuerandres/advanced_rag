@@ -107,8 +107,7 @@ def error_response(
 
 
 def _validation_errors(exception: RequestValidationError) -> list[dict[str, str]]:
-    errors: list[dict[str, str]] = []
-    for error in exception.errors():
-        field = ".".join(str(part) for part in error["loc"])
-        errors.append({"field": field, "message": str(error["msg"])})
-    return errors
+    return [
+        {"field": ".".join(str(part) for part in error["loc"]), "message": str(error["msg"])}
+        for error in exception.errors()
+    ]

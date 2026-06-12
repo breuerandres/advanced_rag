@@ -288,8 +288,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
   }
 
   return (
-    <>
-      <section className="workspace" id="documentos">
+    <section className="workspace" id="documentos">
         <header className="workspace-header">
           <div>
             <p className="eyebrow">{t("documents.eyebrow")}</p>
@@ -624,8 +623,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
             </div>
           </div>
         )}
-      </section>
-    </>
+    </section>
   );
 }
 

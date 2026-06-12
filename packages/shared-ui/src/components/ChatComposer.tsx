@@ -59,6 +59,8 @@ export function ChatComposer({
     setValue('');
   }
 
+  const buttonLabel = disabled && pendingLabel ? pendingLabel : submitLabel;
+
   return (
     <form className="grid gap-3" onSubmit={handleSubmit}>
       <Textarea
@@ -79,9 +81,9 @@ export function ChatComposer({
         ) : (
           <span />
         )}
-        <Button type="submit" disabled={disabled || !normalizedValue} aria-label={disabled && pendingLabel ? pendingLabel : submitLabel}>
+        <Button type="submit" disabled={disabled || !normalizedValue} aria-label={buttonLabel}>
           <Send className="h-4 w-4" aria-hidden="true" />
-          <span>{disabled && pendingLabel ? pendingLabel : submitLabel}</span>
+          <span>{buttonLabel}</span>
         </Button>
       </div>
     </form>

@@ -197,7 +197,7 @@ export async function createViewerLink(documentId: string): Promise<string> {
       'X-CSRF-Token': csrfToken ?? '',
       'X-Request-ID': createRequestId(),
     },
-    body: JSON.stringify({ documentId: documentId, purpose: 'chat' }),
+    body: JSON.stringify({ documentId, purpose: 'chat' }),
   })
   const body = safeJson(await response.text())
   if (!response.ok) {

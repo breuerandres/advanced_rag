@@ -40,7 +40,7 @@ interface CommandPaletteProps {
 export function CommandPalette({
   groups,
   placeholder = 'Search…',
-  bindShortcut = true,
+  bindShortcut: _bindShortcut = true,
 }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
 
@@ -57,10 +57,6 @@ export function CommandPalette({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
-
-  if (!bindShortcut) {
-    // For now we always bind. Future: respect bindShortcut=false for controlled mode.
-  }
 
   if (!open) return null;
 

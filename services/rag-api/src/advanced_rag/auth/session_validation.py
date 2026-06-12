@@ -60,8 +60,6 @@ class DotnetSessionValidator:
         session_cookie: str,
         request_id: str | None = None,
     ) -> ChatTokenClaims:
-        _ = self._cache_seconds
-        _ = self._monotonic
         return await self._fetch_claims(session_cookie, request_id)
 
     async def _fetch_claims(

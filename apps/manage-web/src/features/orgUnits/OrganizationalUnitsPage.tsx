@@ -27,10 +27,6 @@ export function OrganizationalUnitsPage() {
   const [dialog, setDialog] = useState<DialogState | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    void loadUnits()
-  }, [])
-
   async function loadUnits() {
     setLoadState('loading')
     try {
@@ -42,6 +38,11 @@ export function OrganizationalUnitsPage() {
       setLoadState('error')
     }
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial load synchronizes remote data on mount.
+    void loadUnits()
+  }, [])
 
   const childrenByParent = useMemo(() => {
     const map = new Map<string | null, OrganizationalUnitSummary[]>()

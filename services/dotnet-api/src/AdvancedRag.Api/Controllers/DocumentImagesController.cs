@@ -1,8 +1,4 @@
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using AdvancedRag.Api.Models.Documents;
-using AdvancedRag.Api.Security;
 using AdvancedRag.App.DocumentImages;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +8,6 @@ namespace AdvancedRag.Api.Controllers;
 [ApiController]
 public sealed class DocumentImagesController : ApiControllerBase
 {
-    private const string InternalServiceTokenHeader = "X-Internal-Service-Token";
     private readonly IDocumentImageService _images;
     private readonly IConfiguration _configuration;
 
@@ -86,7 +81,7 @@ public sealed class DocumentImagesController : ApiControllerBase
         [FromQuery] string[] roles,
         CancellationToken ct)
     {
-        if (!IsInternalTokenValid())
+        if (!IsInternalTokenValid(_configuration))
         {
             return Error(
                 StatusCodes.Status401Unauthorized,
@@ -108,29 +103,4 @@ public sealed class DocumentImagesController : ApiControllerBase
     }
 
     private const int MaxImageUploadSizeBytes = 5 * 1024 * 1024;
-
-    private IReadOnlyList<string> ActorRoles()
-    {
-        return User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray();
-    }
-
-    private bool IsInternalTokenValid()
-    {
-        string? supplied = Request.Headers[InternalServiceTokenHeader].FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(supplied))
-        {
-            return false;
-        }
-
-        string expected = SecretConfiguration.Read(
-            _configuration,
-            "InternalService:Token",
-            _configuration["InternalService:TokenFile"] is null
-                ? "InternalServiceTokenFile"
-                : "InternalService:TokenFile");
-
-        byte[] suppliedBytes = Encoding.UTF8.GetBytes(supplied);
-        byte[] expectedBytes = Encoding.UTF8.GetBytes(expected);
-        return CryptographicOperations.FixedTimeEquals(suppliedBytes, expectedBytes);
-    }
 }

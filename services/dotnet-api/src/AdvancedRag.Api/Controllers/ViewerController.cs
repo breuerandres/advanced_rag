@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using AdvancedRag.Api.Models.Auth;
 using AdvancedRag.Api.Models.Viewer;
 using AdvancedRag.App.Auth;
@@ -93,7 +92,7 @@ public sealed class ViewerController : ApiControllerBase
     [Authorize]
     public async Task<IActionResult> GetDocumentAsync([FromQuery] Guid documentId, CancellationToken ct)
     {
-        AuthenticatedUser? user = await ResolveCurrentUserAsync(ct);
+        AuthenticatedUser? user = await ResolveCurrentUserAsync(_auth, ct);
         if (user is null)
         {
             return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.");
@@ -116,7 +115,7 @@ public sealed class ViewerController : ApiControllerBase
     [Authorize]
     public async Task<IActionResult> ListDocumentsAsync(CancellationToken ct)
     {
-        AuthenticatedUser? user = await ResolveCurrentUserAsync(ct);
+        AuthenticatedUser? user = await ResolveCurrentUserAsync(_auth, ct);
         if (user is null)
         {
             return Error(StatusCodes.Status401Unauthorized, "AUTH_REQUIRED", "Authentication required.");
@@ -126,30 +125,4 @@ public sealed class ViewerController : ApiControllerBase
         return Ok(ViewerDocumentCatalogResponse.FromCatalog(catalog));
     }
 
-    private IReadOnlyList<string> ActorRoles()
-    {
-        return User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray();
-    }
-
-    private async Task<AuthenticatedUser?> ResolveCurrentUserAsync(CancellationToken ct)
-    {
-        string? userIdValue = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(userIdValue, out var userId)
-            ? await _auth.GetActiveUserAsync(userId, ct)
-            : null;
-    }
-
-    private static ClaimsPrincipal CreatePrincipal(AuthenticatedUser user)
-    {
-        List<Claim> claims =
-        [
-            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Name, user.DisplayName),
-        ];
-        claims.AddRange(user.Roles.Select(role => new Claim(ClaimTypes.Role, role)));
-        claims.AddRange(user.Groups.Select(group => new Claim("group", group.Id.ToString())));
-
-        return new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
-    }
 }

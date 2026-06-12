@@ -80,6 +80,34 @@ def _format_context(chunks: list[Any]) -> str:
     return "\n\n".join(parts)
 
 
+def _build_completion_request(
+    *,
+    question: str,
+    chunks: list[Any],
+    locale: str,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+) -> ChatCompletionRequest:
+    """Build the provider-agnostic completion request shared by all generation paths."""
+    system = load_system_prompt(locale)
+    user_content = (
+        f"Context:\n{_format_context(chunks)}\n\n"
+        f"Question:\n{question}\n\n"
+        f"{JSON_INSTRUCTION}"
+    )
+    return ChatCompletionRequest(
+        messages=[
+            ChatMessage(role="system", content=system),
+            ChatMessage(role="user", content=user_content),
+        ],
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        response_format={"type": "json_object"},
+    )
+
+
 async def generate_answer(
     *,
     llm: ILlmProvider,
@@ -97,21 +125,9 @@ async def generate_answer(
     raw content is returned as the answer with no citations — the caller can decide
     whether to retry or surface it as-is.
     """
-    system = load_system_prompt(locale)
-    user_content = (
-        f"Context:\n{_format_context(chunks)}\n\n"
-        f"Question:\n{question}\n\n"
-        f"{JSON_INSTRUCTION}"
-    )
-    req = ChatCompletionRequest(
-        messages=[
-            ChatMessage(role="system", content=system),
-            ChatMessage(role="user", content=user_content),
-        ],
-        model=model,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        response_format={"type": "json_object"},
+    req = _build_completion_request(
+        question=question, chunks=chunks, locale=locale,
+        model=model, temperature=temperature, max_tokens=max_tokens,
     )
     content, usage = await llm.chat_complete(req)
     answer, cited = _parse_answer(content)
@@ -135,21 +151,9 @@ async def generate_answer_stream(
     model still returns the `{"answer", "cited_chunk_ids"}` JSON payload; the parser
     surfaces `answer` characters as they arrive and citations are parsed at the end.
     """
-    system = load_system_prompt(locale)
-    user_content = (
-        f"Context:\n{_format_context(chunks)}\n\n"
-        f"Question:\n{question}\n\n"
-        f"{JSON_INSTRUCTION}"
-    )
-    req = ChatCompletionRequest(
-        messages=[
-            ChatMessage(role="system", content=system),
-            ChatMessage(role="user", content=user_content),
-        ],
-        model=model,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        response_format={"type": "json_object"},
+    req = _build_completion_request(
+        question=question, chunks=chunks, locale=locale,
+        model=model, temperature=temperature, max_tokens=max_tokens,
     )
     parser = AnswerStreamParser()
     usage = ChatUsage()
@@ -180,21 +184,9 @@ async def generate_multimodal_answer(
     Used only when the configured provider implements `multimodal_complete` and at
     least one authorized image survived selection/caps.
     """
-    system = load_system_prompt(locale)
-    user_content = (
-        f"Context:\n{_format_context(chunks)}\n\n"
-        f"Question:\n{question}\n\n"
-        f"{JSON_INSTRUCTION}"
-    )
-    req = ChatCompletionRequest(
-        messages=[
-            ChatMessage(role="system", content=system),
-            ChatMessage(role="user", content=user_content),
-        ],
-        model=model,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        response_format={"type": "json_object"},
+    req = _build_completion_request(
+        question=question, chunks=chunks, locale=locale,
+        model=model, temperature=temperature, max_tokens=max_tokens,
     )
     content, usage = await llm.multimodal_complete(req, images)
     answer, cited = _parse_answer(content)
