@@ -50,6 +50,8 @@ EXPECTED_INDEXES = {
     "ix_query_audit_session",
     "ix_query_audit_filters_hash",
     "ix_semantic_cache_corpus_scope_filters",
+    # Cache vector index for SQL nearest-neighbor lookup (migration 20260611_160000).
+    "ix_semantic_cache_entries_question_embedding_hnsw",
     "ix_unresolved_questions_cluster",
     "ix_unresolved_questions_status_created",
     "ix_unresolved_questions_embedding_hnsw",
@@ -89,6 +91,12 @@ def test_initial_alembic_migration_creates_owned_rag_schema() -> None:
     assert EXPECTED_INDEXES.issubset(state["indexes"])
     # The global HNSW index is replaced by the partial per-corpus indexes.
     assert "ix_document_chunks_embedding_hnsw" not in state["indexes"]
+    # Semantic cache stores original citations (migration 20260611_160000).
+    assert state["cache_citations_column"] == {
+        "data_type": "jsonb",
+        "is_nullable": "NO",
+        "column_default": "'[]'::jsonb",
+    }
     assert state["active_model_pricing"] == {
         ("gpt-4.1-nano", "chat"),
         ("text-embedding-3-small", "embedding"),
@@ -369,6 +377,15 @@ async def _read_database_state(dsn: str) -> dict[str, Any]:
                 """
             )
         )
+        cache_citations_column = await connection.fetchrow(
+            """
+            select data_type, is_nullable, column_default
+            from information_schema.columns
+            where table_schema = 'rag'
+              and table_name = 'semantic_cache_entries'
+              and column_name = 'citations'
+            """
+        )
     finally:
         await connection.close()
 
@@ -379,6 +396,9 @@ async def _read_database_state(dsn: str) -> dict[str, Any]:
         "vector_extension_exists": vector_extension_exists,
         "document_chunks_embedding_type": embedding_type,
         "reporting_reader_can_select_views": reporting_reader_can_select_views,
+        "cache_citations_column": (
+            dict(cache_citations_column) if cache_citations_column is not None else None
+        ),
         "active_model_pricing": {
             (row["model_id"], row["model_kind"]) for row in active_model_pricing
         },
