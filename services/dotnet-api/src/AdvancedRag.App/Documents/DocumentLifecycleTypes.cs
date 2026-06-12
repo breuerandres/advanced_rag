@@ -227,6 +227,12 @@ public interface IInternalIndexingClient
         CancellationToken ct);
 }
 
+public interface IInternalCacheInvalidationClient
+{
+    /// <summary>Best-effort invalidation of rag semantic-cache entries sourced from the given documents.</summary>
+    Task<int> InvalidateDocumentsAsync(IReadOnlyList<Guid> documentIds, CancellationToken ct);
+}
+
 public sealed class DocumentLifecycleException : Exception
 {
     public DocumentLifecycleException(
