@@ -1,5 +1,5 @@
+from collections.abc import AsyncIterator
 from http import HTTPStatus
-from decimal import Decimal
 import base64
 import hashlib
 import hmac
@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from advanced_rag.auth.chat_tokens import ChatTokenClaims
 from advanced_rag.core.config import Settings
 from advanced_rag.main import create_app
-from advanced_rag.rag.chat_service import ChatAnswer
+from advanced_rag.rag.chat_service import ChatStreamEvent
 from test_chat_rag import (
     FakeEmbeddingProvider,
     FakeLlmProvider,
@@ -149,17 +149,23 @@ def test_chat_after_thirty_questions_per_user_is_rate_limited() -> None:
 
 
 class FakeChatService:
-    async def answer(self, **_: object) -> ChatAnswer:
-        return ChatAnswer(
-            query_audit_event_id=uuid4(),
-            answer="Respuesta",
-            citations=[],
-            cache_hit=False,
-            cached_at=None,
-            input_tokens=0,
-            cached_tokens=0,
-            output_tokens=0,
-            estimated_cost_usd=Decimal("0"),
+    async def precheck(self, **_: object) -> None:
+        return None
+
+    async def answer_stream(self, **_: object) -> AsyncIterator[ChatStreamEvent]:
+        yield ChatStreamEvent(event="answer-token", payload={"delta": "Respuesta"})
+        yield ChatStreamEvent(
+            event="citations",
+            payload={"query_audit_event_id": str(uuid4()), "citations": []},
+        )
+        yield ChatStreamEvent(
+            event="usage",
+            payload={
+                "input_tokens": 0,
+                "cached_tokens": 0,
+                "output_tokens": 0,
+                "cost_usd": 0.0,
+            },
         )
 
 
