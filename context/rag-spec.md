@@ -56,6 +56,7 @@ This file pins the technical decisions for the FastAPI RAG service. It is the so
 - Similarity metric: cosine distance (`<=>` in pgvector). HNSW index is built on `embedding` with `vector_cosine_ops`.
 - Filtering: applied **at SQL level** before similarity ranking. The retrieval query joins `rag.document_chunks` against allowed document records resolved from `.NET`-owned `app.document_permissions` through read-only database grants. FastAPI uses the session validation claims (`role`, `groups`, `corpus`, and `access_scope_hash`) as the user's scope inputs, but it does not receive or trust a precomputed document-id allow list.
 - Retrieval applies a lifecycle predicate against `app.documents` (read-only grant): published-corpus chunks are eligible only when the document `current_state` is `Published` **and** the chunk's `document_version_id` equals the document's `current_published_version_id`; preview-corpus chunks require `current_state <> 'Archived'`. `rag.document_chunks.is_active` remains an index-hygiene flag: indexing a version deactivates all prior chunks of the same `(document_id, corpus)`. Correctness never depends on `is_active` alone.
+- Retrieval filters chunks by the configured `embedding_model`: only `rag.document_chunks` rows whose `embedding_model` equals the active embedding model are eligible, so vectors from different models are never compared. Changing the embedding model therefore makes documents non-retrievable until they are re-indexed under the new model.
 - Retrieval uses hybrid vector/BM25 candidates with optional reranking when a reranker provider is configured; multimodal selection runs after this final retrieval stage.
 - For query-time multimodal answers, image candidates are selected only after final text retrieval/reranking. FastAPI selects images associated with the final retrieved chunks, ordered by retrieval order, chunk index, and image ordinal, then deduplicated by `image_id`.
 - Initial multimodal caps are 3 images per chat request, 5 MB total image bytes, and OpenAI image `detail: "low"`.
@@ -159,8 +160,10 @@ Rules:
 
 ## Semantic Cache
 
-- Entries live in `rag.semantic_cache_entries`. Source documents per entry live in `rag.semantic_cache_sources`.
-- Lookup keys: `(corpus, access_scope_hash, question_embedding)` with `cosine_similarity â‰¥ 0.90` and `expires_at > now()`.
+- Entries live in `rag.semantic_cache_entries`. Source documents per entry live in `rag.semantic_cache_sources` (used by document-based invalidation); each entry also stores the original answer's `citations` (jsonb) for verbatim replay.
+- Lookup is a single pgvector nearest-neighbor query: an HNSW index on `question_embedding` (`ix_semantic_cache_entries_question_embedding_hnsw`) orders by cosine distance and the `WHERE` filters by `(corpus, access_scope_hash, filters_hash, embedding_model)` and `expires_at > now()`; the threshold (`cosine_similarity ≥ 0.90`) is checked on the returned nearest row. It is **not** a Python full-scan of the partition.
+- Cache entries are partitioned by `embedding_model`: a vector embedded with a different model is never compared. Changing the embedding model leaves old entries unmatched (they expire by TTL).
+- On hit, the original `citations` are replayed **verbatim** (the exact `chunk_id`, `document_version_id`, and `heading_path` of the cached answer), not reconstructed as "first chunk of each source document".
 - Cache write happens **only on successful answer with at least one citation**. Answers with empty citations (refusals, "I don't know" cases) are not cached.
 - Multimodal answers are not written to semantic cache in the first multimodal slice. Text-only cache lookup may still serve before retrieval; if a multimodal generation path is used, the generated answer bypasses cache write.
 - On hit, the response stream emits `cache-hit` followed by the cached `answer` (as a single `answer-token` of the full text or as a fast simulated stream), then the cached `citations`, then a `usage` event with zero new tokens and zero cost.
