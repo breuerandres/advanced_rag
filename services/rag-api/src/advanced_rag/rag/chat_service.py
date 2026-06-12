@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import logging
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -18,6 +19,7 @@ from advanced_rag.auth.chat_tokens import ChatTokenClaims
 from advanced_rag.core.config import Settings
 from advanced_rag.core.errors import ApiException
 from advanced_rag.providers.base import (
+    ChatUsage,
     IEmbeddingProvider,
     ILlmProvider,
     ImageInput,
@@ -26,7 +28,7 @@ from advanced_rag.providers.base import (
 )
 from advanced_rag.rag.answer_generator import (
     AnswerGeneration,
-    generate_answer,
+    generate_answer_stream,
     generate_multimodal_answer,
 )
 from advanced_rag.rag.chunking import CHUNKER_VERSION
@@ -89,6 +91,20 @@ class ChatAnswer(BaseModel):
     estimated_cost_usd: Decimal
 
 
+class ChatStreamEvent(BaseModel):
+    """One SSE event yielded by `ChatService.answer_stream`.
+
+    `event` is one of `cache-hit | answer-token | citations | usage`; the router wraps it
+    with the `request-id`/`done`/`error` envelope. Payloads match the historical SSE
+    contract verbatim so frontends need no changes.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    event: str
+    payload: dict[str, Any]
+
+
 class PricingSnapshot(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -142,7 +158,26 @@ class ChatService:
         """
         self._hnsw_iterative_scan_supported = supported
 
-    async def answer(
+    async def precheck(self, *, question: str, claims: ChatTokenClaims) -> None:
+        """Validate the question and enforce the budget BEFORE streaming starts.
+
+        Pre-stream failures (empty question, over-budget) must surface as a normal JSON
+        error envelope, not a mid-stream SSE `error` event, and must happen before any
+        paid provider call. The router awaits this before constructing the
+        `StreamingResponse`; `answer_stream` re-checks defensively.
+        """
+        if not question.strip():
+            raise ApiException(
+                "VALIDATION_FAILED",
+                400,
+                "Question is required.",
+                details={"field": "question"},
+            )
+        async with self._session_factory() as session:
+            await self._ensure_pricing_configured(session)
+            await self._enforce_budget(session, UUID(claims.user_id), datetime.now(UTC))
+
+    async def answer_stream(
         self,
         *,
         question: str,
@@ -152,7 +187,16 @@ class ChatService:
         session_id: UUID | None = None,
         locale: str | None = None,
         scope_document_id: UUID | None = None,
-    ) -> ChatAnswer:
+    ) -> AsyncIterator[ChatStreamEvent]:
+        """Answer a chat question, streaming answer tokens as the model produces them.
+
+        Yields typed `ChatStreamEvent`s (`cache-hit` | `answer-token` | `citations` |
+        `usage`); the router wraps them with `request-id`/`done`/`error`. The text path
+        streams character deltas through `generate_answer_stream`; cache hits, no-results
+        answers, and multimodal generation each emit a single whole-answer token. The
+        audit row is written after generation completes, preserving exact usage and the
+        end-to-end latency.
+        """
         normalized_question = question.strip()
         if not normalized_question:
             raise ApiException(
@@ -210,7 +254,7 @@ class ChatService:
                     question_embedding=question_embedding,
                 )
             if cache_hit is not None:
-                answer = await self._audit_cache_hit(
+                cached_answer = await self._audit_cache_hit(
                     session,
                     cache_hit=cache_hit,
                     question=normalized_question,
@@ -225,7 +269,34 @@ class ChatService:
                     latency_ms=_latency_ms(started_at),
                 )
                 await session.commit()
-                return answer
+                yield ChatStreamEvent(
+                    event="cache-hit",
+                    payload={
+                        "cached_at": (
+                            cached_answer.cached_at.isoformat()
+                            if cached_answer.cached_at
+                            else None
+                        )
+                    },
+                )
+                yield ChatStreamEvent(event="answer-token", payload={"delta": cached_answer.answer})
+                yield ChatStreamEvent(
+                    event="citations",
+                    payload={
+                        "query_audit_event_id": str(cached_answer.query_audit_event_id),
+                        "citations": _citations_payload(cached_answer.citations),
+                    },
+                )
+                yield ChatStreamEvent(
+                    event="usage",
+                    payload={
+                        "input_tokens": 0,
+                        "cached_tokens": 0,
+                        "output_tokens": 0,
+                        "cost_usd": 0.0,
+                    },
+                )
+                return
 
             chunks, rerank_audit = await self._retrieve_chunks(
                 session,
@@ -251,9 +322,10 @@ class ChatService:
                 )
                 input_tokens = embedding_tokens
                 output_tokens = _estimate_tokens(completion.answer)
+                yield ChatStreamEvent(event="answer-token", payload={"delta": completion.answer})
             else:
                 # Query-time multimodal: select authorized images from the final
-                # retrieved chunks. Falls back to the text path when none survive.
+                # retrieved chunks. Falls back to the streaming text path when none survive.
                 selected_images = await self._select_multimodal_images(session, chunks, claims)
                 if selected_images:
                     completion = await generate_multimodal_answer(
@@ -266,18 +338,46 @@ class ChatService:
                         temperature=self._settings.openai_chat_temperature,
                         max_tokens=self._settings.openai_chat_max_tokens,
                     )
-                else:
-                    completion = await generate_answer(
-                        llm=self._llm_provider,
-                        question=retrieval_question,
-                        chunks=chunks,
-                        locale=active_locale,
-                        model=self._settings.resolved_chat_model,
-                        temperature=self._settings.openai_chat_temperature,
-                        max_tokens=self._settings.openai_chat_max_tokens,
+                    input_tokens = (completion.usage.input_tokens or 0) + embedding_tokens
+                    output_tokens = completion.usage.output_tokens or 0
+                    # Multimodal is a single-shot Responses call; emit the whole answer.
+                    yield ChatStreamEvent(
+                        event="answer-token", payload={"delta": completion.answer}
                     )
-                input_tokens = (completion.usage.input_tokens or 0) + embedding_tokens
-                output_tokens = completion.usage.output_tokens or 0
+                else:
+                    final_generation: AnswerGeneration | None = None
+                    try:
+                        async for item in generate_answer_stream(
+                            llm=self._llm_provider,
+                            question=retrieval_question,
+                            chunks=chunks,
+                            locale=active_locale,
+                            model=self._settings.resolved_chat_model,
+                            temperature=self._settings.openai_chat_temperature,
+                            max_tokens=self._settings.openai_chat_max_tokens,
+                        ):
+                            if isinstance(item, str):
+                                yield ChatStreamEvent(
+                                    event="answer-token", payload={"delta": item}
+                                )
+                            else:
+                                final_generation = item
+                    except Exception as exc:  # noqa: BLE001 - surface as SSE error event
+                        logger.warning(
+                            "Answer streaming failed for request %s.", request_id, exc_info=True
+                        )
+                        raise ApiException(
+                            "RAG_PROVIDER_UNAVAILABLE",
+                            503,
+                            "The answer provider is currently unavailable.",
+                        ) from exc
+                    completion = final_generation or AnswerGeneration(
+                        answer="", cited_chunk_ids=[], usage=ChatUsage()
+                    )
+                    input_tokens = (completion.usage.input_tokens or 0) + embedding_tokens
+                    output_tokens = completion.usage.output_tokens or _estimate_tokens(
+                        completion.answer
+                    )
             multimodal_used = bool(selected_images)
 
             citations = [
@@ -352,17 +452,23 @@ class ChatService:
                     citations=citations,
                 )
             await session.commit()
-        return ChatAnswer(
-            query_audit_event_id=audit_id,
-            answer=completion.answer,
-            citations=citations,
-            cache_hit=False,
-            cached_at=None,
-            input_tokens=input_tokens,
-            cached_tokens=completion.usage.cached_input_tokens or 0,
-            output_tokens=output_tokens,
-            estimated_cost_usd=estimated_cost,
-        )
+
+            yield ChatStreamEvent(
+                event="citations",
+                payload={
+                    "query_audit_event_id": str(audit_id),
+                    "citations": _citations_payload(citations),
+                },
+            )
+            yield ChatStreamEvent(
+                event="usage",
+                payload={
+                    "input_tokens": input_tokens,
+                    "cached_tokens": completion.usage.cached_input_tokens or 0,
+                    "output_tokens": output_tokens,
+                    "cost_usd": float(estimated_cost),
+                },
+            )
 
     async def invalidate_sources(self, document_ids: list[UUID]) -> int:
         if not document_ids:
@@ -1047,6 +1153,19 @@ def _compute_filters_hash(filters: list[UUID] | None) -> str | None:
     sorted_values = sorted(str(f) for f in filters)
     digest = hashlib.sha256("|".join(sorted_values).encode("utf-8")).hexdigest()
     return digest[:16]
+
+
+def _citations_payload(citations: list[Citation]) -> list[dict[str, Any]]:
+    """Serialize citations for the SSE `citations` event (stable wire shape)."""
+    return [
+        {
+            "chunk_id": str(citation.chunk_id),
+            "document_id": str(citation.document_id),
+            "document_version_id": str(citation.document_version_id),
+            "heading_path": citation.heading_path,
+        }
+        for citation in citations
+    ]
 
 
 def _no_results_message(locale: str) -> str:

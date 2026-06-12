@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Header, Query, Request
@@ -12,7 +11,7 @@ from advanced_rag.auth.session_validation import SessionValidatorProtocol
 from advanced_rag.core.csrf import validate_csrf_request
 from advanced_rag.core.errors import ApiException
 from advanced_rag.core.request_id import REQUEST_ID_HEADER
-from advanced_rag.rag.chat_service import ChatAnswer, ChatService
+from advanced_rag.rag.chat_service import ChatService
 from advanced_rag.rag.feedback_service import FeedbackService
 from advanced_rag.schemas.chat import (
     CacheInvalidationRequest,
@@ -49,17 +48,33 @@ async def post_chat(body: ChatRequest, request: Request) -> StreamingResponse:
         if body.filters is not None and body.filters.dimension_value_ids
         else None
     )
-    answer = await service.answer(
-        question=body.question,
-        claims=claims,
-        request_id=request_id,
-        filters=filters,
-        session_id=body.session_id,
-        locale=body.locale,
-        scope_document_id=body.document_id,
-    )
+    # Pre-stream failures (empty question, over-budget) raise here and return the regular
+    # JSON error envelope before any token is streamed or any paid provider call is made.
+    await service.precheck(question=body.question, claims=claims)
+
+    async def event_stream():  # type: ignore[no-untyped-def]
+        yield _event("request-id", {"request_id": request_id})
+        try:
+            async for item in service.answer_stream(
+                question=body.question,
+                claims=claims,
+                request_id=request_id,
+                filters=filters,
+                session_id=body.session_id,
+                locale=body.locale,
+                scope_document_id=body.document_id,
+            ):
+                yield _event(item.event, item.payload)
+        except ApiException as exc:
+            yield _event(
+                "error",
+                {"error": {"code": exc.code, "message": str(exc), "request_id": request_id}},
+            )
+            return
+        yield _event("done", {})
+
     return StreamingResponse(
-        _stream_answer(answer, request_id),
+        event_stream(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache"},
     )
@@ -182,38 +197,6 @@ async def invalidate_cache(
     return CacheInvalidationResponse(invalidated=invalidated)
 
 
-async def _stream_answer(answer: ChatAnswer, request_id: str):
-    yield _event("request-id", {"request_id": request_id})
-    if answer.cache_hit:
-        yield _event("cache-hit", {"cached_at": answer.cached_at.isoformat() if answer.cached_at else None})
-    yield _event("answer-token", {"delta": answer.answer})
-    yield _event(
-        "citations",
-        {
-            "query_audit_event_id": str(answer.query_audit_event_id),
-            "citations": [
-                {
-                    "chunk_id": str(citation.chunk_id),
-                    "document_id": str(citation.document_id),
-                    "document_version_id": str(citation.document_version_id),
-                    "heading_path": citation.heading_path,
-                }
-                for citation in answer.citations
-            ]
-        },
-    )
-    yield _event(
-        "usage",
-        {
-            "input_tokens": answer.input_tokens,
-            "cached_tokens": answer.cached_tokens,
-            "output_tokens": answer.output_tokens,
-            "cost_usd": _decimal_to_float(answer.estimated_cost_usd),
-        },
-    )
-    yield _event("done", {})
-
-
 def _event(name: str, payload: dict[str, object]) -> str:
     return f"event: {name}\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n"
 
@@ -225,7 +208,3 @@ async def _validate_session(request: Request, request_id: str) -> ChatTokenClaim
 
     validator: SessionValidatorProtocol = request.app.state.session_validator
     return await validator.validate(session_cookie, request_id=request_id)
-
-
-def _decimal_to_float(value: Decimal) -> float:
-    return float(value)

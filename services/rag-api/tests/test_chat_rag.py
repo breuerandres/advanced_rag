@@ -127,6 +127,65 @@ def test_public_chat_retrieves_only_published_allowed_chunks_and_writes_audit() 
     assert state["audit"]["estimated_cost_usd"] > Decimal("0")
 
 
+def test_chat_streams_multiple_answer_tokens_and_writes_audit() -> None:
+    with _postgres() as database:
+        document_id = uuid4()
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=document_id,
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        app = create_app(
+            Settings(
+                rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+                customer_timezone="UTC",
+                enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+            llm_provider=StreamingFakeLlmProvider(),
+            session_validator=FakeSessionValidator(
+                ChatTokenClaims(
+                    user_id=str(USER_ID),
+                    role="Viewer",
+                    groups=[str(ALLOWED_GROUP_ID)],
+                    access_scope_hash="scope-allowed",
+                    corpus="published",
+                )
+            ),
+        )
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        with client.stream(
+            "POST",
+            "/api/chat",
+            json={"question": "What credential rule applies?"},
+            headers={"X-Request-ID": "req-stream"},
+        ) as response:
+            body = "".join(response.iter_text())
+
+        state = asyncio.run(database.read_audit_state())
+
+    assert response.status_code == 200
+    assert "event: request-id" in body
+    # More than one answer-token proves tokens are streamed as produced, not replayed.
+    assert body.count("event: answer-token") > 1
+    assert "event: citations" in body
+    assert "event: usage" in body
+    assert "event: done" in body
+    # The full answer is assembled and persisted even though it streamed in fragments.
+    assert state["audit"]["answer"] == "Wear visible credentials."
+    assert state["citation_document_ids"] == [document_id]
+
+
 def _published_chat_app(database: "ChatDatabase") -> Any:
     """Build a chat app with the standard published-corpus Viewer claims."""
     return create_app(
@@ -2730,6 +2789,21 @@ class FakeLlmProvider:
             json.dumps({"answer": "", "cited_chunk_ids": []}),
             ChatUsage(input_tokens=20, output_tokens=10),
         )
+
+
+class StreamingFakeLlmProvider(FakeLlmProvider):
+    """`FakeLlmProvider` whose `chat_stream` splits the payload into several deltas.
+
+    Exercises true token streaming: `generate_answer_stream` surfaces multiple answer
+    fragments, so the router emits more than one `answer-token` event.
+    """
+
+    async def chat_stream(self, req: ChatCompletionRequest):  # type: ignore[no-untyped-def]
+        content, usage = await self.chat_complete(req)
+        size = max(1, len(content) // 6)
+        for start in range(0, len(content), size):
+            yield ChatCompletionDelta(content=content[start : start + size])
+        yield ChatCompletionDelta(finish_reason="stop", usage=usage)
 
 
 class CondensingFakeLlmProvider(FakeLlmProvider):
