@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     csrf_signing_key_file: str = ""
     rag_semantic_cache_ttl_hours: int = 24
     rag_semantic_cache_similarity_threshold: float = 0.90
+    # Inactive chunks older than this are eligible for the maintenance purge.
+    rag_inactive_chunk_retention_days: int = 7
     customer_timezone: str = "UTC"
     default_monthly_ai_budget_usd: float = 5.00
     openai_chat_temperature: float = 0.1
