@@ -67,6 +67,8 @@ class HybridRetrievalParams(BaseModel):
     bm25_top_k: int = 20
     rrf_k: int = 60
     final_top_k: int = 30  # before reranker reduction
+    ef_search: int = 80
+    iterative_scan: bool = False  # set only when pgvector >= 0.8 was detected
 
 
 # Permission resolution + lifecycle + scope + dimension filtering happen ONCE per query
@@ -92,8 +94,15 @@ class HybridRetrievalParams(BaseModel):
 #
 # The `unaccent` call on the question goes through the IMMUTABLE wrapper added in the v2
 # BM25 migration.
-HYBRID_RETRIEVAL_SQL = text(
-    """
+#
+# The corpus is inlined as a SQL literal (`{corpus_literal}`) rather than bound, because
+# the partial per-corpus HNSW indexes are only usable when the planner can prove the
+# `corpus = 'published'`/`'preview'` predicate — a generic plan over a bound `:corpus`
+# cannot. The value is whitelist-validated in `hybrid_retrieve`, so there is no injection
+# surface.
+_ALLOWED_CORPUS = {"published", "preview"}
+
+HYBRID_RETRIEVAL_SQL_TEMPLATE = """
 WITH allowed_documents AS MATERIALIZED (
     SELECT doc."Id" AS document_id,
            doc.current_published_version_id,
@@ -167,14 +176,14 @@ vector_candidates AS (
         row_number() OVER (ORDER BY chunk.embedding <=> CAST(:q_embedding AS vector)) AS rank
     FROM rag.document_chunks chunk
     JOIN allowed_documents ad ON ad.document_id = chunk.document_id
-    WHERE chunk.corpus = :corpus
+    WHERE chunk.corpus = {corpus_literal}
       AND chunk.is_active = true
       AND (
-          (chunk.corpus = 'published'
+          ({corpus_literal} = 'published'
               AND ad.current_state = 'Published'
               AND ad.current_published_version_id = chunk.document_version_id)
           OR
-          (chunk.corpus = 'preview' AND ad.current_state <> 'Archived')
+          ({corpus_literal} = 'preview' AND ad.current_state <> 'Archived')
       )
     ORDER BY chunk.embedding <=> CAST(:q_embedding AS vector)
     LIMIT :vector_top_k
@@ -193,14 +202,14 @@ bm25_candidates AS (
         ) AS rank
     FROM rag.document_chunks chunk
     JOIN allowed_documents ad ON ad.document_id = chunk.document_id
-    WHERE chunk.corpus = :corpus
+    WHERE chunk.corpus = {corpus_literal}
       AND chunk.is_active = true
       AND (
-          (chunk.corpus = 'published'
+          ({corpus_literal} = 'published'
               AND ad.current_state = 'Published'
               AND ad.current_published_version_id = chunk.document_version_id)
           OR
-          (chunk.corpus = 'preview' AND ad.current_state <> 'Archived')
+          ({corpus_literal} = 'preview' AND ad.current_state <> 'Archived')
       )
       AND (
           chunk.content_tsv @@ websearch_to_tsquery('simple', rag.f_immutable_unaccent(:q_text))
@@ -231,7 +240,6 @@ FROM fused
 ORDER BY rrf_score DESC
 LIMIT :final_top_k
 """
-)
 
 
 async def hybrid_retrieve(
@@ -247,12 +255,21 @@ async def hybrid_retrieve(
     Same query goes to BM25 via `q_text`. For multi-turn / rewritten questions, the
     caller should pass the rewritten question as both `q_text` and the embedding source.
     """
+    # Raise the HNSW candidate queue above the pgvector default (40) so the per-document
+    # access filter keeps recall, and (when supported) let the index scan continue past
+    # `ef_search` until the LIMIT is satisfied. `SET LOCAL` scopes both to the caller's
+    # transaction. `ef_search` is int-validated by Pydantic, so the literal is safe.
+    if params.corpus not in _ALLOWED_CORPUS:
+        raise ValueError(f"Unsupported corpus: {params.corpus!r}")
+    statement = text(HYBRID_RETRIEVAL_SQL_TEMPLATE.format(corpus_literal=f"'{params.corpus}'"))
+    await connection.execute(text(f"SET LOCAL hnsw.ef_search = {int(params.ef_search)}"))
+    if params.iterative_scan:
+        await connection.execute(text("SET LOCAL hnsw.iterative_scan = 'relaxed_order'"))
     result = await connection.execute(
-        HYBRID_RETRIEVAL_SQL,
+        statement,
         {
             "q_text": q_text,
             "q_embedding": _vector_literal(q_embedding),
-            "corpus": params.corpus,
             "is_global_admin": params.is_global_admin,
             "user_groups": [str(group_id) for group_id in params.user_groups],
             "user_organizational_unit_id": params.user_organizational_unit_id,

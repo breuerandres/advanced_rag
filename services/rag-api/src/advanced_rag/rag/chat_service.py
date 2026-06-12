@@ -552,6 +552,10 @@ class ChatService:
             bm25_top_k=self._settings.rag_bm25_top_k,
             rrf_k=self._settings.rag_rrf_k,
             final_top_k=self._settings.rag_hybrid_top_k,
+            ef_search=self._settings.rag_hnsw_ef_search,
+            iterative_scan=(
+                self._settings.rag_hnsw_iterative_scan and self._hnsw_iterative_scan_supported
+            ),
         )
         connection = await session.connection()
         hybrid_candidates: list[HybridCandidate] = await hybrid_retrieve(

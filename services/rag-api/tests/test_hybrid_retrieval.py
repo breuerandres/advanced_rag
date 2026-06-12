@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 import pytest
 
-from advanced_rag.rag.hybrid_retrieval import detect_iterative_scan_support
+from advanced_rag.rag.hybrid_retrieval import (
+    HybridRetrievalParams,
+    detect_iterative_scan_support,
+    hybrid_retrieve,
+)
 
 
 class _StubResult:
@@ -41,3 +47,20 @@ class _StubConnection:
 async def test_detect_iterative_scan_support(version: str | None, expected: bool) -> None:
     connection = _StubConnection(version)
     assert await detect_iterative_scan_support(connection) is expected  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_hybrid_retrieve_rejects_unknown_corpus() -> None:
+    params = HybridRetrievalParams(
+        corpus="not-a-corpus",
+        user_groups=[],
+        user_organizational_unit_id=UUID(int=1),
+        root_organizational_unit_id=UUID(int=1),
+    )
+    with pytest.raises(ValueError, match="Unsupported corpus"):
+        await hybrid_retrieve(
+            _StubConnection(None),  # type: ignore[arg-type]
+            q_text="x",
+            q_embedding=[0.0],
+            params=params,
+        )

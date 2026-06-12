@@ -255,6 +255,40 @@ def test_only_current_published_version_is_retrieved() -> None:
     assert version_a not in state["citation_document_version_ids"]
 
 
+def test_selective_scope_recall_survives_large_inaccessible_corpus() -> None:
+    with _postgres() as database:
+        accessible_document_id = uuid4()
+        accessible_version_id = uuid4()
+        asyncio.run(
+            database.seed_recall_corpus(
+                accessible_document_id=accessible_document_id,
+                accessible_version_id=accessible_version_id,
+                noise_document_id=uuid4(),
+                noise_count=300,
+            )
+        )
+        app = _published_chat_app(database)
+        # Use the context manager so the FastAPI lifespan runs the pgvector capability
+        # probe; pg16's pgvector advertises >= 0.8, so iterative scan is enabled and the
+        # one accessible chunk survives despite 300 nearer inaccessible chunks.
+        with TestClient(app) as client:
+            client.cookies.set("__Host-session", "valid")
+            set_csrf(client)
+            with client.stream(
+                "POST",
+                "/api/chat",
+                json={"question": "quarterly budget forecast figures"},
+                headers={"X-Request-ID": "req-recall"},
+            ) as response:
+                body = "".join(response.iter_text())
+
+        state = asyncio.run(database.read_audit_state())
+
+    assert response.status_code == 200
+    assert "Wear visible credentials." in body
+    assert state["citation_document_ids"] == [accessible_document_id]
+
+
 def _multimodal_chat_app(database: "ChatDatabase", llm: "MultimodalFakeLlmProvider") -> Any:
     return create_app(
         Settings(
@@ -1487,6 +1521,150 @@ class ChatDatabase:
         finally:
             await connection.close()
 
+    async def seed_recall_corpus(
+        self,
+        *,
+        accessible_document_id: UUID,
+        accessible_version_id: UUID,
+        noise_document_id: UUID,
+        noise_count: int,
+    ) -> None:
+        """Seed one accessible chunk that is the FARTHEST from the query embedding plus
+        `noise_count` inaccessible chunks that are all the NEAREST (identical to the
+        query vector).
+
+        The query vector is `[0.01] * dims` (the FakeEmbeddingProvider constant). Noise
+        chunks share that vector (cosine distance 0); the accessible chunk uses the
+        opposite direction (`[-0.01] * dims`, the maximum cosine distance). Without a
+        raised `ef_search` plus iterative scan, the HNSW candidate queue fills with the
+        inaccessible noise and the access filter discards every row, so the accessible
+        chunk is never retrieved. The accessible content shares no terms with the test
+        question, so BM25 cannot rescue it either — the vector recall fix is the only
+        path to a citation.
+        """
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            await connection.execute(
+                "INSERT INTO app.users (\"Id\", email, display_name, password_hash) VALUES ($1, $2, $3, $4)",
+                USER_ID,
+                "viewer@example.com",
+                "Viewer",
+                "hash",
+            )
+            await connection.execute(
+                "INSERT INTO app.groups (\"Id\", name) VALUES ($1, $2)", ALLOWED_GROUP_ID, "Allowed"
+            )
+            await connection.execute(
+                "INSERT INTO app.groups (\"Id\", name) VALUES ($1, $2)", DENIED_GROUP_ID, "Denied"
+            )
+            await connection.execute(
+                """
+                INSERT INTO app.user_ai_budget_limits (user_id, monthly_budget_usd, is_disabled)
+                VALUES ($1, $2, false)
+                """,
+                USER_ID,
+                Decimal("5.0000"),
+            )
+            await connection.execute(
+                """
+                INSERT INTO rag.model_pricing (
+                    id, model_id, model_kind, input_token_price_usd,
+                    cached_token_price_usd, output_token_price_usd, effective_from
+                )
+                VALUES ($1, $2, 'chat', 0.0000001, 0.00000001, 0.0000004, now()),
+                       ($3, $4, 'embedding', 0.00000002, null, null, now())
+                """,
+                uuid4(),
+                CHAT_MODEL,
+                uuid4(),
+                EMBEDDING_MODEL,
+            )
+            noise_version_id = uuid4()
+            for document_id, version_id, group_id in [
+                (accessible_document_id, accessible_version_id, ALLOWED_GROUP_ID),
+                (noise_document_id, noise_version_id, DENIED_GROUP_ID),
+            ]:
+                await connection.execute(
+                    """
+                    INSERT INTO app.documents (
+                        "Id", title, current_state, current_published_version_id, created_by_user_id
+                    )
+                    VALUES ($1, $2, 'Published', $3, $4)
+                    """,
+                    document_id,
+                    "Doc",
+                    version_id,
+                    USER_ID,
+                )
+                permission_id = uuid4()
+                await connection.execute(
+                    """
+                    INSERT INTO app.document_permissions ("Id", document_id, organizational_unit_id)
+                    VALUES ($1, $2, NULL)
+                    """,
+                    permission_id,
+                    document_id,
+                )
+                await connection.execute(
+                    """
+                    INSERT INTO app.document_permission_groups (document_permission_id, group_id)
+                    VALUES ($1, $2)
+                    """,
+                    permission_id,
+                    group_id,
+                )
+            # Accessible chunk: opposite direction, farthest from the query vector.
+            far_embedding = "[" + ",".join(["-0.01"] * EMBEDDING_DIMENSIONS) + "]"
+            await self._insert_chunk(
+                connection,
+                accessible_document_id,
+                "published",
+                "Wear visible credentials.",
+                document_version_id=accessible_version_id,
+                embedding_literal=far_embedding,
+            )
+            # Noise chunks: identical to the query vector, nearest in the index.
+            noise_job_id = uuid4()
+            await connection.execute(
+                """
+                INSERT INTO rag.indexing_jobs (
+                    id, document_id, document_version_id, corpus, status,
+                    attempts, chunker_version, embedding_dimensions, chunk_count,
+                    embedding_model, embedding_tokens
+                )
+                VALUES ($1, $2, $3, 'published', 'Succeeded', 1, 1, $4, $5, $6, 4)
+                """,
+                noise_job_id,
+                noise_document_id,
+                noise_version_id,
+                EMBEDDING_DIMENSIONS,
+                noise_count,
+                EMBEDDING_MODEL,
+            )
+            await connection.execute(
+                f"""
+                INSERT INTO rag.document_chunks (
+                    id, indexing_job_id, document_id, document_version_id,
+                    corpus, chunk_index, heading_path, token_count, char_count,
+                    content, content_html, embedding, embedding_model, is_active
+                )
+                SELECT gen_random_uuid(), $1, $2, $3, 'published', g, ARRAY['Noise'], 4, 12,
+                       'unrelated filler ' || g, '<p>noise</p>',
+                       ('[' || repeat('0.01,', {EMBEDDING_DIMENSIONS - 1}) || '0.01]')::vector,
+                       $4, true
+                FROM generate_series(0, $5) AS g
+                """,
+                noise_job_id,
+                noise_document_id,
+                noise_version_id,
+                EMBEDDING_MODEL,
+                noise_count - 1,
+            )
+            # Build/refresh stats so the planner uses the HNSW index for the scan.
+            await connection.execute("ANALYZE rag.document_chunks")
+        finally:
+            await connection.close()
+
     async def seed_hierarchical_corpus(self) -> dict[str, UUID]:
         """Seed an org tree, a transverse group, and published documents with rules.
 
@@ -1776,9 +1954,15 @@ class ChatDatabase:
         corpus: str,
         content: str,
         document_version_id: UUID | None = None,
+        embedding_literal: str | None = None,
     ) -> UUID:
         job_id = uuid4()
         version_id = document_version_id if document_version_id is not None else uuid4()
+        embedding = (
+            embedding_literal
+            if embedding_literal is not None
+            else "[" + ",".join(["0.01"] * EMBEDDING_DIMENSIONS) + "]"
+        )
         await connection.execute(
             """
             INSERT INTO rag.indexing_jobs (
@@ -1796,15 +1980,14 @@ class ChatDatabase:
             EMBEDDING_MODEL,
         )
         await connection.execute(
-            f"""
+            """
             INSERT INTO rag.document_chunks (
                 id, indexing_job_id, document_id, document_version_id,
                 corpus, chunk_index, heading_path, token_count, char_count,
                 content, content_html, embedding, embedding_model, is_active
             )
             VALUES ($1, $2, $3, $4, $5, 0, ARRAY['Policy'], 4, $6, $7, $8,
-                    ('[' || repeat('0.01,', {EMBEDDING_DIMENSIONS - 1}) || '0.01]')::vector,
-                    $9, true)
+                    ($9)::vector, $10, true)
             """,
             uuid4(),
             job_id,
@@ -1814,6 +1997,7 @@ class ChatDatabase:
             len(content),
             content,
             f"<p>{content}</p>",
+            embedding,
             EMBEDDING_MODEL,
         )
         return version_id
