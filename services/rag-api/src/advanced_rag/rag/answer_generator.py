@@ -21,6 +21,8 @@ from advanced_rag.providers.base import (
     ChatMessage,
     ChatUsage,
     ILlmProvider,
+    IMultimodalLlmProvider,
+    ImageInput,
 )
 
 
@@ -110,6 +112,43 @@ async def generate_answer(
         response_format={"type": "json_object"},
     )
     content, usage = await llm.chat_complete(req)
+    answer, cited = _parse_answer(content)
+    return AnswerGeneration(answer=answer, cited_chunk_ids=cited, usage=usage)
+
+
+async def generate_multimodal_answer(
+    *,
+    llm: IMultimodalLlmProvider,
+    question: str,
+    chunks: list[Any],
+    images: list[ImageInput],
+    locale: str,
+    model: str,
+    temperature: float = 0.1,
+    max_tokens: int = 900,
+) -> AnswerGeneration:
+    """Same contract as `generate_answer`, but attaches images to the request.
+
+    Used only when the configured provider implements `multimodal_complete` and at
+    least one authorized image survived selection/caps.
+    """
+    system = load_system_prompt(locale)
+    user_content = (
+        f"Context:\n{_format_context(chunks)}\n\n"
+        f"Question:\n{question}\n\n"
+        f"{JSON_INSTRUCTION}"
+    )
+    req = ChatCompletionRequest(
+        messages=[
+            ChatMessage(role="system", content=system),
+            ChatMessage(role="user", content=user_content),
+        ],
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        response_format={"type": "json_object"},
+    )
+    content, usage = await llm.multimodal_complete(req, images)
     answer, cited = _parse_answer(content)
     return AnswerGeneration(answer=answer, cited_chunk_ids=cited, usage=usage)
 

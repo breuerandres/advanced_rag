@@ -86,6 +86,43 @@ class ILlmProvider(Protocol):
 
 
 # ---------------------------------------------------------------------------
+# Multimodal completion (query-time multimodal RAG)
+# ---------------------------------------------------------------------------
+
+
+class ImageInput(BaseModel):
+    """One image attached to a multimodal completion request."""
+
+    model_config = ConfigDict(frozen=True)
+
+    data_base64: str
+    """Raw base64-encoded image bytes (no `data:` prefix)."""
+
+    media_type: str
+    """MIME type, e.g. 'image/png'."""
+
+    detail: str = "low"
+    """Provider image-detail hint; 'low' keeps token cost bounded."""
+
+
+class IMultimodalLlmProvider(Protocol):
+    """Optional capability for providers that accept image inputs.
+
+    Implemented separately from `ILlmProvider` so text-only providers (ollama,
+    anthropic, azure) need no changes. The chat service probes for
+    `multimodal_complete` and falls back to the text path when it is absent.
+    """
+
+    name: str
+
+    async def multimodal_complete(
+        self, req: ChatCompletionRequest, images: list[ImageInput]
+    ) -> tuple[str, ChatUsage]:
+        """Non-streaming multimodal completion. Returns full content and usage."""
+        ...
+
+
+# ---------------------------------------------------------------------------
 # Embeddings
 # ---------------------------------------------------------------------------
 

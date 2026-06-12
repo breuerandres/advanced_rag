@@ -7,6 +7,7 @@ import httpx
 
 from advanced_rag.rag.multimodal_images import (
     ChunkImageCandidate,
+    SelectedMultimodalImage,
     fetch_selected_images,
     select_image_candidates,
 )
@@ -50,7 +51,7 @@ def test_fetch_selected_images_skips_failures_and_enforces_total_bytes() -> None
             return httpx.Response(200, content=big_image, headers={"content-type": "image/png"})
         return httpx.Response(200, content=small_image, headers={"content-type": "image/png"})
 
-    async def run() -> list[UUID]:
+    async def run() -> list[SelectedMultimodalImage]:
         transport = httpx.MockTransport(handler)
         async with httpx.AsyncClient(transport=transport) as client:
             candidates = [
