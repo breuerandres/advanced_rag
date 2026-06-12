@@ -89,6 +89,42 @@ public sealed class DocumentImageEndpointTests : IClassFixture<DocumentImageWebA
         });
     }
 
+    [Fact]
+    public async Task InternalImageContent_RejectsMissingInternalToken()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+
+        using HttpResponseMessage response = await client.GetAsync(
+            $"/internal/document-images/{ImageId}/content?userId={DocumentImageFakeAuthService.ViewerUserId}&roles=Viewer");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        ErrorEnvelope? body = await response.Content.ReadFromJsonAsync<ErrorEnvelope>();
+        body!.Error.Code.Should().Be("AUTH_INTERNAL_TOKEN_INVALID");
+    }
+
+    [Fact]
+    public async Task InternalImageContent_WithToken_ReturnsStoredBytesAndPropagatesActor()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        using HttpRequestMessage request = new(
+            HttpMethod.Get,
+            $"/internal/document-images/{ImageId}/content?userId={DocumentImageFakeAuthService.ViewerUserId}&roles=Viewer");
+        request.Headers.Add("X-Internal-Service-Token", DocumentImageWebApplicationFactory.InternalServiceToken);
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("image/png");
+        byte[] bytes = await response.Content.ReadAsByteArrayAsync();
+        bytes.Should().Equal([0x89, 0x50, 0x4e, 0x47]);
+        _factory.Images.LastGetCommand.Should().BeEquivalentTo(new
+        {
+            ImageId,
+            UserId = DocumentImageFakeAuthService.ViewerUserId,
+            Roles = new[] { "Viewer" },
+        });
+    }
+
     private static async Task<LoginSession> LoginAsync(HttpClient client, string email, string host)
     {
         CsrfState csrf = await GetCsrfAsync(client, host);
@@ -147,10 +183,15 @@ public sealed class DocumentImageEndpointTests : IClassFixture<DocumentImageWebA
     private sealed record LoginSession(CsrfState Csrf, string SessionCookie);
 
     private sealed record DocumentImageUploadResponse(Guid ImageId, string Url, string AltText);
+
+    private sealed record ErrorEnvelope(ErrorBody Error);
+
+    private sealed record ErrorBody(string Code, string Message);
 }
 
 public sealed class DocumentImageWebApplicationFactory : WebApplicationFactory<Program>
 {
+    public const string InternalServiceToken = "test-internal-token";
     private readonly DocumentImageFakeAuthService _auth = new();
     public FakeDocumentImageService Images { get; } = new();
 
@@ -164,6 +205,7 @@ public sealed class DocumentImageWebApplicationFactory : WebApplicationFactory<P
             {
                 ["ConnectionStrings:AppDatabase"] = "Host=localhost;Database=unused;Username=unused;Password=unused",
                 ["Csrf:SigningKey"] = "local-test-csrf-signing-key-with-enough-entropy",
+                ["InternalService:Token"] = InternalServiceToken,
             });
         });
         builder.ConfigureServices(services =>
