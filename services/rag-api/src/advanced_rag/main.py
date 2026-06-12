@@ -1,4 +1,5 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from typing import cast
 
 from fastapi import FastAPI
@@ -54,6 +55,21 @@ class HealthResponse(BaseModel):
 ExceptionHandler = Callable[[Request, Exception], Response | Awaitable[Response]]
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Probe pgvector's iterative-scan support once the database is reachable and upgrade
+    # the chat service. uvicorn runs the lifespan; tests that need the capability use the
+    # TestClient context manager to trigger it.
+    try:
+        async with app.state.database_engine.connect() as connection:
+            supported = await detect_iterative_scan_support(connection)
+    except Exception:  # pragma: no cover - probe must never block startup
+        supported = False
+    app.state.hnsw_iterative_scan_supported = supported
+    app.state.chat_service.set_hnsw_iterative_scan_supported(supported)
+    yield
+
+
 def create_app(
     settings: Settings | None = None,
     embedding_provider: IEmbeddingProvider | None = None,
@@ -71,7 +87,7 @@ def create_app(
     `reranker_provider` is allowed to be `None` (rerank step is then skipped). The
     factory short-circuits to `None` when `settings.enable_reranker=False`.
     """
-    app = FastAPI(title="Advanced RAG RAG API")
+    app = FastAPI(title="Advanced RAG RAG API", lifespan=_lifespan)
     resolved_settings = settings or Settings()
     app.state.settings = resolved_settings
     app.state.database_engine = create_database_engine(resolved_settings.resolved_rag_database_url)
@@ -137,19 +153,6 @@ def create_app(
             status_code=503,
             content={"status": "unhealthy", "checks": result.failed_checks},
         )
-
-    @app.on_event("startup")
-    async def _detect_pgvector_capabilities() -> None:
-        # Probe pgvector's iterative-scan support once the database is reachable and
-        # upgrade the chat service. uvicorn runs startup events; tests that need the
-        # capability use the TestClient context manager to trigger this.
-        try:
-            async with app.state.database_engine.connect() as connection:
-                supported = await detect_iterative_scan_support(connection)
-        except Exception:  # pragma: no cover - probe must never block startup
-            supported = False
-        app.state.hnsw_iterative_scan_supported = supported
-        app.state.chat_service.set_hnsw_iterative_scan_supported(supported)
 
     app.include_router(indexing_router)
     app.include_router(chat_router)

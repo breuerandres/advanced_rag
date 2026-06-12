@@ -69,10 +69,13 @@ class HybridRetrievalParams(BaseModel):
     final_top_k: int = 30  # before reranker reduction
 
 
-# Branch-aware document access predicate. Applied INSIDE each candidate CTE so rows
-# outside the user's scope never enter the top-K. Semantics mirror the .NET
-# `DocumentAccessPolicy`:
-#   * A global admin bypasses the filter entirely.
+# Permission resolution + lifecycle + scope + dimension filtering happen ONCE per query
+# in a MATERIALIZED `allowed_documents` CTE over `app.documents`. Both candidate CTEs
+# semi-join it, so the expensive correlated permission predicate is evaluated per
+# document, not per candidate chunk row.
+#
+# Access semantics mirror the .NET `DocumentAccessPolicy`:
+#   * A global admin bypasses the access-rule filter entirely (not the lifecycle state).
 #   * A document is visible when ANY of its access rules matches (OR between rules).
 #   * Within one rule the organizational-unit condition AND the group condition must
 #     both hold (each condition is trivially satisfied when that dimension is absent).
@@ -80,13 +83,30 @@ class HybridRetrievalParams(BaseModel):
 #     rule's unit is an ancestor/descendant of the user's unit (closure join).
 #   * A rule with neither an organizational unit nor any group is invalid and is
 #     ignored defensively here, mirroring the application-layer rejection.
-_ACCESS_RULE_PREDICATE = """
-      AND (
+#
+# Lifecycle: for the published corpus the chunk must belong to the document's CURRENT
+# published version (self-healing against missed deactivations); for the preview corpus
+# any non-archived document qualifies (version hygiene there is handled by `is_active`).
+# The lifecycle comparison lives in the candidate join condition because it depends on
+# the chunk's `document_version_id`; the CTE carries the pointers needed to evaluate it.
+#
+# The `unaccent` call on the question goes through the IMMUTABLE wrapper added in the v2
+# BM25 migration.
+HYBRID_RETRIEVAL_SQL = text(
+    """
+WITH allowed_documents AS MATERIALIZED (
+    SELECT doc."Id" AS document_id,
+           doc.current_published_version_id,
+           doc.current_draft_version_id,
+           doc.current_state
+    FROM app.documents doc
+    WHERE
+      (
           CAST(:is_global_admin AS boolean)
           OR EXISTS (
               SELECT 1
               FROM app.document_permissions p
-              WHERE p.document_id = chunk.document_id
+              WHERE p.document_id = doc."Id"
                 AND (
                     p.organizational_unit_id IS NOT NULL
                     OR EXISTS (
@@ -124,49 +144,20 @@ _ACCESS_RULE_PREDICATE = """
                 )
           )
       )
-"""
-
-
-# Lifecycle predicate: retrieval never serves chunks for documents that .NET no
-# longer exposes. For the published corpus the chunk must belong to the document's
-# CURRENT published version (self-healing against missed deactivations); for the
-# preview corpus any non-archived document qualifies (version hygiene there is
-# handled by `is_active`). Applies to every caller, including global admins —
-# the admin bypass covers access rules only, not lifecycle state.
-_DOCUMENT_STATE_PREDICATE = """
-      AND EXISTS (
-          SELECT 1
-          FROM app.documents doc
-          WHERE doc."Id" = chunk.document_id
-            AND (
-                (chunk.corpus = 'published'
-                    AND doc.current_state = 'Published'
-                    AND doc.current_published_version_id = chunk.document_version_id)
-                OR
-                (chunk.corpus = 'preview'
-                    AND doc.current_state <> 'Archived')
-            )
-      )
-"""
-
-
-# Document-scope predicate for the docs-web mini chat: when a scope document is set,
-# both candidate CTEs only consider that document's chunks. The access-rule predicate
-# above still applies, so scoping to an inaccessible document retrieves nothing.
-_SCOPE_DOCUMENT_PREDICATE = """
       AND (
           CAST(:scope_document_id AS uuid) IS NULL
-          OR chunk.document_id = CAST(:scope_document_id AS uuid)
+          OR doc."Id" = CAST(:scope_document_id AS uuid)
       )
-"""
-
-
-# The SQL is laid out as a single statement with two CTE candidates and one UNION /
-# aggregate that fuses them. We use named bindings throughout. The `unaccent` call on
-# the question goes through the IMMUTABLE wrapper added in the v2 BM25 migration.
-HYBRID_RETRIEVAL_SQL = text(
-    f"""
-WITH vector_candidates AS (
+      AND (
+          CAST(:dimension_value_filter AS uuid[]) IS NULL
+          OR EXISTS (
+              SELECT 1 FROM app.document_dimension_values ddv
+              WHERE ddv.document_id = doc."Id"
+                AND ddv.dimension_value_id = ANY(CAST(:dimension_value_filter AS uuid[]))
+          )
+      )
+),
+vector_candidates AS (
     SELECT
         chunk.id,
         chunk.document_id,
@@ -175,18 +166,15 @@ WITH vector_candidates AS (
         chunk.heading_path,
         row_number() OVER (ORDER BY chunk.embedding <=> CAST(:q_embedding AS vector)) AS rank
     FROM rag.document_chunks chunk
+    JOIN allowed_documents ad ON ad.document_id = chunk.document_id
     WHERE chunk.corpus = :corpus
       AND chunk.is_active = true
-      {_ACCESS_RULE_PREDICATE}
-      {_DOCUMENT_STATE_PREDICATE}
-      {_SCOPE_DOCUMENT_PREDICATE}
       AND (
-          CAST(:dimension_value_filter AS uuid[]) IS NULL
-          OR EXISTS (
-              SELECT 1 FROM app.document_dimension_values ddv
-              WHERE ddv.document_id = chunk.document_id
-                AND ddv.dimension_value_id = ANY(CAST(:dimension_value_filter AS uuid[]))
-          )
+          (chunk.corpus = 'published'
+              AND ad.current_state = 'Published'
+              AND ad.current_published_version_id = chunk.document_version_id)
+          OR
+          (chunk.corpus = 'preview' AND ad.current_state <> 'Archived')
       )
     ORDER BY chunk.embedding <=> CAST(:q_embedding AS vector)
     LIMIT :vector_top_k
@@ -204,22 +192,19 @@ bm25_candidates AS (
                 similarity(chunk.content, :q_text) DESC
         ) AS rank
     FROM rag.document_chunks chunk
+    JOIN allowed_documents ad ON ad.document_id = chunk.document_id
     WHERE chunk.corpus = :corpus
       AND chunk.is_active = true
       AND (
+          (chunk.corpus = 'published'
+              AND ad.current_state = 'Published'
+              AND ad.current_published_version_id = chunk.document_version_id)
+          OR
+          (chunk.corpus = 'preview' AND ad.current_state <> 'Archived')
+      )
+      AND (
           chunk.content_tsv @@ websearch_to_tsquery('simple', rag.f_immutable_unaccent(:q_text))
           OR chunk.content % :q_text
-      )
-      {_ACCESS_RULE_PREDICATE}
-      {_DOCUMENT_STATE_PREDICATE}
-      {_SCOPE_DOCUMENT_PREDICATE}
-      AND (
-          CAST(:dimension_value_filter AS uuid[]) IS NULL
-          OR EXISTS (
-              SELECT 1 FROM app.document_dimension_values ddv
-              WHERE ddv.document_id = chunk.document_id
-                AND ddv.dimension_value_id = ANY(CAST(:dimension_value_filter AS uuid[]))
-          )
       )
     ORDER BY
         ts_rank_cd(chunk.content_tsv, websearch_to_tsquery('simple', rag.f_immutable_unaccent(:q_text))) DESC,
