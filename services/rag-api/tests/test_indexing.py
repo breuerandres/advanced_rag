@@ -193,6 +193,86 @@ async def _count_active_chunks_for_version(dsn: str, version_id: UUID) -> int:
         await connection.close()
 
 
+def test_valid_indexing_request_persists_chunk_image_references() -> None:
+    with PostgresContainer(
+        image=POSTGRES_IMAGE,
+        username=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+        dbname=POSTGRES_DB,
+    ) as postgres:
+        host = postgres.get_container_host_ip()
+        port = postgres.get_exposed_port(5432)
+        async_url = _async_sqlalchemy_url(host, port)
+        asyncpg_dsn = _asyncpg_dsn(host, port)
+        asyncio.run(_bootstrap_rag_schema(asyncpg_dsn))
+        _run_migrations(async_url)
+
+        app = create_app(
+            Settings(
+                rag_database_url=async_url,
+                internal_service_token=INTERNAL_TOKEN,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+        )
+        client = TestClient(app)
+
+        response = client.post(
+            "/internal/indexing-jobs",
+            json=_indexing_payload_with_image(),
+            headers={"X-Internal-Service-Token": INTERNAL_TOKEN},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "Succeeded"
+        image_rows = asyncio.run(_read_chunk_images(asyncpg_dsn, UUID(body["jobId"])))
+
+    assert image_rows == [
+        {
+            "image_id": UUID("11111111-1111-1111-1111-111111111111"),
+            "ordinal": 0,
+            "alt_text": "Breaker panel with red emergency switch",
+            "caption": None,
+        }
+    ]
+
+
+def _indexing_payload_with_image() -> dict[str, str]:
+    return {
+        "documentId": str(uuid4()),
+        "documentVersionId": str(uuid4()),
+        "contentHtml": (
+            "<h1>Safety panel</h1>"
+            "<figure>"
+            '<img src="/api/document-images/11111111-1111-1111-1111-111111111111/content" '
+            'alt="Breaker panel with red emergency switch" />'
+            "<figcaption>North wall panel.</figcaption>"
+            "</figure>"
+        ),
+        "corpusMode": "published",
+    }
+
+
+async def _read_chunk_images(dsn: str, job_id: UUID) -> list[dict[str, Any]]:
+    connection = await asyncpg.connect(dsn)
+    try:
+        rows = await connection.fetch(
+            """
+            select image.image_id, image.ordinal, image.alt_text, image.caption
+            from rag.document_chunk_images image
+            join rag.document_chunks chunk on chunk.id = image.chunk_id
+            where chunk.indexing_job_id = $1
+            order by image.ordinal
+            """,
+            job_id,
+        )
+    finally:
+        await connection.close()
+    return [dict(row) for row in rows]
+
+
 def _indexing_payload() -> dict[str, str]:
     return {
         "documentId": str(uuid4()),

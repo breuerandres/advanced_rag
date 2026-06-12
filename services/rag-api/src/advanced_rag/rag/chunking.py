@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import re
 from html import escape
 from html.parser import HTMLParser
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -10,6 +12,23 @@ CHUNKER_VERSION = 1
 TARGET_CHUNK_TOKENS = 500
 MAX_CHUNK_TOKENS = 800
 OVERLAP_TOKENS = 80
+
+
+# Same-origin stable document-image reference, mirroring .NET's
+# `StableDocumentImageSourcePattern`. Only these are indexable as multimodal
+# candidates; external URLs and data: URIs are ignored.
+STABLE_IMAGE_SRC_PATTERN = re.compile(
+    r"^/api/document-images/(?P<image_id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}"
+    r"-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/content$"
+)
+
+
+class ChunkImageRef(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    image_id: UUID
+    ordinal: int  # 0-based order of appearance within the chunk
+    alt_text: str | None = None
 
 
 class DocumentChunk(BaseModel):
@@ -21,12 +40,14 @@ class DocumentChunk(BaseModel):
     char_count: int
     content: str
     content_html: str
+    images: list[ChunkImageRef] = []
 
 
 def chunk_html(content_html: str) -> list[DocumentChunk]:
     blocks = _HtmlBlockParser.parse(content_html)
     chunks: list[DocumentChunk] = []
     current_parts: list[str] = []
+    current_images: list[tuple[UUID, str | None]] = []
     current_heading: list[str] = []
 
     for block in blocks:
@@ -35,29 +56,51 @@ def chunk_html(content_html: str) -> list[DocumentChunk]:
             current_heading = _next_heading_path(current_heading, block.tag, block.text)
 
         if not tokens:
+            # The block has no indexable text (e.g. an image with no alt text); still
+            # carry any image references forward so they attach to the next chunk.
+            current_images.extend(block.images)
             continue
 
         candidate = " ".join([*current_parts, block.text]).strip()
         if current_parts and len(_tokens(candidate)) > TARGET_CHUNK_TOKENS:
-            chunks.append(_create_chunk(len(chunks), current_heading, " ".join(current_parts)))
+            chunks.append(
+                _create_chunk(len(chunks), current_heading, " ".join(current_parts), current_images)
+            )
             current_parts = _overlap_tail(current_parts)
+            current_images = []  # overlap tails carry no images (avoid duplication)
 
         if len(tokens) > MAX_CHUNK_TOKENS:
-            for part in _split_long_text(block.text):
-                chunks.append(_create_chunk(len(chunks), current_heading, part))
+            split_parts = _split_long_text(block.text)
+            for offset, part in enumerate(split_parts):
+                # The block's images attach only to the first chunk produced from it.
+                part_images = current_images + block.images if offset == 0 else []
+                chunks.append(_create_chunk(len(chunks), current_heading, part, part_images))
             current_parts = []
+            current_images = []
             continue
 
         current_parts.append(block.text)
+        current_images.extend(block.images)
 
     if current_parts:
-        chunks.append(_create_chunk(len(chunks), current_heading, " ".join(current_parts)))
+        chunks.append(
+            _create_chunk(len(chunks), current_heading, " ".join(current_parts), current_images)
+        )
 
     return chunks
 
 
-def _create_chunk(index: int, heading_path: list[str], content: str) -> DocumentChunk:
+def _create_chunk(
+    index: int,
+    heading_path: list[str],
+    content: str,
+    images: list[tuple[UUID, str | None]] | None = None,
+) -> DocumentChunk:
     normalized = " ".join(content.split())
+    image_refs = [
+        ChunkImageRef(image_id=image_id, ordinal=ordinal, alt_text=alt_text)
+        for ordinal, (image_id, alt_text) in enumerate(images or [])
+    ]
     return DocumentChunk(
         chunk_index=index,
         heading_path=heading_path.copy(),
@@ -65,6 +108,7 @@ def _create_chunk(index: int, heading_path: list[str], content: str) -> Document
         char_count=len(normalized),
         content=normalized,
         content_html=f"<p>{escape(normalized)}</p>",
+        images=image_refs,
     )
 
 
@@ -95,9 +139,15 @@ def _next_heading_path(current: list[str], tag: str, text: str) -> list[str]:
 
 
 class _Block:
-    def __init__(self, tag: str, text: str) -> None:
+    def __init__(
+        self,
+        tag: str,
+        text: str,
+        images: list[tuple[UUID, str | None]] | None = None,
+    ) -> None:
         self.tag = tag
         self.text = text
+        self.images = images or []
 
 
 class _HtmlBlockParser(HTMLParser):
@@ -107,6 +157,7 @@ class _HtmlBlockParser(HTMLParser):
         super().__init__()
         self._active_tag: str | None = None
         self._buffer: list[str] = []
+        self._image_buffer: list[tuple[UUID, str | None]] = []
         self.blocks: list[_Block] = []
 
     @classmethod
@@ -125,6 +176,7 @@ class _HtmlBlockParser(HTMLParser):
             image_text = _image_text(attrs)
             if image_text:
                 self._buffer.append(image_text)
+            self._record_image_reference(attrs)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == self._active_tag:
@@ -136,11 +188,21 @@ class _HtmlBlockParser(HTMLParser):
         if normalized:
             self._buffer.append(normalized)
 
+    def _record_image_reference(self, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = {key.lower(): value for key, value in attrs if value is not None}
+        match = STABLE_IMAGE_SRC_PATTERN.match((attributes.get("src") or "").strip())
+        if match is None:
+            return
+        alt_raw = attributes.get("alt")
+        alt_text = " ".join(alt_raw.split()) if alt_raw and alt_raw.strip() else None
+        self._image_buffer.append((UUID(match.group("image_id")), alt_text))
+
     def _flush(self) -> None:
         text = " ".join(self._buffer).strip()
-        if text:
-            self.blocks.append(_Block(self._active_tag or "p", text))
+        if text or self._image_buffer:
+            self.blocks.append(_Block(self._active_tag or "p", text, self._image_buffer))
         self._buffer = []
+        self._image_buffer = []
 
 
 def _image_text(attrs: list[tuple[str, str | None]]) -> str:

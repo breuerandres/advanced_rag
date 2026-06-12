@@ -105,7 +105,16 @@ class InternalIndexingService:
                     ),
                     {"document_id": request.document_id, "corpus": request.corpus_mode},
                 )
+                # Re-indexing the same version replaces its chunk-image references.
+                await session.execute(
+                    text(
+                        "delete from rag.document_chunk_images "
+                        "where document_version_id = :document_version_id"
+                    ),
+                    {"document_version_id": request.document_version_id},
+                )
                 for chunk, embedding in zip(chunks, embeddings, strict=True):
+                    chunk_id = uuid4()
                     await session.execute(
                         text(
                             """
@@ -144,7 +153,7 @@ class InternalIndexingService:
                             """
                         ),
                         {
-                            "id": uuid4(),
+                            "id": chunk_id,
                             "indexing_job_id": job_id,
                             "document_id": request.document_id,
                             "document_version_id": request.document_version_id,
@@ -159,6 +168,44 @@ class InternalIndexingService:
                             "embedding_model": embedding_model,
                         },
                     )
+                    for image in chunk.images:
+                        await session.execute(
+                            text(
+                                """
+                                insert into rag.document_chunk_images (
+                                    id,
+                                    chunk_id,
+                                    document_id,
+                                    document_version_id,
+                                    image_id,
+                                    ordinal,
+                                    alt_text,
+                                    caption
+                                )
+                                values (
+                                    :id,
+                                    :chunk_id,
+                                    :document_id,
+                                    :document_version_id,
+                                    :image_id,
+                                    :ordinal,
+                                    :alt_text,
+                                    :caption
+                                )
+                                on conflict do nothing
+                                """
+                            ),
+                            {
+                                "id": uuid4(),
+                                "chunk_id": chunk_id,
+                                "document_id": request.document_id,
+                                "document_version_id": request.document_version_id,
+                                "image_id": image.image_id,
+                                "ordinal": image.ordinal,
+                                "alt_text": image.alt_text,
+                                "caption": None,
+                            },
+                        )
                 await session.execute(
                     text(
                         """
