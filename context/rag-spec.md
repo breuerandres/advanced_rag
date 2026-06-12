@@ -201,9 +201,24 @@ Rules:
 
 - Index type: HNSW.
 - Operator class: `vector_cosine_ops`.
-- Parameters: `m = 16`, `ef_construction = 64` (build time), `ef_search = 40` (query time, set per session via `SET hnsw.ef_search`).
-- Created by an Alembic migration after the `rag.document_chunks` table exists.
-- The index is concurrently rebuilt only during a maintenance window; the MVP does not include automatic rebuild logic.
+- Build parameters: `m = 16`, `ef_construction = 64`.
+- Two **partial** indexes, one per corpus, each excluding inactive chunks:
+  `ix_document_chunks_embedding_hnsw_published` (`WHERE corpus = 'published' AND is_active = true`)
+  and `ix_document_chunks_embedding_hnsw_preview` (`WHERE corpus = 'preview' AND is_active = true`).
+  Deactivated chunks drop out of the index on vacuum, keeping each index small. The retrieval
+  SQL inlines the corpus as a literal (whitelist-validated, not a bound parameter) so the planner
+  can prove the partial-index predicate.
+- Query-time search depth: `ef_search = 80`, set per query via `SET LOCAL hnsw.ef_search`
+  (raised above the pgvector default of 40 so post-filtering on selective access scopes keeps
+  recall). When the server's pgvector is `>= 0.8` (detected once at startup), the retrieval query
+  also sets `SET LOCAL hnsw.iterative_scan = 'relaxed_order'`, which lets the index scan continue
+  past `ef_search` until the `LIMIT` is satisfied — preventing recall collapse for users who can
+  access only a small fraction of a large corpus.
+- Created by Alembic migrations after the `rag.document_chunks` table exists; the partial indexes
+  replace the original global HNSW index (migration `20260611_150000`).
+- Indexes are concurrently rebuilt only during a maintenance window; the MVP does not include
+  automatic rebuild logic. Re-running the partial-index migration on a large existing
+  `rag.document_chunks` table rebuilds the vector indexes, so schedule it in a maintenance window.
 
 ## Rate Limits And Backpressure
 
