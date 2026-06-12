@@ -11,6 +11,7 @@ See docs/adr/0001-multi-provider-llm.md.
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ from advanced_rag.providers.base import (
     IMultimodalLlmProvider,
     ImageInput,
 )
+from advanced_rag.rag.answer_stream_parser import AnswerStreamParser
 
 
 SYSTEM_PROMPT_DIR = Path(__file__).parent / "prompts"
@@ -114,6 +116,52 @@ async def generate_answer(
     content, usage = await llm.chat_complete(req)
     answer, cited = _parse_answer(content)
     return AnswerGeneration(answer=answer, cited_chunk_ids=cited, usage=usage)
+
+
+async def generate_answer_stream(
+    *,
+    llm: ILlmProvider,
+    question: str,
+    chunks: list[Any],
+    locale: str,
+    model: str,
+    temperature: float = 0.1,
+    max_tokens: int = 900,
+) -> AsyncIterator[str | AnswerGeneration]:
+    """Yield answer-character strings as they stream, then one final AnswerGeneration.
+
+    The final item is always an `AnswerGeneration` carrying the full answer, cited
+    chunk ids, and usage; every earlier item is a `str` delta for SSE forwarding. The
+    model still returns the `{"answer", "cited_chunk_ids"}` JSON payload; the parser
+    surfaces `answer` characters as they arrive and citations are parsed at the end.
+    """
+    system = load_system_prompt(locale)
+    user_content = (
+        f"Context:\n{_format_context(chunks)}\n\n"
+        f"Question:\n{question}\n\n"
+        f"{JSON_INSTRUCTION}"
+    )
+    req = ChatCompletionRequest(
+        messages=[
+            ChatMessage(role="system", content=system),
+            ChatMessage(role="user", content=user_content),
+        ],
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        response_format={"type": "json_object"},
+    )
+    parser = AnswerStreamParser()
+    usage = ChatUsage()
+    async for delta in llm.chat_stream(req):
+        if delta.content:
+            emitted = parser.feed(delta.content)
+            if emitted:
+                yield emitted
+        if delta.usage is not None:
+            usage = delta.usage
+    answer, cited = _parse_answer(parser.finalize_raw())
+    yield AnswerGeneration(answer=answer, cited_chunk_ids=cited, usage=usage)
 
 
 async def generate_multimodal_answer(

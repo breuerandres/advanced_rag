@@ -45,15 +45,6 @@ class ChatCompletionRequest(BaseModel):
     tool-use, etc.). Each provider translates this to its native equivalent."""
 
 
-class ChatCompletionDelta(BaseModel):
-    """One streaming chunk from a chat completion."""
-
-    model_config = ConfigDict(frozen=True)
-
-    content: str | None = None
-    finish_reason: str | None = None
-
-
 class ChatUsage(BaseModel):
     """Token usage reported by the provider."""
 
@@ -62,6 +53,18 @@ class ChatUsage(BaseModel):
     input_tokens: int = 0
     cached_input_tokens: int = 0
     output_tokens: int = 0
+
+
+class ChatCompletionDelta(BaseModel):
+    """One streaming chunk from a chat completion."""
+
+    model_config = ConfigDict(frozen=True)
+
+    content: str | None = None
+    finish_reason: str | None = None
+    usage: ChatUsage | None = None
+    """Token usage, reported once at the end of the stream when the provider supports it
+    (OpenAI sends it in a final usage-only chunk under `stream_options.include_usage`)."""
 
 
 class ILlmProvider(Protocol):

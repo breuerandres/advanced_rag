@@ -53,6 +53,7 @@ class OpenAILlmProvider(ILlmProvider):
                 "temperature": req.temperature,
                 "max_tokens": req.max_tokens,
                 "stream": True,
+                "stream_options": {"include_usage": True},
             }
             if req.response_format is not None:
                 kwargs["response_format"] = req.response_format
@@ -61,13 +62,23 @@ class OpenAILlmProvider(ILlmProvider):
         stream = await retry_async(_call, retry_on=is_transient_openai_error)
 
         async for chunk in stream:
+            usage = getattr(chunk, "usage", None)
             delta = chunk.choices[0].delta if chunk.choices else None
             finish = chunk.choices[0].finish_reason if chunk.choices else None
-            if delta is None and finish is None:
+            if delta is None and finish is None and usage is None:
                 continue
             yield ChatCompletionDelta(
                 content=getattr(delta, "content", None) if delta else None,
                 finish_reason=finish,
+                usage=(
+                    ChatUsage(
+                        input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+                        output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+                        cached_input_tokens=getattr(usage, "prompt_tokens_cached", 0) or 0,
+                    )
+                    if usage is not None
+                    else None
+                ),
             )
 
     async def chat_complete(
