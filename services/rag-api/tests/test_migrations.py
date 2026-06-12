@@ -36,7 +36,9 @@ EXPECTED_INDEXES = {
     "ix_indexing_jobs_document_version_id",
     "ix_document_chunks_document_version_id",
     "ix_document_chunks_corpus_is_active",
-    "ix_document_chunks_embedding_hnsw",
+    # Partial per-corpus HNSW indexes (migration 20260611_150000) replace the global one.
+    "ix_document_chunks_embedding_hnsw_published",
+    "ix_document_chunks_embedding_hnsw_preview",
     "ix_semantic_cache_entries_scope_lookup",
     "ix_query_audit_events_created_at",
     "ix_query_audit_events_user_created_at",
@@ -85,6 +87,8 @@ def test_initial_alembic_migration_creates_owned_rag_schema() -> None:
     # embedding column to 1024 dims for multilingual support.
     assert state["document_chunks_embedding_type"] == "vector(1024)"
     assert EXPECTED_INDEXES.issubset(state["indexes"])
+    # The global HNSW index is replaced by the partial per-corpus indexes.
+    assert "ix_document_chunks_embedding_hnsw" not in state["indexes"]
     assert state["active_model_pricing"] == {
         ("gpt-4.1-nano", "chat"),
         ("text-embedding-3-small", "embedding"),
