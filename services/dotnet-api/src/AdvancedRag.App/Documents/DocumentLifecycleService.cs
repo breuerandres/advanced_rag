@@ -39,6 +39,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     private readonly IDocumentRepository _repository;
     private readonly IInternalIndexingClient _indexingClient;
+    private readonly IInternalCacheInvalidationClient _cacheInvalidation;
     private readonly IDocumentHtmlSanitizer _htmlSanitizer;
     private readonly IEffectiveAccessScopeRepository? _accessScopes;
     private readonly IDocumentAccessPolicy? _accessPolicy;
@@ -48,10 +49,12 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         IDocumentHtmlSanitizer? htmlSanitizer = null,
         IInternalIndexingClient? indexingClient = null,
         IEffectiveAccessScopeRepository? accessScopes = null,
-        IDocumentAccessPolicy? accessPolicy = null)
+        IDocumentAccessPolicy? accessPolicy = null,
+        IInternalCacheInvalidationClient? cacheInvalidationClient = null)
     {
         _repository = repository;
         _indexingClient = indexingClient ?? new UnavailableInternalIndexingClient();
+        _cacheInvalidation = cacheInvalidationClient ?? new NoOpInternalCacheInvalidationClient();
         _htmlSanitizer = htmlSanitizer ?? new PassthroughDocumentHtmlSanitizer();
         _accessScopes = accessScopes;
         _accessPolicy = accessPolicy;
@@ -322,11 +325,20 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             UpdatedAt = now,
         };
 
+        // Capture before relying on the replacement aggregate: a republish replaces a
+        // previous published version, so any cached answers sourced from it are stale.
+        bool isRepublish = document.CurrentPublishedVersion is not null;
+
         await _repository.SaveAsync(
             published,
             [],
             [Audit(command.ActorUserId, "document.published", document.Id, command.RequestId)],
             ct);
+
+        if (isRepublish)
+        {
+            await _cacheInvalidation.InvalidateDocumentsAsync([document.Id], ct);
+        }
 
         return published;
     }
@@ -371,6 +383,8 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             [],
             [Audit(command.ActorUserId, "document.archived", document.Id, command.RequestId)],
             ct);
+
+        await _cacheInvalidation.InvalidateDocumentsAsync([document.Id], ct);
 
         return updated;
     }
@@ -421,6 +435,8 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             [],
             [Audit(command.ActorUserId, "document.restored", document.Id, command.RequestId)],
             ct);
+
+        await _cacheInvalidation.InvalidateDocumentsAsync([document.Id], ct);
 
         return updated;
     }
@@ -682,4 +698,10 @@ internal sealed class UnavailableInternalIndexingClient : IInternalIndexingClien
             "INDEXING_CLIENT_NOT_CONFIGURED",
             "Internal indexing client is not configured."));
     }
+}
+
+internal sealed class NoOpInternalCacheInvalidationClient : IInternalCacheInvalidationClient
+{
+    public Task<int> InvalidateDocumentsAsync(IReadOnlyList<Guid> documentIds, CancellationToken ct)
+        => Task.FromResult(0);
 }

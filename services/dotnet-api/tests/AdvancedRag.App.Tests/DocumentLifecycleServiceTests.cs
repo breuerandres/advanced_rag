@@ -337,6 +337,75 @@ public sealed class DocumentLifecycleServiceTests
         document.CurrentDraftVersion!.VersionNumber.Should().Be(2);
     }
 
+    [Fact]
+    public async Task ArchiveAsync_InvalidatesSemanticCacheForDocument()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = PublishedDocument();
+        var cache = new RecordingCacheInvalidationClient();
+        var service = new DocumentLifecycleService(repository, cacheInvalidationClient: cache);
+
+        await service.ArchiveAsync(
+            new ArchiveDocumentCommand(DocumentId, ActorId, ["Admin"], "request-archive-cache"),
+            CancellationToken.None);
+
+        cache.Calls.Single().Single().Should().Be(DocumentId);
+    }
+
+    [Fact]
+    public async Task RestoreAsync_InvalidatesSemanticCacheForDocument()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = PublishedDocument() with { State = DocumentState.Archived };
+        var cache = new RecordingCacheInvalidationClient();
+        var service = new DocumentLifecycleService(repository, cacheInvalidationClient: cache);
+
+        await service.RestoreAsync(
+            new RestoreDocumentCommand(DocumentId, ActorId, "request-restore-cache"),
+            CancellationToken.None);
+
+        cache.Calls.Single().Single().Should().Be(DocumentId);
+    }
+
+    [Fact]
+    public async Task RequestPublishAsync_RepublishInvalidatesSemanticCacheForDocument()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = ValidInReview() with
+        {
+            CurrentPublishedVersion = PublishedDocument().CurrentPublishedVersion,
+        };
+        var cache = new RecordingCacheInvalidationClient();
+        var service = new DocumentLifecycleService(
+            repository,
+            indexingClient: new RecordingIndexingClient(),
+            cacheInvalidationClient: cache);
+
+        await service.RequestPublishAsync(
+            new RequestPublishCommand(DocumentId, ActorId, ["Admin"], "request-republish-cache"),
+            CancellationToken.None);
+
+        cache.Calls.Single().Single().Should().Be(DocumentId);
+    }
+
+    [Fact]
+    public async Task RequestPublishAsync_FirstPublishDoesNotInvalidateSemanticCache()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = ValidInReview();
+        var cache = new RecordingCacheInvalidationClient();
+        var service = new DocumentLifecycleService(
+            repository,
+            indexingClient: new RecordingIndexingClient(),
+            cacheInvalidationClient: cache);
+
+        await service.RequestPublishAsync(
+            new RequestPublishCommand(DocumentId, ActorId, ["Admin"], "request-first-publish-cache"),
+            CancellationToken.None);
+
+        cache.Calls.Should().BeEmpty();
+    }
+
     private static DocumentAggregate ValidDraft()
     {
         return DocumentAggregate.NewDraft(
@@ -494,6 +563,18 @@ public sealed class DocumentLifecycleServiceTests
             ct.ThrowIfCancellationRequested();
             Requests.Add(request);
             return Task.FromResult(new InternalIndexingResult(JobId, "Succeeded", 3, null, null));
+        }
+    }
+
+    private sealed class RecordingCacheInvalidationClient : IInternalCacheInvalidationClient
+    {
+        public List<IReadOnlyList<Guid>> Calls { get; } = [];
+
+        public Task<int> InvalidateDocumentsAsync(IReadOnlyList<Guid> documentIds, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            Calls.Add(documentIds);
+            return Task.FromResult(documentIds.Count);
         }
     }
 
