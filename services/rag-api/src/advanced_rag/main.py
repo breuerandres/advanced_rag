@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse, Response
 
 from advanced_rag.api.routers.chat import router as chat_router
 from advanced_rag.api.routers.indexing import router as indexing_router
+from advanced_rag.api.routers.maintenance import router as maintenance_router
 from advanced_rag.auth.chat_tokens import (
     ChatTokenValidationSettings,
     ChatTokenValidator,
@@ -45,6 +46,7 @@ from advanced_rag.rag.chat_service import ChatService
 from advanced_rag.rag.feedback_service import FeedbackService
 from advanced_rag.rag.hybrid_retrieval import detect_iterative_scan_support
 from advanced_rag.rag.indexing_service import InternalIndexingService
+from advanced_rag.rag.maintenance_service import MaintenanceService
 
 
 class HealthResponse(BaseModel):
@@ -128,6 +130,7 @@ def create_app(
         resolved_settings,
     )
     app.state.feedback_service = FeedbackService(app.state.session_factory)
+    app.state.maintenance_service = MaintenanceService(app.state.session_factory)
     app.state.rate_limiter = FixedWindowRateLimiter()
     app.state.readiness_checker = OperationalReadinessChecker(resolved_settings, app.state.database_engine)
     app.add_middleware(RequestIdMiddleware)
@@ -156,6 +159,7 @@ def create_app(
 
     app.include_router(indexing_router)
     app.include_router(chat_router)
+    app.include_router(maintenance_router)
 
     return app
 
