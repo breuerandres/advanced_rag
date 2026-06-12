@@ -21,6 +21,25 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 
+async def detect_iterative_scan_support(connection: AsyncConnection) -> bool:
+    """pgvector >= 0.8.0 supports `SET hnsw.iterative_scan`.
+
+    Probed once at startup; older images silently fall back to `ef_search` only.
+    """
+    result = await connection.execute(
+        text("select extversion from pg_extension where extname = 'vector'")
+    )
+    version = result.scalar_one_or_none()
+    if not version:
+        return False
+    parts = str(version).split(".")
+    try:
+        major, minor = int(parts[0]), int(parts[1])
+    except (IndexError, ValueError):
+        return False
+    return (major, minor) >= (0, 8)
+
+
 class HybridCandidate(BaseModel):
     """One retrieved chunk before reranking."""
 

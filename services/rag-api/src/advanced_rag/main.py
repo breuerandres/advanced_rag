@@ -42,6 +42,7 @@ from advanced_rag.providers import (
 from advanced_rag.providers.factory import TenantProviderConfig
 from advanced_rag.rag.chat_service import ChatService
 from advanced_rag.rag.feedback_service import FeedbackService
+from advanced_rag.rag.hybrid_retrieval import detect_iterative_scan_support
 from advanced_rag.rag.indexing_service import InternalIndexingService
 
 
@@ -136,6 +137,19 @@ def create_app(
             status_code=503,
             content={"status": "unhealthy", "checks": result.failed_checks},
         )
+
+    @app.on_event("startup")
+    async def _detect_pgvector_capabilities() -> None:
+        # Probe pgvector's iterative-scan support once the database is reachable and
+        # upgrade the chat service. uvicorn runs startup events; tests that need the
+        # capability use the TestClient context manager to trigger this.
+        try:
+            async with app.state.database_engine.connect() as connection:
+                supported = await detect_iterative_scan_support(connection)
+        except Exception:  # pragma: no cover - probe must never block startup
+            supported = False
+        app.state.hnsw_iterative_scan_supported = supported
+        app.state.chat_service.set_hnsw_iterative_scan_supported(supported)
 
     app.include_router(indexing_router)
     app.include_router(chat_router)

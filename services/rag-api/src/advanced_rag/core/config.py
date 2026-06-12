@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     rag_rrf_k: int = 60
     rag_hybrid_top_k: int = 30
     rag_final_top_k: int = 8
+    # HNSW search depth set per query via `SET LOCAL hnsw.ef_search`. Higher than the
+    # pgvector default (40) so post-filter access scopes keep recall. Iterative scan is
+    # effective only when the server's pgvector is >= 0.8 (detected once at startup).
+    rag_hnsw_ef_search: int = 80
+    rag_hnsw_iterative_scan: bool = True
     conversation_history_turns: int = 5
 
     default_locale: str = "es-AR"

@@ -121,12 +121,24 @@ class ChatService:
         llm_provider: ILlmProvider,
         reranker_provider: IRerankerProvider | None,
         settings: Settings,
+        hnsw_iterative_scan_supported: bool = False,
     ) -> None:
         self._session_factory = session_factory
         self._embedding_provider = embedding_provider
         self._llm_provider = llm_provider
         self._reranker_provider = reranker_provider
         self._settings = settings
+        # Set to True only when the server's pgvector advertised >= 0.8 at startup.
+        # When False the retrieval SQL relies on `ef_search` alone.
+        self._hnsw_iterative_scan_supported = hnsw_iterative_scan_supported
+
+    def set_hnsw_iterative_scan_supported(self, supported: bool) -> None:
+        """Update the pgvector iterative-scan capability after the startup probe.
+
+        The probe is async and runs once the database is reachable, so the service is
+        constructed with the conservative default and upgraded here.
+        """
+        self._hnsw_iterative_scan_supported = supported
 
     async def answer(
         self,
