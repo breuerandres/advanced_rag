@@ -28,6 +28,8 @@ EXPECTED_TABLES = {
     "model_pricing",
     # Added by the v2 migration 20260522_120400.
     "unresolved_questions",
+    # Added by the multimodal migration 20260611_130000.
+    "document_chunk_images",
 }
 
 EXPECTED_INDEXES = {
@@ -49,6 +51,9 @@ EXPECTED_INDEXES = {
     "ix_unresolved_questions_cluster",
     "ix_unresolved_questions_status_created",
     "ix_unresolved_questions_embedding_hnsw",
+    # multimodal migration 20260611_130000
+    "ix_document_chunk_images_chunk_id",
+    "ix_document_chunk_images_document_version_id",
 }
 
 
@@ -147,6 +152,83 @@ def test_v2_embedding_dimension_migration_preserves_historical_chunk_references(
     assert state["chunk_embedding_is_null"] is True
     assert state["citation_still_references_chunk"] is True
     assert state["semantic_cache_entries"] == 0
+
+
+def test_migrations_create_multimodal_image_reference_schema() -> None:
+    with PostgresContainer(
+        image=POSTGRES_IMAGE,
+        username=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+        dbname=POSTGRES_DB,
+    ) as postgres:
+        host = postgres.get_container_host_ip()
+        port = postgres.get_exposed_port(5432)
+        async_url = _async_sqlalchemy_url(host, port)
+        asyncpg_dsn = _asyncpg_dsn(host, port)
+
+        asyncio.run(_bootstrap_superuser_rag_schema(asyncpg_dsn))
+
+        config = Config(str(SERVICE_ROOT / "alembic.ini"))
+        config.set_main_option("sqlalchemy.url", async_url)
+
+        command.upgrade(config, "head")
+
+        schema = asyncio.run(_read_multimodal_schema(asyncpg_dsn))
+
+    assert schema["image_table"] is True
+    assert schema["image_columns"] == [
+        "id",
+        "chunk_id",
+        "document_id",
+        "document_version_id",
+        "image_id",
+        "ordinal",
+        "alt_text",
+        "caption",
+        "created_at",
+    ]
+    assert schema["audit_columns"] == [
+        "multimodal_image_bytes_total",
+        "multimodal_image_count",
+        "multimodal_image_detail",
+        "multimodal_image_ids",
+        "multimodal_used",
+    ]
+
+
+async def _read_multimodal_schema(dsn: str) -> dict[str, object]:
+    connection = await asyncpg.connect(dsn)
+    try:
+        image_table = await connection.fetchval(
+            "select to_regclass('rag.document_chunk_images') is not null"
+        )
+        image_columns = await connection.fetch(
+            """
+            select column_name
+            from information_schema.columns
+            where table_schema = 'rag'
+              and table_name = 'document_chunk_images'
+            order by ordinal_position
+            """
+        )
+        audit_columns = await connection.fetch(
+            """
+            select column_name
+            from information_schema.columns
+            where table_schema = 'rag'
+              and table_name = 'query_audit_events'
+              and column_name like 'multimodal_%'
+            order by column_name
+            """
+        )
+    finally:
+        await connection.close()
+
+    return {
+        "image_table": bool(image_table),
+        "image_columns": [row["column_name"] for row in image_columns],
+        "audit_columns": [row["column_name"] for row in audit_columns],
+    }
 
 
 def test_postgres_init_does_not_grant_table_access_before_app_migrations() -> None:
