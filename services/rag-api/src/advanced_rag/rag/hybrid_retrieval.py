@@ -57,6 +57,7 @@ class HybridRetrievalParams(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     corpus: str
+    embedding_model: str
     user_groups: list[UUID]
     user_organizational_unit_id: UUID
     root_organizational_unit_id: UUID
@@ -178,6 +179,7 @@ vector_candidates AS (
     JOIN allowed_documents ad ON ad.document_id = chunk.document_id
     WHERE chunk.corpus = {corpus_literal}
       AND chunk.is_active = true
+      AND chunk.embedding_model = :embedding_model
       AND (
           ({corpus_literal} = 'published'
               AND ad.current_state = 'Published'
@@ -204,6 +206,7 @@ bm25_candidates AS (
     JOIN allowed_documents ad ON ad.document_id = chunk.document_id
     WHERE chunk.corpus = {corpus_literal}
       AND chunk.is_active = true
+      AND chunk.embedding_model = :embedding_model
       AND (
           ({corpus_literal} = 'published'
               AND ad.current_state = 'Published'
@@ -270,6 +273,7 @@ async def hybrid_retrieve(
         {
             "q_text": q_text,
             "q_embedding": _vector_literal(q_embedding),
+            "embedding_model": params.embedding_model,
             "is_global_admin": params.is_global_admin,
             "user_groups": [str(group_id) for group_id in params.user_groups],
             "user_organizational_unit_id": params.user_organizational_unit_id,

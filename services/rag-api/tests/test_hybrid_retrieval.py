@@ -53,6 +53,7 @@ async def test_detect_iterative_scan_support(version: str | None, expected: bool
 async def test_hybrid_retrieve_rejects_unknown_corpus() -> None:
     params = HybridRetrievalParams(
         corpus="not-a-corpus",
+        embedding_model="any-model",
         user_groups=[],
         user_organizational_unit_id=UUID(int=1),
         root_organizational_unit_id=UUID(int=1),
