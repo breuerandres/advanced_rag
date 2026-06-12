@@ -178,6 +178,63 @@ def test_new_version_deactivates_previous_version_chunks() -> None:
     assert other_active >= 1
 
 
+def test_reindexing_same_version_succeeds_and_retains_history() -> None:
+    """Re-indexing the same version must not collide with the prior run's retained
+    inactive chunks. The same version id is re-indexed on a publish retry and when a
+    draft is edited then re-published (the draft version id is reused)."""
+    with PostgresContainer(
+        image=POSTGRES_IMAGE,
+        username=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+        dbname=POSTGRES_DB,
+    ) as postgres:
+        host = postgres.get_container_host_ip()
+        port = postgres.get_exposed_port(5432)
+        async_url = _async_sqlalchemy_url(host, port)
+        asyncpg_dsn = _asyncpg_dsn(host, port)
+        asyncio.run(_bootstrap_rag_schema(asyncpg_dsn))
+        _run_migrations(async_url)
+
+        app = create_app(
+            Settings(
+                rag_database_url=async_url,
+                internal_service_token=INTERNAL_TOKEN,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+        )
+        client = TestClient(app)
+        headers = {"X-Internal-Service-Token": INTERNAL_TOKEN}
+
+        payload = {
+            "documentId": str(uuid4()),
+            "documentVersionId": str(uuid4()),
+            "contentHtml": "<h1>Safety</h1><p>Wear visible credentials.</p>",
+            "corpusMode": "published",
+        }
+        version_id = UUID(payload["documentVersionId"])
+
+        first = client.post("/internal/indexing-jobs", json=payload, headers=headers)
+        assert first.status_code == 200
+        assert first.json()["status"] == "Succeeded"
+
+        # Same version id again — must succeed, not raise a UniqueViolation on
+        # (document_version_id, chunk_index) against the first run's chunks.
+        second = client.post("/internal/indexing-jobs", json=payload, headers=headers)
+        assert second.status_code == 200
+        assert second.json()["status"] == "Succeeded"
+
+        active = asyncio.run(_count_active_chunks_for_version(asyncpg_dsn, version_id))
+        total = asyncio.run(_count_total_chunks_for_version(asyncpg_dsn, version_id))
+
+    chunk_count = second.json()["chunkCount"]
+    # The re-index supersedes the prior run: exactly one active set, and the prior
+    # run's chunks are retained as inactive history (not deleted).
+    assert active == chunk_count
+    assert total == chunk_count * 2
+
+
 async def _count_active_chunks_for_version(dsn: str, version_id: UUID) -> int:
     connection = await asyncpg.connect(dsn)
     try:
@@ -187,6 +244,17 @@ async def _count_active_chunks_for_version(dsn: str, version_id: UUID) -> int:
             from rag.document_chunks
             where document_version_id = $1 and is_active = true
             """,
+            version_id,
+        )
+    finally:
+        await connection.close()
+
+
+async def _count_total_chunks_for_version(dsn: str, version_id: UUID) -> int:
+    connection = await asyncpg.connect(dsn)
+    try:
+        return await connection.fetchval(
+            "select count(*) from rag.document_chunks where document_version_id = $1",
             version_id,
         )
     finally:

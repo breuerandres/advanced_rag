@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -12,6 +13,8 @@ from advanced_rag.core.errors import ApiException
 from advanced_rag.providers.base import IEmbeddingProvider
 from advanced_rag.rag.chunking import CHUNKER_VERSION, chunk_html
 from advanced_rag.schemas.indexing import InternalIndexingRequest
+
+logger = logging.getLogger(__name__)
 
 
 class IndexingJobResult(BaseModel):
@@ -230,12 +233,24 @@ class InternalIndexingService:
                 return IndexingJobResult(job_id=job_id, status="Succeeded", chunk_count=len(chunks))
             except Exception as exc:
                 await session.rollback()
+                # This pipeline runs in-request and returns HTTP 200 with a Failed body,
+                # so without this log the real cause never surfaced anywhere (the public
+                # error envelope keeps only the stable code). Log the traceback and persist
+                # the message on the job row (internal `rag` schema; never forwarded to the
+                # browser) so failures are diagnosable from logs or the indexing_jobs table.
+                logger.exception(
+                    "Internal indexing job %s failed (document=%s, version=%s, corpus=%s)",
+                    job_id,
+                    request.document_id,
+                    request.document_version_id,
+                    request.corpus_mode,
+                )
                 async with self._session_factory() as failure_session:
                     await self._mark_failed(
                         failure_session,
                         job_id,
                         "INDEXING_FAILED",
-                        "Indexing job failed.",
+                        f"Indexing job failed: {exc}",
                     )
                     await failure_session.commit()
                 return IndexingJobResult(
