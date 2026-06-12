@@ -37,7 +37,7 @@ Status tracking: mark the checkbox here when a slice is merged and verified.
 - [x] Slice 1 — Retrieval lifecycle correctness (branch `rag-hardening-s1-3`, agent-verified; Compose acceptance pending)
 - [x] Slice 2 — .NET → rag invalidation client (branch `rag-hardening-s1-3`, agent-verified; Compose acceptance pending)
 - [x] Slice 3 — Query-time multimodal RAG (branch `rag-hardening-s1-3`, agent-verified; Compose acceptance pending)
-- [ ] Slice 4 — Retrieval scale
+- [x] Slice 4 — Retrieval scale (branch `rag-hardening-s1-3`, agent-verified; Compose acceptance pending)
 - [ ] Slice 5 — Semantic cache scale + fidelity
 - [ ] Slice 6 — Operational hardening
 - [ ] Slice 7 — True SSE streaming
