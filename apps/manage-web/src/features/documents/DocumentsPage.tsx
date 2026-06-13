@@ -551,6 +551,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                               className="icon-button"
                               type="button"
                               aria-label={t("documents.edit_document_for", { title: document.title })}
+                              tooltip={t("documents.edit_document")}
                               onClick={() => void openDocument(document.id)}
                             >
                               <Pencil size={16} />
@@ -560,6 +561,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                                 className="icon-button"
                                 type="button"
                                 aria-label={t("documents.open_viewer_for", { title: document.title })}
+                                tooltip={t("documents.open_viewer")}
                                 onClick={() => void openViewer(document)}
                               >
                                 <ExternalLink size={16} />
@@ -570,6 +572,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                                 className="icon-button"
                                 type="button"
                                 aria-label={t("documents.restore_document_for", { title: document.title })}
+                                tooltip={t("documents.restore_document")}
                                 onClick={() => void runRestore(document)}
                               >
                                 <RotateCcw size={16} />
@@ -580,6 +583,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                                 className="icon-button"
                                 type="button"
                                 aria-label={t("documents.archive_document_for", { title: document.title })}
+                                tooltip={t("documents.archive_document")}
                                 onClick={() => void runArchive(document)}
                               >
                                 <Archive size={16} />
@@ -590,6 +594,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                                 className="icon-button"
                                 type="button"
                                 aria-label={t("documents.retry_indexing_for", { title: document.title })}
+                                tooltip={t("documents.retry_indexing")}
                                 onClick={() => void retryIndexing(document)}
                               >
                                 <RefreshCw size={16} />

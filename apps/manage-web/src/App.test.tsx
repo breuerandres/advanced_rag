@@ -625,9 +625,11 @@ describe("management users and budgets", () => {
     );
     expectActionTooltip(
       screen.getByRole("button", { name: "Editar presupuesto de Ana Gomez" }),
+      "Editar presupuesto",
     );
     expectActionTooltip(
       screen.getByRole("button", { name: "Dar de baja a Ana Gomez" }),
+      "Dar de baja",
     );
   });
 
@@ -1308,14 +1310,17 @@ describe("management documents", () => {
     );
     expectActionTooltip(
       screen.getByRole("button", { name: "Editar Politica de seguridad" }),
+      "Editar documento",
     );
     expectActionTooltip(
       screen.getByRole("button", {
         name: "Abrir visor de Politica de seguridad",
       }),
+      "Abrir visor",
     );
     expectActionTooltip(
       screen.getByRole("button", { name: "Archivar Politica de seguridad" }),
+      "Archivar documento",
     );
 
     await user.click(screen.getByRole("button", { name: "Crear documento" }));
@@ -2466,10 +2471,10 @@ async function selectUnitOption(
   await user.click(await screen.findByRole("button", { name: optionName }));
 }
 
-function expectActionTooltip(button: HTMLElement) {
+function expectActionTooltip(button: HTMLElement, expectedTooltip?: string) {
   const label = button.getAttribute("aria-label");
 
   expect(label).toBeTruthy();
   expect(button).not.toHaveAttribute("title");
-  expect(button).toHaveAttribute("data-tooltip", label!);
+  expect(button).toHaveAttribute("data-tooltip", expectedTooltip ?? label!);
 }

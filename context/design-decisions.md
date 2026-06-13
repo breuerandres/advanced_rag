@@ -106,6 +106,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Initial Database Migration Foundation](#2026-05-13---initial-database-migration-foundation)
 - [Document Images Will Use MinIO Object Storage](#2026-05-31---document-images-will-use-minio-object-storage)
 - [Secrets And Configuration](#2026-05-11---secrets-and-configuration)
+- [Secrets At Rest Encryption With SOPS And age](#2026-06-13---secrets-at-rest-encryption-with-sops-and-age)
 - [Compose PostgreSQL Role Password Secrets](#2026-05-13---compose-postgresql-role-password-secrets)
 - [Local Startup Script Trusts Docker Caddy CA](#2026-05-22---local-startup-script-trusts-docker-caddy-ca)
 - [.NET SDK Selection With global.json](#2026-05-13---net-sdk-selection-with-globaljson)
@@ -138,6 +139,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 
 - [MVP UI Foundation](#2026-05-11---mvp-ui-foundation)
 - [Chat UI Simplifies To Left Drawer Layout](#2026-06-05---chat-ui-simplifies-to-left-drawer-layout)
+- [Management Report Exports Use Client-Side XLSX](#2026-06-13---management-report-exports-use-client-side-xlsx-exceljs)
 
 ---
 
@@ -2030,3 +2032,31 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Tradeoffs:** Inactive historical chunks may now share `(document_version_id, chunk_index)`; this is intended (one inactive set retained per re-index). The migration `downgrade` is best-effort: restoring the global constraint requires no duplicate inactive rows exist.
 
 **Consequences:** Re-indexing the same version is now idempotent (publish retry and edit-then-republish both work). Retrieval and citations already filter on `is_active`, so they are unaffected. Regression test: `test_reindexing_same_version_succeeds_and_retains_history` in `services/rag-api/tests/test_indexing.py`. `context/rag-spec.md` should note the uniqueness scope when the indexing section is next revised.
+
+## 2026-06-13 - Secrets At Rest Encryption With SOPS And age
+
+**Context:** Sensitive values live as plaintext files under `infra/compose/secrets/*` and are wired into services via Docker Compose `file:` secrets (`/run/secrets/...`, read through `*_FILE` env vars). The file-based *delivery* is already the recommended pattern (values are not baked into images and are not passed as plain environment variables). The gap is **at rest**: the 12 secret values sit unencrypted in the source tree, so any actor with filesystem, backup, or volume access reads them directly, and there is no encrypted, version-controllable representation. This does not warrant introducing an always-on secrets-manager service (Vault/OpenBao/Infisical) given the single-tenant, one-isolated-Compose-stack-per-customer model (including a Raspberry Pi demo host): such a service moves rather than removes the bootstrap secret and adds a startup-critical dependency per stack.
+
+**Options Considered:** (a) Keep plaintext Compose secret files; (b) self-host a secrets-manager service (Infisical needs its own Postgres+Redis; OpenBao/Vault needs unseal+policies) per customer stack; (c) encrypt the secret files at rest with [SOPS](https://github.com/getsops/sops) using an [`age`](https://github.com/FiloSottile/age) recipient, decrypting to the Compose-expected paths at deploy time.
+
+**Decision:** Adopt **SOPS + age** (option c). All secret values are stored as a single SOPS-encrypted bundle committed to the repo (`infra/compose/secrets.sops.yaml`); `.sops.yaml` pins the per-deployment `age` public recipient. A deploy-time step (`Start-Local.ps1` and the demo-host startup) decrypts the bundle into the existing `infra/compose/secrets/*` files, which remain gitignored. Compose secret wiring in `compose.yaml` is unchanged. The `age` **private** key (held outside git on each deployment host) becomes the single bootstrap secret. No secrets-manager service is introduced.
+
+**Rationale:** SOPS+age directly closes the real gap — plaintext at rest in the source tree, git, and backups — with no daemon, no extra datastore, and no startup-critical service, which fits the per-customer Compose product (and the Raspberry Pi demo) far better than Vault/Infisical. It also enables encrypted secrets to be version-controlled, replacing the "create 12 files by hand on each host" flow with "decrypt one bundle with one key".
+
+**Tradeoffs:** For plain (non-Swarm) Compose, `/run/secrets/*` is a bind mount of a host file, so the **decrypted plaintext still materializes on the running host** at deploy; SOPS removes plaintext from the repo/git/backups and reduces 12 at-rest secrets to one `age` key, but does not make a running host's secrets RAM-only (that would require Swarm tmpfs secrets, out of scope). Operators must install `sops` and `age` on each host and protect/back up the `age` private key (its loss makes the bundle undecryptable; its leak exposes all secrets). Key rotation re-encrypts the bundle to a new recipient.
+
+**Consequences:** New repo artifacts: `.sops.yaml`, `infra/compose/secrets.sops.yaml` (encrypted, committed), and `Protect-Secrets.ps1` / `Restore-Secrets.ps1` helpers; `Start-Local.ps1` gains an optional restore step; `infra/compose/secrets/README.md` documents the SOPS workflow. `New-LocalDevSecrets.ps1` still generates fresh local values; SOPS becomes the at-rest/transport layer for real per-customer secrets. Real `age` keys and real secret values are user-owned and never created or committed by the agent. `context/architecture.md` (Configuration And Secrets) should reference SOPS at-rest encryption when next revised.
+
+## 2026-06-13 - Management Report Exports Use Client-Side XLSX (exceljs)
+
+**Context:** The management Feedback review screen exported a client-side CSV that dumped 12 raw fields — internal UUIDs (`queryAuditEventId`, `userId`, `requestId`) plus a pipe/semicolon-delimited `citations` blob — which read poorly in Excel and diverged from the on-screen table. The Audit (functional events) screen had no export at all. Both screens already hold their rows client-side: Feedback from the filtered server query, Audit filtered in the browser over a `limit=100` fetch.
+
+**Options Considered:** (a) keep and extend the hand-rolled CSV; (b) generate XLSX server-side in the `.NET` reporting endpoints (new server dependency such as ClosedXML, and shifts the contract from "export what you see" to "export a query"); (c) generate XLSX client-side from the already-loaded rows with a browser library.
+
+**Decision:** Adopt client-side XLSX (option c) via **`exceljs`** (`^4.4.0`, MIT), **dynamically imported on click** so it stays out of the initial bundle. A shared helper `apps/manage-web/src/lib/xlsx.ts` (`buildXlsxBuffer` / `exportRowsToXlsx`) takes localized column definitions `{ header, value, width?, numFmt? }` plus rows and produces a styled sheet: bold frozen header row, autofilter, column widths, and real Excel date cells (`dd/mm/yyyy hh:mm`). Feedback and Audit each declare columns that mirror their visible table, splitting the merged question/answer and event/entity cells into dedicated columns and dropping the internal IDs. Headers reuse the existing i18n table-header keys; new keys added: `feedback.answer_column`, `audit.export`, `audit.event_type_column`, `audit.entity_type_column`, `audit.entity_id_column`, `audit.request_id_column`.
+
+**Rationale:** Reusing the rows already loaded in the browser keeps the change small and literally satisfies "columns like the on-screen table" without new backend surface or server CPU for spreadsheet rendering. exceljs supplies the styling (frozen header, autofilter, widths, typed date cells) the previous CSV lacked. Lazy import avoids bundle bloat in an admin-only app.
+
+**Tradeoffs:** exceljs is a heavier dependency (it bundles a zip writer); mitigated by the dynamic import. The export covers only the rows currently loaded/filtered in the browser (Feedback: the server-filtered result; Audit: the `limit=100` fetch after client filters), not the full historical table — a server-side export remains the path if full-dataset exports are later required. Dates are written as real date cells (locale-rendered by Excel) rather than the table's pre-formatted string.
+
+**Consequences:** New `apps/manage-web/src/lib/xlsx.ts` and `xlsx.test.ts`; `FeedbackReviewPage.tsx` replaces the CSV path with the helper; `AuditPage.tsx` gains an "Exportar a Excel" action shown when filtered rows exist; `apps/manage-web/package.json` adds `exceljs`; i18n keys added in `es-AR`/`en-US`. The `.NET` reporting endpoints are unchanged. Server-side document **PDF export** (docs app) was discussed alongside this work and **suspended** for now — no library or endpoint was added; if revived, note that HiQPdf on the Linux `.NET` container runs on Chromium (not lightweight) and is commercial, so OSS headless Chromium (PuppeteerSharp) or browser print-to-PDF are the leading alternatives.

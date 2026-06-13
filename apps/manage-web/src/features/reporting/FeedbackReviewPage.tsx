@@ -7,6 +7,7 @@ import {
   type FeedbackReportFilters,
   type FeedbackReportItem,
 } from '../../api/reporting'
+import { exportRowsToXlsx } from '../../lib/xlsx'
 
 type PolarityFilter = 'all' | 'negative'
 
@@ -41,53 +42,38 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
     void loadFeedback({})
   }, [loadFeedback])
 
-  function exportToExcelCsv() {
-    const rows = [
-      [
-        'queryAuditEventId',
-        'userId',
-        'userDisplayName',
-        'question',
-        'answerSummary',
-        'feedbackValue',
-        'feedbackComment',
-        'feedbackUpdatedAt',
-        'createdAt',
-        'cacheHit',
-        'requestId',
-        'citations',
-      ],
-      ...items.map((item) => [
-        item.queryAuditEventId,
-        item.userId,
-        item.userDisplayName,
-        item.question,
-        item.answerSummary,
-        item.feedbackValue ?? '',
-        item.feedbackComment ?? '',
-        item.feedbackUpdatedAt ?? '',
-        item.createdAt,
-        item.cacheHit ? 'true' : 'false',
-        item.requestId,
-        item.citations
-          .map((citation) =>
-            [
-              citation.documentId,
-              citation.documentVersionId,
-              citation.headingPath.join(' / '),
-            ].join(' | '),
-          )
-          .join('; '),
-      ]),
-    ]
-    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `feedback-${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
+  async function exportFeedback() {
+    // Columns mirror the on-screen table; the merged question/answer cell is split into two
+    // columns and the internal IDs are dropped so the spreadsheet stays clean and filterable.
+    await exportRowsToXlsx<FeedbackReportItem>(
+      `feedback-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      {
+        sheetName: t('feedback.title'),
+        columns: [
+          { header: t('feedback.question_column'), value: (item) => item.question, width: 48 },
+          { header: t('feedback.answer_column'), value: (item) => item.answerSummary, width: 48 },
+          { header: t('feedback.user'), value: (item) => item.userDisplayName, width: 24 },
+          {
+            header: t('feedback.title'),
+            value: (item) => feedbackLabel(item.feedbackValue, t),
+            width: 16,
+          },
+          { header: t('feedback.comment_column'), value: (item) => item.feedbackComment, width: 40 },
+          {
+            header: t('feedback.cache_column'),
+            value: (item) => (item.cacheHit ? t('feedback.cache_yes') : t('feedback.cache_no')),
+            width: 10,
+          },
+          {
+            header: t('feedback.date_column'),
+            value: (item) => new Date(item.feedbackUpdatedAt ?? item.createdAt),
+            numFmt: 'dd/mm/yyyy hh:mm',
+            width: 20,
+          },
+        ],
+        rows: items,
+      },
+    )
   }
 
   const columns = [
@@ -144,7 +130,7 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
           </div>
           {items.length > 0 ? (
             <div className="workspace-actions">
-              <Button className="text-button" type="button" onClick={exportToExcelCsv}>
+              <Button className="text-button" type="button" onClick={() => void exportFeedback()}>
                 <Download size={16} />
                 {t('feedback.export')}
               </Button>
@@ -235,10 +221,6 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
         ) : null}
     </section>
   )
-}
-
-function csvCell(value: string) {
-  return `"${value.replaceAll('"', '""')}"`
 }
 
 function feedbackLabel(value: FeedbackReportItem['feedbackValue'], t: (key: string) => string) {

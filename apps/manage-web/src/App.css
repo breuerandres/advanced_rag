@@ -27,6 +27,19 @@
   font-weight: 700;
 }
 
+/* Lock the authenticated management shell to the viewport so the sidebar stays
+   fixed and only the main content column scrolls. Scoped via :has to the
+   management sidebar, so the login/setup shells (which size to their content
+   and may need to scroll on short viewports) are left untouched. */
+#root:has(.management-sidebar) {
+  height: 100vh;
+  overflow: hidden;
+}
+
+#root:has(.management-sidebar) > div {
+  height: 100vh;
+}
+
 .management-sidebar {
   display: flex;
   min-height: 0;
@@ -654,6 +667,16 @@ tbody tr:last-child td {
   opacity: 1;
 }
 
+/* Row-action tooltips live in the rightmost table column. Anchor the bubble to
+   the button's right edge so it grows left (into the table) instead of right,
+   where it would push horizontal scroll onto the .table-frame. The arrow stays
+   centered on the button. */
+.row-actions .icon-button[data-tooltip]::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
 .text-button,
 .primary-button {
   padding: 8px 12px;
@@ -916,6 +939,12 @@ select {
   border-radius: 6px;
   background: #ffffff;
   padding: 6px;
+  /* Keep the toolbar reachable while editing long documents: it pins to the top
+     of the scrolling main column (AppShell <main>) for as long as the editor is
+     in view. The opaque background lets content scroll cleanly underneath. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
 .toolbar-group {

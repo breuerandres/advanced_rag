@@ -354,6 +354,7 @@ export function UsersBudgetPage({ userRoles }: UsersBudgetPageProps) {
                             className="icon-button"
                             type="button"
                             aria-label={t('users.edit_user_for', { name: user.displayName })}
+                            tooltip={t('users.edit_user')}
                             onClick={() => {
                               setManagingUser(user)
                               setSuccessMessage(null)
@@ -369,6 +370,7 @@ export function UsersBudgetPage({ userRoles }: UsersBudgetPageProps) {
                               className="icon-button"
                               type="button"
                               aria-label={t('users.edit_budget_for', { name: user.displayName })}
+                              tooltip={t('users.edit_budget')}
                               onClick={() => {
                                 setEditingUser(user)
                                 setSuccessMessage(null)
@@ -385,6 +387,7 @@ export function UsersBudgetPage({ userRoles }: UsersBudgetPageProps) {
                                   ? t('users.deactivate_user_for', { name: user.displayName })
                                   : t('users.reactivate_user_for', { name: user.displayName })
                               }
+                              tooltip={user.isActive ? t('users.deactivate_user') : t('users.reactivate_user')}
                               onClick={() => void setActiveStatus(user, !user.isActive)}
                             >
                               {user.isActive ? <UserX size={16} /> : <UserCheck size={16} />}
@@ -465,6 +468,7 @@ export function UsersBudgetPage({ userRoles }: UsersBudgetPageProps) {
                           className="icon-button"
                           type="button"
                           aria-label={t('users.edit_group_for', { name: group.name })}
+                          tooltip={t('users.edit_group')}
                           onClick={() => {
                             setEditingGroup(group)
                             setSuccessMessage(null)

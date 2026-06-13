@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ClipboardList, RefreshCw, Search } from 'lucide-react'
+import { ClipboardList, Download, RefreshCw, Search } from 'lucide-react'
 import { Button, DataTable, EmptyState, Input } from '@helpcenter/shared-ui'
 import { listAuditEvents, type ManagementAuditEvent } from '../../api/audit'
 import { ApiError } from '../../lib/api-error'
+import { exportRowsToXlsx } from '../../lib/xlsx'
 
 type LoadState = 'loading' | 'ready' | 'error'
 
@@ -109,6 +110,36 @@ export function AuditPage() {
     [t],
   )
 
+  async function exportAudit() {
+    // Export the rows currently visible (respecting the search/type filters), splitting the
+    // merged event and entity table cells into dedicated columns and using the full entity id.
+    await exportRowsToXlsx<ManagementAuditEvent>(
+      `auditoria-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      {
+        sheetName: t('audit.title'),
+        columns: [
+          {
+            header: t('audit.date_column'),
+            value: (event) => new Date(event.createdAt),
+            numFmt: 'dd/mm/yyyy hh:mm',
+            width: 20,
+          },
+          { header: t('audit.event_column'), value: (event) => event.eventLabel, width: 32 },
+          { header: t('audit.event_type_column'), value: (event) => event.eventType, width: 28 },
+          { header: t('audit.actor_column'), value: (event) => event.actorDisplayName, width: 24 },
+          {
+            header: t('audit.entity_type_column'),
+            value: (event) => displayEntityType(event.entityType),
+            width: 18,
+          },
+          { header: t('audit.entity_id_column'), value: (event) => event.entityId, width: 38 },
+          { header: t('audit.request_id_column'), value: (event) => event.requestId, width: 38 },
+        ],
+        rows: filteredEvents,
+      },
+    )
+  }
+
   return (
     <section className="workspace" id="audit">
       <header className="workspace-header">
@@ -117,6 +148,12 @@ export function AuditPage() {
           <h1>{t('audit.title')}</h1>
         </div>
         <div className="workspace-actions">
+          {loadState === 'ready' && filteredEvents.length > 0 ? (
+            <Button className="text-button" type="button" onClick={() => void exportAudit()}>
+              <Download size={16} />
+              {t('audit.export')}
+            </Button>
+          ) : null}
           <Button
             className="icon-button"
             type="button"

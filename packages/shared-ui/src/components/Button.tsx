@@ -62,13 +62,19 @@ export interface ButtonProps
   extends ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   loading?: boolean;
+  /**
+   * Visual hover/focus tooltip for icon buttons. Defaults to `aria-label`.
+   * Use this to keep the accessible name descriptive (e.g. "Archive <title>")
+   * while showing a short, generic tooltip (e.g. "Archive document").
+   */
+  tooltip?: string;
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, loading, disabled, children, title, ...rest }, ref) => {
+  ({ className, variant, size, loading, disabled, children, title, tooltip: tooltipProp, ...rest }, ref) => {
     const ariaLabel = typeof rest['aria-label'] === 'string' ? rest['aria-label'] : undefined;
     const isIconButton = className?.split(/\s+/).includes('icon-button') ?? false;
-    const tooltip = isIconButton ? ariaLabel : undefined;
+    const tooltip = isIconButton ? (tooltipProp ?? ariaLabel) : undefined;
 
     return (
       <button
