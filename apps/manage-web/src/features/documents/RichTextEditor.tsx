@@ -234,42 +234,18 @@ export function RichTextEditor({ documentId, value, onChange, onUploadImage }: R
         </div>
 
         <div className="toolbar-group">
-          <ToolbarButton
-            className="toolbar-text-button toolbar-heading-button"
-            label={t('documents.toolbar_paragraph')}
-            active={currentBlockStyle === 'paragraph'}
+          <select
+            className="toolbar-block-style"
+            aria-label={t('documents.toolbar_block_style')}
+            value={currentBlockStyle}
             disabled={!editor}
-            onClick={() => setBlockStyle('paragraph')}
+            onChange={(event) => setBlockStyle(event.target.value as BlockStyle)}
           >
-            P
-          </ToolbarButton>
-          <ToolbarButton
-            className="toolbar-text-button toolbar-heading-button"
-            label={t('documents.toolbar_heading_1')}
-            active={currentBlockStyle === 'heading-1'}
-            disabled={!editor}
-            onClick={() => setBlockStyle('heading-1')}
-          >
-            H1
-          </ToolbarButton>
-          <ToolbarButton
-            className="toolbar-text-button toolbar-heading-button"
-            label={t('documents.toolbar_heading_2')}
-            active={currentBlockStyle === 'heading-2'}
-            disabled={!editor}
-            onClick={() => setBlockStyle('heading-2')}
-          >
-            H2
-          </ToolbarButton>
-          <ToolbarButton
-            className="toolbar-text-button toolbar-heading-button"
-            label={t('documents.toolbar_heading_3')}
-            active={currentBlockStyle === 'heading-3'}
-            disabled={!editor}
-            onClick={() => setBlockStyle('heading-3')}
-          >
-            H3
-          </ToolbarButton>
+            <option value="paragraph">{t('documents.toolbar_paragraph')}</option>
+            <option value="heading-1">{t('documents.toolbar_heading_1')}</option>
+            <option value="heading-2">{t('documents.toolbar_heading_2')}</option>
+            <option value="heading-3">{t('documents.toolbar_heading_3')}</option>
+          </select>
           <ToolbarButton
             label={t('documents.toolbar_bullet_list')}
             active={editor?.isActive('bulletList') ?? false}

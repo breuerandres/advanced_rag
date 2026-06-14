@@ -612,6 +612,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
           </>
         ) : editorState ? (
           <DocumentEditor
+            key={editorState.document.id || "new"}
             mode={editorState.mode}
             documentDetail={editorState.document}
             groups={groups}
