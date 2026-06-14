@@ -20,6 +20,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<UserGroup> UserGroups => Set<UserGroup>();
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<DocumentVersion> DocumentVersions => Set<DocumentVersion>();
+    public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
     public DbSet<DocumentPermission> DocumentPermissions => Set<DocumentPermission>();
     public DbSet<DocumentPermissionGroup> DocumentPermissionGroups => Set<DocumentPermissionGroup>();
     public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
@@ -144,7 +145,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(item => item.VersionNumber).HasColumnName("version_number");
             entity.Property(item => item.State).HasColumnName("state").HasMaxLength(32).IsRequired();
             entity.Property(item => item.Title).HasColumnName("title").HasMaxLength(240).IsRequired();
-            entity.Property(item => item.DocumentType).HasColumnName("document_type").HasMaxLength(80).IsRequired();
+            entity.Property(item => item.DocumentTypeId).HasColumnName("document_type_id");
             entity.Property(item => item.Audience).HasColumnName("audience").HasMaxLength(160).IsRequired();
             entity.Property(item => item.ContentHtml).HasColumnName("content_html").IsRequired();
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
@@ -157,8 +158,22 @@ public sealed class AppDbContext : DbContext
             entity.HasOne<Document>().WithMany().HasForeignKey(item => item.DocumentId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.SubmittedForReviewByUserId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.PublishedByUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<DocumentType>().WithMany().HasForeignKey(item => item.DocumentTypeId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(item => item.DocumentTypeId);
             entity.HasIndex(item => new { item.DocumentId, item.VersionNumber }).IsUnique();
             entity.HasIndex(item => new { item.DocumentId, item.State });
+        });
+
+        modelBuilder.Entity<DocumentType>(entity =>
+        {
+            entity.ToTable("document_types", Schema);
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Name).HasColumnName("name").HasMaxLength(80).IsRequired();
+            entity.Property(item => item.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            entity.Property(item => item.SortOrder).HasColumnName("sort_order").HasDefaultValue(0);
+            entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+            entity.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+            entity.HasIndex(item => item.Name).IsUnique();
         });
 
         modelBuilder.Entity<DocumentPermission>(entity =>

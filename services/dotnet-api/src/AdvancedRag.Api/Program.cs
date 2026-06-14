@@ -77,6 +77,8 @@ builder.Services.AddScoped<IUserAdministrationService, UserAdministrationService
 builder.Services.AddScoped<IUserAdministrationRepository, EfUserAdministrationRepository>();
 builder.Services.AddScoped<IOrganizationalUnitService, OrganizationalUnitService>();
 builder.Services.AddScoped<IOrganizationalUnitRepository, EfOrganizationalUnitRepository>();
+builder.Services.AddScoped<IDocumentTypeService, DocumentTypeService>();
+builder.Services.AddScoped<IDocumentTypeRepository, EfDocumentTypeRepository>();
 builder.Services.AddScoped<IDocumentLifecycleService, DocumentLifecycleService>();
 builder.Services.AddScoped<IDocumentRepository, EfDocumentRepository>();
 builder.Services.AddScoped<IDocumentAccessPolicy, DocumentAccessPolicy>();

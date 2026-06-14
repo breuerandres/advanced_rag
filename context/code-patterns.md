@@ -123,6 +123,7 @@ Codes are stable strings, UPPER_SNAKE_CASE. Document new codes in this file when
 | `DOCUMENT_IMAGE_SOURCE_INVALID` | 400 | Document HTML contains an image source that is not a stable app-controlled URL. |
 | `DOCUMENT_IMAGE_TOO_LARGE` | 413 | Uploaded document image exceeds the configured size limit. |
 | `DOCUMENT_IMAGE_TYPE_UNSUPPORTED` | 415 | Uploaded document image MIME type is not supported. |
+| `DOCUMENT_TYPE_IN_USE` | 409 | Document type catalog entry is referenced by documents and cannot be hard-deleted; deactivate it instead. |
 | `INDEXING_FAILED` | 502 | Pre-publication indexing failed; safe summary returned. |
 | `INDEXING_NO_CONTENT` | 422 | Content produced zero indexable chunks. |
 | `RAG_PROVIDER_UNAVAILABLE` | 503 | OpenAI returned a retryable error after exhausting retries. |

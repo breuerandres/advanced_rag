@@ -150,6 +150,7 @@ public sealed class FakeDocumentImportService : IDocumentImportService
             Guid.NewGuid(),
             Guid.NewGuid(),
             Path.GetFileNameWithoutExtension(command.OriginalFilename),
+            null,
             string.Empty,
             string.Empty,
             "<p>imported</p>",

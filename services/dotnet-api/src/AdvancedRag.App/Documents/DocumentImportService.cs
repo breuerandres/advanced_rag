@@ -39,6 +39,7 @@ public sealed class DocumentImportService : IDocumentImportService
             documentId,
             Guid.NewGuid(),
             title,
+            null,
             string.Empty,
             string.Empty,
             extracted.ContentHtml,

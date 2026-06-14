@@ -157,7 +157,7 @@ public sealed class EfDocumentRepository : IDocumentRepository
             var version = await _db.DocumentVersions
                 .AsNoTracking()
                 .SingleOrDefaultAsync(item => item.Id == document.CurrentDraftVersionId, ct);
-            draft = version is null ? null : ToRecord(version);
+            draft = version is null ? null : ToRecord(version, await ResolveTypeNameAsync(version.DocumentTypeId, ct));
         }
 
         if (document.CurrentPublishedVersionId is not null)
@@ -165,7 +165,7 @@ public sealed class EfDocumentRepository : IDocumentRepository
             var version = await _db.DocumentVersions
                 .AsNoTracking()
                 .SingleOrDefaultAsync(item => item.Id == document.CurrentPublishedVersionId, ct);
-            published = version is null ? null : ToRecord(version);
+            published = version is null ? null : ToRecord(version, await ResolveTypeNameAsync(version.DocumentTypeId, ct));
         }
 
         DocumentPermission[] permissions = await _db.DocumentPermissions
@@ -221,7 +221,7 @@ public sealed class EfDocumentRepository : IDocumentRepository
                 VersionNumber = version.VersionNumber,
                 State = ToStorage(version.State),
                 Title = version.Title,
-                DocumentType = version.DocumentType,
+                DocumentTypeId = version.DocumentTypeId,
                 Audience = version.Audience,
                 ContentHtml = version.ContentHtml,
                 CreatedAt = version.CreatedAt,
@@ -237,7 +237,7 @@ public sealed class EfDocumentRepository : IDocumentRepository
 
         existing.State = ToStorage(version.State);
         existing.Title = version.Title;
-        existing.DocumentType = version.DocumentType;
+        existing.DocumentTypeId = version.DocumentTypeId;
         existing.Audience = version.Audience;
         existing.ContentHtml = version.ContentHtml;
         existing.SubmittedForReviewAt = version.SubmittedForReviewAt;
@@ -248,7 +248,21 @@ public sealed class EfDocumentRepository : IDocumentRepository
         existing.IndexingStatus = ToStorage(version.IndexingStatus);
     }
 
-    private static DocumentVersionRecord ToRecord(DocumentVersion version)
+    private async Task<string> ResolveTypeNameAsync(Guid? documentTypeId, CancellationToken ct)
+    {
+        if (documentTypeId is null)
+        {
+            return string.Empty;
+        }
+
+        return await _db.DocumentTypes
+            .AsNoTracking()
+            .Where(type => type.Id == documentTypeId.Value)
+            .Select(type => type.Name)
+            .SingleOrDefaultAsync(ct) ?? string.Empty;
+    }
+
+    private static DocumentVersionRecord ToRecord(DocumentVersion version, string documentTypeName)
     {
         return new DocumentVersionRecord(
             version.Id,
@@ -256,7 +270,8 @@ public sealed class EfDocumentRepository : IDocumentRepository
             version.VersionNumber,
             ParseEnum<DocumentVersionState>(version.State),
             version.Title,
-            version.DocumentType,
+            version.DocumentTypeId,
+            documentTypeName,
             version.Audience,
             version.ContentHtml,
             version.CreatedAt,

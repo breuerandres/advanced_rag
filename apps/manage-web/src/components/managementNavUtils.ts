@@ -3,6 +3,7 @@ import type { ManagementSection, ProductSurface } from './ManagementNav'
 export function allowedManagementSections(userRoles: string[]): ManagementSection[] {
   const sections: ManagementSection[] = [
     'documents',
+    'document-types',
     'organizational-units',
     'users',
     'audit',
@@ -18,7 +19,7 @@ export function canAccessSection(section: ManagementSection, userRoles: string[]
     return true
   }
 
-  if (section === 'organizational-units') {
+  if (section === 'document-types' || section === 'organizational-units') {
     return userRoles.includes('Admin')
   }
 

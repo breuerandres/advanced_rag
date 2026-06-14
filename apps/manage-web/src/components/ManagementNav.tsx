@@ -7,6 +7,7 @@ import {
   Network,
   Settings,
   ShieldCheck,
+  Tags,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -15,6 +16,7 @@ import { canAccessSection, buildProductSurfaceUrl } from './managementNavUtils'
 
 export type ManagementSection =
   | 'documents'
+  | 'document-types'
   | 'organizational-units'
   | 'users'
   | 'audit'
@@ -33,6 +35,7 @@ interface ManagementNavProps {
 
 const links = [
   { id: 'documents', labelKey: 'nav.documents', icon: FileText },
+  { id: 'document-types', labelKey: 'nav.document_types', icon: Tags },
   { id: 'organizational-units', labelKey: 'nav.organizational_units', icon: Network },
   { id: 'users', labelKey: 'nav.users', icon: Users },
   { id: 'audit', labelKey: 'nav.audit', icon: ClipboardList },

@@ -48,7 +48,7 @@ public sealed class DocumentsController : ApiControllerBase
             DocumentAggregate document = await _documents.CreateDraftAsync(
                 new CreateDocumentCommand(
                     request.Title,
-                    request.DocumentType,
+                    request.DocumentTypeId,
                     request.Audience,
                     request.ContentHtml,
                     ToAccessRules(request),
@@ -75,7 +75,7 @@ public sealed class DocumentsController : ApiControllerBase
                 new UpdateDraftCommand(
                     id,
                     request.Title,
-                    request.DocumentType,
+                    request.DocumentTypeId,
                     request.Audience,
                     request.ContentHtml,
                     ToAccessRules(request),

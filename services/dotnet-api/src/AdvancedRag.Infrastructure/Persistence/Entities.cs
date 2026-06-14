@@ -76,7 +76,7 @@ public sealed class DocumentVersion
     public int VersionNumber { get; set; }
     public required string State { get; set; }
     public required string Title { get; set; }
-    public required string DocumentType { get; set; }
+    public Guid? DocumentTypeId { get; set; }
     public required string Audience { get; set; }
     public required string ContentHtml { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -86,6 +86,16 @@ public sealed class DocumentVersion
     public Guid? PublishedByUserId { get; set; }
     public Guid? IndexingJobId { get; set; }
     public required string IndexingStatus { get; set; }
+}
+
+public sealed class DocumentType
+{
+    public Guid Id { get; set; }
+    public required string Name { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int SortOrder { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 public sealed class DocumentPermission

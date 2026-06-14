@@ -82,16 +82,27 @@ public sealed class EfViewerAccessRepository : IViewerAccessRepository, IViewerS
         DocumentVersion? version = await _db.DocumentVersions
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == versionId, ct);
-        return version is null
-            ? null
-            : new ViewerDocumentVersion(
-                version.Id,
-                version.VersionNumber,
-                version.State,
-                version.Title,
-                version.DocumentType,
-                version.Audience,
-                version.ContentHtml);
+        if (version is null)
+        {
+            return null;
+        }
+
+        string documentType = version.DocumentTypeId is null
+            ? string.Empty
+            : await _db.DocumentTypes
+                .AsNoTracking()
+                .Where(type => type.Id == version.DocumentTypeId.Value)
+                .Select(type => type.Name)
+                .SingleOrDefaultAsync(ct) ?? string.Empty;
+
+        return new ViewerDocumentVersion(
+            version.Id,
+            version.VersionNumber,
+            version.State,
+            version.Title,
+            documentType,
+            version.Audience,
+            version.ContentHtml);
     }
 
     public async Task StoreAsync(ViewerSessionHandoffRecord record, CancellationToken ct)

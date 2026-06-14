@@ -35,7 +35,7 @@ public sealed class DocumentEndpointTests : IClassFixture<DocumentEndpointWebApp
             new
             {
                 title = "Protocolo de comunicacion en crisis",
-                documentType = "Procedimiento",
+                documentTypeId = "20000000-0000-0000-0000-000000000003",
                 audience = "Comunicacion",
                 contentHtml = "<p>Contenido</p>",
                 accessRules = new[]
@@ -76,7 +76,7 @@ public sealed class DocumentEndpointTests : IClassFixture<DocumentEndpointWebApp
             new
             {
                 title = "Documento sin regla",
-                documentType = "Politica",
+                documentTypeId = "20000000-0000-0000-0000-000000000001",
                 audience = "Todos",
                 contentHtml = "<p>Contenido</p>",
                 accessRules = new[] { new { organizationalUnitId = (Guid?)null, groupIds = Array.Empty<Guid>() } },
@@ -103,7 +103,7 @@ public sealed class DocumentEndpointTests : IClassFixture<DocumentEndpointWebApp
             new
             {
                 title = "Documento Gerentes",
-                documentType = "Politica",
+                documentTypeId = "20000000-0000-0000-0000-000000000001",
                 audience = "Gerentes",
                 contentHtml = "<p>Contenido</p>",
                 accessRules = new[]
@@ -137,7 +137,7 @@ public sealed class DocumentEndpointTests : IClassFixture<DocumentEndpointWebApp
             new
             {
                 title = "Protocolo crisis",
-                documentType = "Procedimiento",
+                documentTypeId = "20000000-0000-0000-0000-000000000003",
                 audience = "Comunicacion",
                 contentHtml = "<p>Contenido</p>",
                 accessRules = new[]
@@ -467,6 +467,7 @@ public sealed class FakeDocumentLifecycleService : IDocumentLifecycleService
             DocumentId,
             VersionId,
             "Protocolo de comunicacion en crisis",
+            Guid.Parse("20000000-0000-0000-0000-000000000003"),
             "Procedimiento",
             "Comunicacion",
             "<p>Contenido</p>",

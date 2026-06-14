@@ -9,6 +9,7 @@ public sealed class DocumentLifecycleServiceTests
     private static readonly Guid ActorId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid DocumentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid VersionId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+    private static readonly Guid TypeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
     private static readonly Guid OperationsGroupId = Guid.Parse("44444444-4444-4444-4444-444444444444");
     private static readonly Guid EmpresaUnitId = DocumentAccessPolicy.RootOrganizationalUnitId;
     private static readonly Guid ComunicacionUnitId = Guid.Parse("01000000-0000-0000-0000-000000000002");
@@ -25,6 +26,7 @@ public sealed class DocumentLifecycleServiceTests
             DocumentId,
             VersionId,
             "",
+            null,
             "",
             "",
             "<p>   </p>",
@@ -150,7 +152,7 @@ public sealed class DocumentLifecycleServiceTests
             new UpdateDraftCommand(
                 DocumentId,
                 "Updated safety policy",
-                "Policy",
+                TypeId,
                 "All staff",
                 "<p>Updated content</p>",
                 GroupRules(OperationsGroupId),
@@ -176,7 +178,7 @@ public sealed class DocumentLifecycleServiceTests
             new UpdateDraftCommand(
                 DocumentId,
                 "Safety policy",
-                "Policy",
+                TypeId,
                 "All staff",
                 "<script>alert(1)</script><p>Safe content</p>",
                 GroupRules(OperationsGroupId),
@@ -200,7 +202,7 @@ public sealed class DocumentLifecycleServiceTests
             new UpdateDraftCommand(
                 DocumentId,
                 "Safety policy",
-                "Policy",
+                TypeId,
                 "All staff",
                 contentHtml,
                 GroupRules(OperationsGroupId),
@@ -225,7 +227,7 @@ public sealed class DocumentLifecycleServiceTests
             new UpdateDraftCommand(
                 DocumentId,
                 "Safety policy",
-                "Policy",
+                TypeId,
                 "All staff",
                 $"<p>Safe content</p><img src=\"/api/document-images/{imageId}/content\" alt=\"diagram\">",
                 GroupRules(OperationsGroupId),
@@ -418,7 +420,7 @@ public sealed class DocumentLifecycleServiceTests
             new UpdateDraftCommand(
                 DocumentId,
                 "Updated safety policy",
-                "Policy",
+                TypeId,
                 "All staff",
                 "<p>Updated content</p>",
                 GroupRules(OperationsGroupId),
@@ -441,7 +443,7 @@ public sealed class DocumentLifecycleServiceTests
             new UpdateDraftCommand(
                 DocumentId,
                 "Updated draft",
-                "Policy",
+                TypeId,
                 "All staff",
                 "<p>Updated content</p>",
                 GroupRules(OperationsGroupId),
@@ -452,12 +454,37 @@ public sealed class DocumentLifecycleServiceTests
         cache.Calls.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task UpdateDraftAsync_RejectsUnknownDocumentType()
+    {
+        var repository = new InMemoryDocumentRepository();
+        repository.Documents[DocumentId] = ValidDraft();
+        var service = new DocumentLifecycleService(repository, documentTypes: new EmptyDocumentTypeRepository());
+
+        var act = () => service.UpdateDraftAsync(
+            new UpdateDraftCommand(
+                DocumentId,
+                "Safety policy",
+                Guid.Parse("99999999-9999-9999-9999-999999999999"),
+                "All staff",
+                "<p>Updated content</p>",
+                GroupRules(OperationsGroupId),
+                ActorId,
+                "request-unknown-type"),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<DocumentLifecycleException>()
+            .Where(error => error.Code == "VALIDATION_FAILED");
+    }
+
     private static DocumentAggregate ValidDraft()
     {
         return DocumentAggregate.NewDraft(
             DocumentId,
             VersionId,
             "Safety policy",
+            TypeId,
             "Policy",
             "All staff",
             "<p>Wear protective equipment.</p>",
@@ -493,6 +520,7 @@ public sealed class DocumentLifecycleServiceTests
             1,
             DocumentVersionState.Published,
             "Safety policy",
+            TypeId,
             "Policy",
             "All staff",
             "<p>Wear protective equipment.</p>",
@@ -553,6 +581,33 @@ public sealed class DocumentLifecycleServiceTests
         source.AddClosure(EmpresaUnitId, SistemasUnitId);
         source.AddClosure(ComunicacionUnitId, MarketingUnitId);
         return source;
+    }
+
+    private sealed class EmptyDocumentTypeRepository : IDocumentTypeRepository
+    {
+        public Task<IReadOnlyList<DocumentTypeRecord>> ListAsync(bool includeInactive, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<DocumentTypeRecord>>([]);
+
+        public Task<DocumentTypeRecord?> FindAsync(Guid id, CancellationToken ct)
+            => Task.FromResult<DocumentTypeRecord?>(null);
+
+        public Task<bool> NameExistsAsync(string name, Guid? excludingId, CancellationToken ct)
+            => Task.FromResult(false);
+
+        public Task<DocumentTypeRecord> CreateAsync(string name, int sortOrder, Guid actorUserId, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<DocumentTypeRecord?> UpdateAsync(
+            Guid id,
+            string? name,
+            bool? isActive,
+            int? sortOrder,
+            Guid actorUserId,
+            CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<DocumentTypeDeletionOutcome> DeleteAsync(Guid id, CancellationToken ct)
+            => throw new NotSupportedException();
     }
 
     private sealed class InMemoryDocumentRepository : IDocumentRepository

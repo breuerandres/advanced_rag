@@ -26,7 +26,7 @@ public enum IndexingStatus
 
 public sealed record CreateDocumentCommand(
     string Title,
-    string DocumentType,
+    Guid? DocumentTypeId,
     string Audience,
     string ContentHtml,
     IReadOnlyList<DocumentAccessRuleDraft> AccessRules,
@@ -36,7 +36,7 @@ public sealed record CreateDocumentCommand(
 public sealed record UpdateDraftCommand(
     Guid DocumentId,
     string Title,
-    string DocumentType,
+    Guid? DocumentTypeId,
     string Audience,
     string ContentHtml,
     IReadOnlyList<DocumentAccessRuleDraft> AccessRules,
@@ -76,6 +76,7 @@ public sealed record DocumentVersionRecord(
     int VersionNumber,
     DocumentVersionState State,
     string Title,
+    Guid? DocumentTypeId,
     string DocumentType,
     string Audience,
     string ContentHtml,
@@ -108,7 +109,8 @@ public sealed record DocumentAggregate(
         Guid id,
         Guid versionId,
         string title,
-        string documentType,
+        Guid? documentTypeId,
+        string documentTypeName,
         string audience,
         string contentHtml,
         IReadOnlyList<DocumentAccessRuleRecord> accessRules,
@@ -125,7 +127,8 @@ public sealed record DocumentAggregate(
                 1,
                 DocumentVersionState.Draft,
                 title,
-                documentType,
+                documentTypeId,
+                documentTypeName,
                 audience,
                 contentHtml,
                 now,
@@ -147,6 +150,7 @@ public sealed record DocumentSummary(
     Guid Id,
     string Title,
     DocumentState State,
+    Guid? DocumentTypeId,
     string DocumentType,
     string Audience,
     IReadOnlyList<DocumentAccessRuleRecord> AccessRules,
@@ -167,6 +171,8 @@ public sealed record DocumentSummary(
             document.Id,
             document.Title,
             document.State,
+            document.CurrentDraftVersion?.DocumentTypeId
+                ?? document.CurrentPublishedVersion?.DocumentTypeId,
             document.CurrentDraftVersion?.DocumentType
                 ?? document.CurrentPublishedVersion?.DocumentType
                 ?? string.Empty,

@@ -104,6 +104,7 @@ See `context/architecture.md`, `context/code-standards.md`, `context/rag-spec.md
 
 - Conversation can continue in Spanish, but project artifacts must stay in English.
 - Obsolete refactor docs and branches should not be used to infer future product behavior.
+- Document "Type" is now an admin-managed catalog (`app.document_types`) referenced by a nullable `document_versions.document_type_id` FK that replaces the old free-text column. Admin ABM at `/api/document-types` (mutations Admin-only; `DELETE` blocked when in use → `DOCUMENT_TYPE_IN_USE`) and manage-web "Tipos de documento" (Admin-only nav). Migration `20260614223958_AddDocumentTypeCatalog` is hand-written/idempotent and backfills existing free-text values non-destructively; seeded with Artículo/Instructivo/Procedimiento. Read DTOs still expose the resolved type name, so docs-web/viewer are unchanged. Details in design-decisions 2026-06-14. Implemented on worktree branch `worktree-feat+document-type-catalog`.
 
 ## Handoff For Next Session
 

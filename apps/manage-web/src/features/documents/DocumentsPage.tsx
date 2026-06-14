@@ -35,6 +35,7 @@ import type {
 import { createGroup, listGroups, type GroupSummary } from "../../api/users";
 import { listOrganizationalUnits } from "../../api/orgUnits";
 import type { OrganizationalUnitSummary } from "../../api/orgUnits";
+import { listDocumentTypes, type DocumentTypeSummary } from "../../api/documentTypes";
 import { UnitTreeSelect } from "../orgUnits/UnitTreeSelect";
 import { RichTextEditor } from "./RichTextEditor";
 import { Button, Checkbox, DataTable, Dialog, Input } from "@helpcenter/shared-ui";
@@ -70,6 +71,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
   const [organizationalUnits, setOrganizationalUnits] = useState<
     OrganizationalUnitSummary[]
   >([]);
+  const [typeCatalog, setTypeCatalog] = useState<DocumentTypeSummary[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
@@ -91,14 +93,16 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
   async function loadDocuments() {
     setLoadState("loading");
     try {
-      const [loadedDocuments, loadedGroups, loadedUnits] = await Promise.all([
+      const [loadedDocuments, loadedGroups, loadedUnits, loadedTypes] = await Promise.all([
         listDocuments(),
         listGroups(),
         listOrganizationalUnits(),
+        listDocumentTypes(),
       ]);
       setDocuments(loadedDocuments);
       setGroups(loadedGroups);
       setOrganizationalUnits(sortUnitsInTreeOrder(loadedUnits));
+      setTypeCatalog(loadedTypes);
       setLoadState("ready");
     } catch {
       setLoadState("error");
@@ -617,6 +621,7 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
             documentDetail={editorState.document}
             groups={groups}
             organizationalUnits={organizationalUnits}
+            documentTypes={typeCatalog}
             userRoles={userRoles}
             onClose={closeEditor}
             onGroupCreated={addGroup}
@@ -639,6 +644,7 @@ function DocumentEditor({
   documentDetail,
   groups,
   organizationalUnits,
+  documentTypes,
   userRoles,
   onClose,
   onGroupCreated,
@@ -648,6 +654,7 @@ function DocumentEditor({
   documentDetail: DocumentDetail;
   groups: GroupSummary[];
   organizationalUnits: OrganizationalUnitSummary[];
+  documentTypes: DocumentTypeSummary[];
   userRoles: string[];
   onClose: () => void;
   onGroupCreated: (group: GroupSummary) => void;
@@ -657,7 +664,19 @@ function DocumentEditor({
   const editableVersion =
     documentDetail.currentDraftVersion ?? documentDetail.currentPublishedVersion;
   const [title, setTitle] = useState(editableVersion?.title ?? documentDetail.title);
-  const [documentType, setDocumentType] = useState(editableVersion?.documentType ?? "");
+  const [documentTypeId, setDocumentTypeId] = useState<string | null>(
+    editableVersion?.documentTypeId ?? null,
+  );
+  const typeOptions = useMemo(() => {
+    const options = documentTypes
+      .filter((type) => type.isActive)
+      .map((type) => ({ id: type.id, name: type.name }));
+    const currentId = editableVersion?.documentTypeId ?? null;
+    if (currentId && !options.some((option) => option.id === currentId)) {
+      options.push({ id: currentId, name: editableVersion?.documentType || currentId });
+    }
+    return options;
+  }, [documentTypes, editableVersion]);
   const [audience, setAudience] = useState(editableVersion?.audience ?? "");
   const [contentHtml, setContentHtml] = useState(editableVersion?.contentHtml ?? "");
   const [rules, setRules] = useState<EditableAccessRule[]>(() =>
@@ -714,7 +733,7 @@ function DocumentEditor({
     try {
       const request = {
         title,
-        documentType,
+        documentTypeId,
         audience,
         contentHtml: normalizeEditorHtml(contentHtml),
         accessRules: rules.map(toAccessRuleInput),
@@ -745,7 +764,7 @@ function DocumentEditor({
       rules.length > 0 && rules.every((rule) => !isRuleEmpty(rule));
     if (
       title.trim().length === 0 ||
-      documentType.trim().length === 0 ||
+      documentTypeId === null ||
       audience.trim().length === 0 ||
       plainText(contentHtml).length === 0 ||
       !hasValidAccessRules
@@ -905,15 +924,21 @@ function DocumentEditor({
           </label>
           <label className="field">
             <span>{t("documents.type_column")}</span>
-            <Input
-              invalid={hasReviewValidationError && documentType.trim().length === 0}
-              type="text"
-              value={documentType}
+            <select
+              aria-invalid={hasReviewValidationError && documentTypeId === null}
+              value={documentTypeId ?? ""}
               onChange={(event) => {
-                setDocumentType(event.target.value);
+                setDocumentTypeId(event.target.value === "" ? null : event.target.value);
                 setIsDirty(true);
               }}
-            />
+            >
+              <option value="">{t("documents.type_placeholder")}</option>
+              {typeOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="field">
             <span>{t("documents.audience")}</span>
@@ -1321,6 +1346,7 @@ function toSummary(document: DocumentDetail): DocumentSummary {
     id: document.id,
     title: document.title,
     state: document.state,
+    documentTypeId: version?.documentTypeId ?? null,
     documentType: version?.documentType ?? "",
     audience: version?.audience ?? "",
     allowedGroupIds: document.allowedGroupIds.map((groupId) =>
@@ -1559,6 +1585,7 @@ function emptyDocument(): DocumentDetail {
       versionNumber: 1,
       state: "Draft",
       title: "",
+      documentTypeId: null,
       documentType: "",
       audience: "",
       contentHtml: "",

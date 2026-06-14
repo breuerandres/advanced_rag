@@ -43,6 +43,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
     private readonly IDocumentHtmlSanitizer _htmlSanitizer;
     private readonly IEffectiveAccessScopeRepository? _accessScopes;
     private readonly IDocumentAccessPolicy? _accessPolicy;
+    private readonly IDocumentTypeRepository? _documentTypes;
 
     public DocumentLifecycleService(
         IDocumentRepository repository,
@@ -50,7 +51,8 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         IInternalIndexingClient? indexingClient = null,
         IEffectiveAccessScopeRepository? accessScopes = null,
         IDocumentAccessPolicy? accessPolicy = null,
-        IInternalCacheInvalidationClient? cacheInvalidationClient = null)
+        IInternalCacheInvalidationClient? cacheInvalidationClient = null,
+        IDocumentTypeRepository? documentTypes = null)
     {
         _repository = repository;
         _indexingClient = indexingClient ?? new UnavailableInternalIndexingClient();
@@ -58,6 +60,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         _htmlSanitizer = htmlSanitizer ?? new PassthroughDocumentHtmlSanitizer();
         _accessScopes = accessScopes;
         _accessPolicy = accessPolicy;
+        _documentTypes = documentTypes;
     }
 
     public Task<IReadOnlyList<DocumentSummary>> ListAsync(CancellationToken ct)
@@ -72,11 +75,13 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
     public async Task<DocumentAggregate> CreateDraftAsync(CreateDocumentCommand command, CancellationToken ct)
     {
+        (Guid? documentTypeId, string documentTypeName) = await ResolveTypeAsync(command.DocumentTypeId, ct);
         DocumentAggregate document = DocumentAggregate.NewDraft(
             Guid.NewGuid(),
             Guid.NewGuid(),
             command.Title.Trim(),
-            command.DocumentType.Trim(),
+            documentTypeId,
+            documentTypeName,
             command.Audience.Trim(),
             SanitizeDocumentHtml(command.ContentHtml),
             NormalizeRules(command.AccessRules),
@@ -105,7 +110,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         }
 
         string normalizedTitle = command.Title.Trim();
-        string normalizedType = command.DocumentType.Trim();
+        (Guid? documentTypeId, string documentTypeName) = await ResolveTypeAsync(command.DocumentTypeId, ct);
         string normalizedAudience = command.Audience.Trim();
         string normalizedContent = SanitizeDocumentHtml(command.ContentHtml);
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -121,7 +126,8 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 nextVersionNumber,
                 DocumentVersionState.Draft,
                 normalizedTitle,
-                normalizedType,
+                documentTypeId,
+                documentTypeName,
                 normalizedAudience,
                 normalizedContent,
                 now,
@@ -145,7 +151,8 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             draft = existingDraft with
             {
                 Title = normalizedTitle,
-                DocumentType = normalizedType,
+                DocumentTypeId = documentTypeId,
+                DocumentType = documentTypeName,
                 Audience = normalizedAudience,
                 ContentHtml = normalizedContent,
                 IndexingStatus = IndexingStatus.None,
@@ -422,6 +429,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             nextVersionNumber,
             DocumentVersionState.Draft,
             source?.Title ?? document.Title,
+            source?.DocumentTypeId,
             source?.DocumentType ?? string.Empty,
             source?.Audience ?? string.Empty,
             source?.ContentHtml ?? string.Empty,
@@ -457,6 +465,31 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             ?? throw new DocumentLifecycleException("NOT_FOUND", 404, "Document not found.");
     }
 
+    private async Task<(Guid? Id, string Name)> ResolveTypeAsync(Guid? documentTypeId, CancellationToken ct)
+    {
+        if (documentTypeId is null)
+        {
+            return (null, string.Empty);
+        }
+
+        if (_documentTypes is null)
+        {
+            return (documentTypeId, string.Empty);
+        }
+
+        DocumentTypeRecord? record = await _documentTypes.FindAsync(documentTypeId.Value, ct);
+        if (record is null)
+        {
+            throw new DocumentLifecycleException(
+                "VALIDATION_FAILED",
+                400,
+                "Document type is invalid.",
+                new Dictionary<string, object?> { ["field"] = "documentTypeId" });
+        }
+
+        return (record.Id, record.Name);
+    }
+
     private static DocumentVersionRecord RequireDraft(DocumentAggregate document)
     {
         if (document.State != DocumentState.Draft
@@ -480,7 +513,7 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             missing.Add("title");
         }
 
-        if (string.IsNullOrWhiteSpace(draft.DocumentType))
+        if (draft.DocumentTypeId is null)
         {
             missing.Add("documentType");
         }

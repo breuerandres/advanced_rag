@@ -21,6 +21,7 @@ public sealed class AppDbContextMigrationTests
         "import_metadata",
         "document_permissions",
         "document_tags",
+        "document_types",
         "document_versions",
         "documents",
         "organizational_unit_closure",
@@ -334,7 +335,7 @@ public sealed class AppDbContextMigrationTests
             .ToListAsync();
 
         legacyTableExists.Should().BeFalse();
-        documentVersionColumns.Should().Contain(["document_id", "document_type", "indexing_status"]);
+        documentVersionColumns.Should().Contain(["document_id", "document_type_id", "indexing_status"]);
     }
 
     [Fact]

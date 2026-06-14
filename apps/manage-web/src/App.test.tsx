@@ -21,6 +21,12 @@ const organizationalUnitsResponse = [
   },
 ];
 
+const documentTypesResponse = [
+  { id: "d0000000-0000-0000-0000-000000000001", name: "Politica", isActive: true, sortOrder: 0 },
+  { id: "d0000000-0000-0000-0000-000000000002", name: "Procedimiento", isActive: true, sortOrder: 1 },
+  { id: "d0000000-0000-0000-0000-000000000003", name: "Manual", isActive: true, sortOrder: 2 },
+];
+
 const usersResponse = [
   {
     id: "11111111-1111-1111-1111-111111111111",
@@ -105,6 +111,7 @@ const documentDetail = {
     versionNumber: 1,
     state: "Draft",
     title: "Politica de seguridad",
+    documentTypeId: "d0000000-0000-0000-0000-000000000001",
     documentType: "Politica",
     audience: "Todos",
     contentHtml: "<p>Usar credencial visible.</p>",
@@ -156,6 +163,7 @@ const publishedDocumentDetail = {
     versionNumber: 1,
     state: "Published",
     title: "Manual publicado",
+    documentTypeId: "d0000000-0000-0000-0000-000000000003",
     documentType: "Manual",
     audience: "Operaciones",
     contentHtml: "<p>Contenido vigente publicado.</p>",
@@ -1420,9 +1428,9 @@ describe("management documents", () => {
       screen.getByRole("textbox", { name: "Titulo" }),
       "Nueva instruccion",
     );
-    await user.type(
-      screen.getByRole("textbox", { name: "Tipo" }),
-      "Procedimiento",
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Tipo" }),
+      screen.getByRole("option", { name: "Procedimiento" }),
     );
     await user.type(
       screen.getByRole("textbox", { name: "Audiencia" }),
@@ -1503,9 +1511,9 @@ describe("management documents", () => {
       screen.getByRole("textbox", { name: "Titulo" }),
       "Documento con grupo nuevo",
     );
-    await user.type(
-      screen.getByRole("textbox", { name: "Tipo" }),
-      "Procedimiento",
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Tipo" }),
+      screen.getByRole("option", { name: "Procedimiento" }),
     );
     await user.type(
       screen.getByRole("textbox", { name: "Audiencia" }),
@@ -1568,9 +1576,9 @@ describe("management documents", () => {
       screen.getByRole("textbox", { name: "Titulo" }),
       "Protocolo de crisis",
     );
-    await user.type(
-      screen.getByRole("textbox", { name: "Tipo" }),
-      "Procedimiento",
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Tipo" }),
+      screen.getByRole("option", { name: "Procedimiento" }),
     );
     await user.type(
       screen.getByRole("textbox", { name: "Audiencia" }),
@@ -1637,9 +1645,9 @@ describe("management documents", () => {
       screen.getByRole("textbox", { name: "Titulo" }),
       "Sin reglas",
     );
-    await user.type(
-      screen.getByRole("textbox", { name: "Tipo" }),
-      "Procedimiento",
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Tipo" }),
+      screen.getByRole("option", { name: "Procedimiento" }),
     );
     await user.type(
       screen.getByRole("textbox", { name: "Audiencia" }),
@@ -1787,7 +1795,7 @@ describe("management documents", () => {
       "aria-invalid",
       "true",
     );
-    expect(screen.getByRole("textbox", { name: "Tipo" })).toHaveAttribute(
+    expect(screen.getByRole("combobox", { name: "Tipo" })).toHaveAttribute(
       "aria-invalid",
       "false",
     );
@@ -1884,7 +1892,7 @@ describe("management documents", () => {
     expect(screen.getByRole("textbox", { name: "Titulo" })).toHaveValue(
       "Manual publicado",
     );
-    expect(screen.getByRole("textbox", { name: "Tipo" })).toHaveValue(
+    expect(screen.getByRole("combobox", { name: "Tipo" })).toHaveDisplayValue(
       "Manual",
     );
     expect(screen.getByRole("textbox", { name: "Audiencia" })).toHaveValue(
@@ -2420,6 +2428,10 @@ function stubFetch(responses: Response[], options: StubFetchOptions = {}) {
     // can assert on created/updated units.
     if (path === "/api/organizational-units" && method === "GET") {
       return jsonResponse(200, organizationalUnitsResponse);
+    }
+
+    if (path.startsWith("/api/document-types") && method === "GET") {
+      return jsonResponse(200, documentTypesResponse);
     }
 
     const response = responses.shift();
