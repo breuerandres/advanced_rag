@@ -19,8 +19,8 @@
 - Use EF Core migrations for the `app` schema.
 - Use an approved DOCX-to-HTML converter for DOCX assisted import. Converted DOCX HTML must be sanitized before returning it to the browser.
 - Use `PdfPig` for conservative PDF text/layout extraction. Do not rely on direct `page.Text` concatenation for user-facing imports.
-- Import extraction adapters must return safe draft HTML, fallback extracted text, and safe extraction metadata. The returned HTML is editor prefill only, not final publishable content.
-- Do not persist imported file bytes in the MVP.
+- Import extraction adapters must return safe draft HTML, fallback extracted text, and safe extraction metadata. For PDF and text-only imports the returned HTML is editor prefill only, not final publishable content. DOCX import (`POST /api/documents/imports/docx`) instead creates the draft document immediately (filename → title, no access rules yet, role-gated only) and returns it with images already attached.
+- Do not persist the original imported file bytes in the MVP. Images extracted from a DOCX during import are persisted as document images (object storage + `app.document_images`); this is not the original upload.
 - Enforce the 10 MB PDF/DOCX import limit server-side.
 - Return stable code `IMPORT_TEXT_NOT_EXTRACTABLE` when a PDF/DOCX has no extractable text.
 - Issue viewer links as document locators plus, when cross-subdomain SSO is needed, a short-lived server-issued handoff code. Handoff codes must be persisted as one-time database records with expiration and consumed/used state. The docs API must establish its own host-only `__Host-session` after validating the handoff and must revalidate document permissions before returning content.
@@ -110,9 +110,10 @@ The repository root uses `global.json` to select the .NET 8 SDK line for CLI com
 | HTTP client | `HttpClient` via `IHttpClientFactory` + `Microsoft.Extensions.Http.Polly` | Retry with jitter and circuit breaker for `.NET â†’ FastAPI` internal calls. |
 | OpenAI | Not used directly from .NET in the MVP | All AI provider calls live in FastAPI. |
 | PDF extraction | `PdfPig` `0.1.14` | Assisted import only. Use conservative reading-order/layout extraction; do not use direct `page.Text` as the final user-facing import output. |
-| DOCX import conversion | `Mammoth` `1.11.0` | Assisted import only. Output must be sanitized and must not persist inline base64 images or external file references. Embedded DOCX images are not imported in the current slice. |
+| DOCX import conversion | `Mammoth` `1.11.0` | Assisted import only. Output must be sanitized and must not persist inline base64 or external image references. Embedded DOCX images **are** extracted on import (since 2026-06-13), normalized with SkiaSharp, stored in MinIO, and referenced through stable `/api/document-images/{id}/content` URLs. The original upload bytes are still not persisted. |
 | HTML sanitization | `Ganss.Xss` via `HtmlSanitizer` `9.0.892` | Sanitize stored normalized document HTML and any review comment input that may render HTML. |
 | Object storage | `AWSSDK.S3` | S3-compatible client for document image bytes. Configure `ServiceURL` for MinIO in Compose and normal AWS S3 settings for a later migration. |
+| Image normalization | `SkiaSharp` `2.88.x` (+ `SkiaSharp.NativeAssets.Linux.NoDependencies`) | DOCX import only. Raster decode, dimension cap/downscale, and WebP re-encode for non-web-safe formats; skips undecodable (EMF/WMF/TIFF) and tiny images. MIT-licensed; no text/SVG rendering. |
 | Authentication | Cookie authentication plus local users in `app.users`; hand-rolled PBKDF2-SHA256 password hashing using `Rfc2898DeriveBytes` | Session cookies are host-only `__Host-session` cookies. The legacy chat-token and viewer-token browser flows are removed. |
 | CSRF | Signed double-submit token using `__Host-CSRF` cookie plus `X-CSRF-Token` header | HMAC secret is shared with FastAPI through `csrf_signing_key`; see `architecture.md`. |
 | JWT signing/validation | `System.IdentityModel.Tokens.Jwt` `8.14.0` + `Microsoft.IdentityModel.Tokens` | RS256, `kid` header, two active keys for rotation. |
