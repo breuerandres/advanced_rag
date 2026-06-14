@@ -309,10 +309,12 @@ public sealed class DocumentEndpointWebApplicationFactory : WebApplicationFactor
             services.RemoveAll<IAuthService>();
             services.RemoveAll<IDocumentLifecycleService>();
             services.RemoveAll<IDocumentImportExtractionService>();
+            services.RemoveAll<IDocumentImportService>();
             services.RemoveAll<ITenantConfigService>();
             services.AddSingleton<IAuthService>(_auth);
             services.AddSingleton<IDocumentLifecycleService>(Documents);
             services.AddSingleton<IDocumentImportExtractionService, FakeDocumentImportExtractionService>();
+            services.AddSingleton<IDocumentImportService, FakeDocumentImportService>();
             services.AddSingleton<ITenantConfigService, FakeTenantConfigService>();
         });
     }

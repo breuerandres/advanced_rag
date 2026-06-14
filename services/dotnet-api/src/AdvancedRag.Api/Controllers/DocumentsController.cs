@@ -12,13 +12,16 @@ public sealed class DocumentsController : ApiControllerBase
 {
     private readonly IDocumentLifecycleService _documents;
     private readonly IDocumentImportExtractionService _imports;
+    private readonly IDocumentImportService _importService;
 
     public DocumentsController(
         IDocumentLifecycleService documents,
-        IDocumentImportExtractionService imports)
+        IDocumentImportExtractionService imports,
+        IDocumentImportService importService)
     {
         _documents = documents;
         _imports = imports;
+        _importService = importService;
     }
 
     [HttpGet]
@@ -197,6 +200,46 @@ public sealed class DocumentsController : ApiControllerBase
                 new ImportExtractionCommand(file.FileName, file.ContentType, memory.ToArray(), ActorUserId()),
                 ct);
             return Ok(ImportExtractionResponse.FromResult(result));
+        }
+        catch (DocumentImportException exception)
+        {
+            return Error(exception.HttpStatus, exception.Code, exception.Message, exception.Details);
+        }
+    }
+
+    [HttpPost("imports/docx")]
+    [RequestSizeLimit(DocumentImportExtractionServiceMaxSize)]
+    public async Task<IActionResult> ImportDocxAsync(IFormFile file, CancellationToken ct)
+    {
+        const string docxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (!string.Equals(file.ContentType, docxMime, StringComparison.Ordinal))
+        {
+            return Error(
+                400,
+                "VALIDATION_FAILED",
+                "Image-aware import supports DOCX files only.",
+                new Dictionary<string, object?> { ["field"] = "mimeType" });
+        }
+
+        if (file.Length > DocumentImportExtractionServiceMaxSize)
+        {
+            return Error(
+                413,
+                "IMPORT_FILE_TOO_LARGE",
+                "Uploaded import file exceeds the configured size limit.",
+                new Dictionary<string, object?> { ["maxBytes"] = DocumentImportExtractionServiceMaxSize });
+        }
+
+        await using var stream = file.OpenReadStream();
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory, ct);
+
+        try
+        {
+            DocumentAggregate document = await _importService.ImportDocxAsync(
+                new ImportDocxCommand(file.FileName, file.ContentType, memory.ToArray(), ActorUserId(), RequestId()),
+                ct);
+            return Created($"/api/documents/{document.Id}", DocumentDetailResponse.FromAggregate(document));
         }
         catch (DocumentImportException exception)
         {

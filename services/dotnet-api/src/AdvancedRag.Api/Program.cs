@@ -109,6 +109,8 @@ builder.Services.AddScoped<IDocumentImageObjectStorage>(services =>
     return new S3DocumentImageObjectStorage(new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey), s3Config), bucket);
 });
 builder.Services.AddScoped<IDocumentImportExtractionService, DocumentImportExtractionService>();
+builder.Services.AddSingleton<AdvancedRag.Infrastructure.Documents.ImportImageNormalizer>();
+builder.Services.AddScoped<IDocumentImportService, DocumentImportService>();
 builder.Services.AddScoped<IManagementAuditService, EfManagementAuditService>();
 builder.Services.AddScoped<IViewerAccessRepository, EfViewerAccessRepository>();
 builder.Services.AddScoped<IViewerSessionHandoffRepository, EfViewerAccessRepository>();
