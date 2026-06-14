@@ -1937,7 +1937,7 @@ describe("management documents", () => {
     ).not.toBeInTheDocument();
   });
 
-  test("imports HTML content and shows safe import errors", async () => {
+  test("imports text content, sets the title from the filename, and shows safe import errors", async () => {
     stubFetch([
       jsonResponse(200, usersResponse),
       jsonResponse(200, []),
@@ -1949,9 +1949,8 @@ describe("management documents", () => {
         text: "Contenido importado plano",
         contentHtml: "<h1>Procedimiento importado</h1><ul><li>Paso importado</li></ul>",
         metadata: {
-          originalFilename: "manual.docx",
-          mimeType:
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          originalFilename: "manual.pdf",
+          mimeType: "application/pdf",
           sizeBytes: 2048,
           sha256Hash: "hash",
           extractionStatus: "Extracted",
@@ -1980,11 +1979,10 @@ describe("management documents", () => {
 
     expect(screen.getByText("Seleccionar archivo")).toBeInTheDocument();
 
+    // A PDF import prefills the editor in-form and sets the title from the filename.
     await user.upload(
       await screen.findByLabelText("Importar PDF o DOCX"),
-      new File(["docx"], "manual.docx", {
-        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      }),
+      new File(["pdf"], "manual.pdf", { type: "application/pdf" }),
     );
 
     expect(
@@ -1994,8 +1992,9 @@ describe("management documents", () => {
       screen.getByRole("textbox", { name: "Contenido del documento" }),
     ).toHaveTextContent("Paso importado");
     expect(
-      screen.getByText("Texto importado desde manual.docx."),
+      screen.getByText("Texto importado desde manual.pdf."),
     ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("manual")).toBeInTheDocument();
 
     await user.upload(
       screen.getByLabelText("Importar PDF o DOCX"),

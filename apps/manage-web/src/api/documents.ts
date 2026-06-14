@@ -140,6 +140,17 @@ export async function importDocumentText(file: File): Promise<ImportExtractionRe
   })
 }
 
+export async function importDocx(file: File): Promise<DocumentDetail> {
+  await ensureCsrfToken()
+  const form = new FormData()
+  form.append('file', file)
+  return requestJson<DocumentDetail>('/api/documents/imports/docx', {
+    method: 'POST',
+    headers: csrfHeaders(),
+    body: form,
+  })
+}
+
 export async function uploadDocumentImage(
   documentId: string,
   file: File,

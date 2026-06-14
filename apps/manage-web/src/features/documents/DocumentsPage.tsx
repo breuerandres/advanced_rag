@@ -19,6 +19,7 @@ import {
   createManagementViewerLink,
   getDocument,
   importDocumentText,
+  importDocx,
   listDocuments,
   requestPublish,
   restoreDocument,
@@ -786,7 +787,17 @@ function DocumentEditor({
       return;
     }
 
+    const filenameTitle = file.name.replace(/\.[^.]+$/, "").trim();
+
     try {
+      const isDocx =
+        file.type === DocxMimeType || file.name.toLowerCase().endsWith(".docx");
+      if (isDocx) {
+        const created = await importDocx(file);
+        onSaved(created, t("documents.import_success", { filename: file.name }));
+        return;
+      }
+
       const result = await importDocumentText(file);
       const extractedHtml = result.contentHtml?.trim();
       setContentHtml(
@@ -794,6 +805,9 @@ function DocumentEditor({
           ? extractedHtml
           : plainTextToParagraphHtml(result.text),
       );
+      if (filenameTitle.length > 0) {
+        setTitle(filenameTitle);
+      }
       setIsDirty(true);
       setImportMessage(t("documents.import_success", { filename: result.metadata.originalFilename }));
     } catch (error) {
@@ -1296,6 +1310,8 @@ function GroupCreateDialog({
 }
 
 const MaxImportFileSizeBytes = 10 * 1024 * 1024;
+const DocxMimeType =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 function toSummary(document: DocumentDetail): DocumentSummary {
   const version =
