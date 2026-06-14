@@ -22,6 +22,38 @@ public sealed record ImportExtractionResult(
 public interface IDocumentImportExtractionService
 {
     Task<ImportExtractionResult> ExtractAsync(ImportExtractionCommand command, CancellationToken ct);
+
+    Task<DocxImportExtractionResult> ExtractDocxWithImagesAsync(
+        ImportExtractionCommand command,
+        Guid documentId,
+        CancellationToken ct);
+}
+
+public sealed record ImportImageContent(
+    Guid ImageId,
+    string ObjectKey,
+    string ContentType,
+    long SizeBytes,
+    string Sha256Hash,
+    string AltText,
+    byte[] Content);
+
+public sealed record DocxImportExtractionResult(
+    string Text,
+    string ContentHtml,
+    ImportExtractionMetadata Metadata,
+    IReadOnlyList<ImportImageContent> Images);
+
+public sealed record ImportDocxCommand(
+    string OriginalFilename,
+    string MimeType,
+    byte[] FileBytes,
+    Guid ActorUserId,
+    string RequestId);
+
+public interface IDocumentImportService
+{
+    Task<DocumentAggregate> ImportDocxAsync(ImportDocxCommand command, CancellationToken ct);
 }
 
 public sealed class DocumentImportException : Exception

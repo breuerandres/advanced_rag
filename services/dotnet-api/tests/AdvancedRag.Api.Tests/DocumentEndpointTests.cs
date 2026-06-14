@@ -480,4 +480,13 @@ public sealed class FakeDocumentImportExtractionService : IDocumentImportExtract
         ct.ThrowIfCancellationRequested();
         throw new NotSupportedException();
     }
+
+    public Task<DocxImportExtractionResult> ExtractDocxWithImagesAsync(
+        ImportExtractionCommand command,
+        Guid documentId,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        throw new NotSupportedException();
+    }
 }

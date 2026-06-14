@@ -2,17 +2,28 @@ using System.IO.Compression;
 using AdvancedRag.App.Documents;
 using AdvancedRag.Infrastructure.Documents;
 using FluentAssertions;
+using SkiaSharp;
 
 namespace AdvancedRag.Infrastructure.Tests;
 
 public sealed class DocumentImportExtractionTests
 {
     private static readonly Guid ActorId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid DocumentId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+    private const string DocxMime =
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+    private static DocumentImportExtractionService CreateService(ImportImageNormalizer? imageNormalizer = null)
+    {
+        return new DocumentImportExtractionService(
+            new GanssDocumentHtmlSanitizer(),
+            imageNormalizer ?? new ImportImageNormalizer());
+    }
 
     [Fact]
     public async Task ExtractAsync_DocxReturnsTextHtmlAndSafeMetadata()
     {
-        var service = new DocumentImportExtractionService();
+        var service = CreateService();
         var bytes = CreateStructuredDocx();
 
         var result = await service.ExtractAsync(
@@ -40,7 +51,7 @@ public sealed class DocumentImportExtractionTests
     [Fact]
     public async Task ExtractAsync_PdfReturnsTextAndSafeMetadata()
     {
-        var service = new DocumentImportExtractionService();
+        var service = CreateService();
         var bytes = CreatePdfWithText("Texto de politica interna");
 
         var result = await service.ExtractAsync(
@@ -56,7 +67,7 @@ public sealed class DocumentImportExtractionTests
     [Fact]
     public async Task ExtractAsync_RejectsFilesOverTenMegabytes()
     {
-        var service = new DocumentImportExtractionService();
+        var service = CreateService();
         var bytes = new byte[(10 * 1024 * 1024) + 1];
 
         var act = () => service.ExtractAsync(
@@ -71,7 +82,7 @@ public sealed class DocumentImportExtractionTests
     [Fact]
     public async Task ExtractAsync_RejectsDocxWithoutExtractableText()
     {
-        var service = new DocumentImportExtractionService();
+        var service = CreateService();
         var bytes = CreateDocx("   ");
 
         var act = () => service.ExtractAsync(
@@ -90,7 +101,7 @@ public sealed class DocumentImportExtractionTests
     [Fact]
     public async Task ExtractAsync_DoesNotPersistUnsavedImportMetadata()
     {
-        var service = new DocumentImportExtractionService();
+        var service = CreateService();
 
         var result = await service.ExtractAsync(
             new ImportExtractionCommand(
@@ -101,6 +112,40 @@ public sealed class DocumentImportExtractionTests
             CancellationToken.None);
 
         result.Metadata.DocumentVersionId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ExtractDocxWithImagesAsync_EmitsStableImageUrlAndReturnsImageContent()
+    {
+        var service = CreateService();
+
+        var result = await service.ExtractDocxWithImagesAsync(
+            new ImportExtractionCommand("policy.docx", DocxMime, CreateStructuredDocx(), ActorId),
+            DocumentId,
+            CancellationToken.None);
+
+        result.Images.Should().HaveCount(1);
+        ImportImageContent image = result.Images[0];
+        result.ContentHtml.Should().Contain($"/api/document-images/{image.ImageId:D}/content");
+        result.ContentHtml.ToLowerInvariant().Should().NotContain("data:image");
+        image.ObjectKey.Should().StartWith($"documents/{DocumentId:D}/images/{image.ImageId:D}/");
+        image.Sha256Hash.Should().HaveLength(64);
+        image.Content.Should().NotBeEmpty();
+        result.Text.Should().Contain("Safety policy");
+    }
+
+    [Fact]
+    public async Task ExtractDocxWithImagesAsync_RejectsNonDocx()
+    {
+        var service = CreateService();
+
+        var act = () => service.ExtractDocxWithImagesAsync(
+            new ImportExtractionCommand("policy.pdf", "application/pdf", new byte[10], ActorId),
+            DocumentId,
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<DocumentImportException>()
+            .Where(error => error.Code == "VALIDATION_FAILED");
     }
 
     private static byte[] CreateDocx(params string[] paragraphs)
@@ -236,11 +281,23 @@ public sealed class DocumentImportExtractionTests
                 """);
             var image = archive.CreateEntry("word/media/image1.png");
             using var imageStream = image.Open();
-            imageStream.Write(
-                Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="));
+            byte[] png = CreatePng(64, 64);
+            imageStream.Write(png, 0, png.Length);
         }
 
         return output.ToArray();
+    }
+
+    private static byte[] CreatePng(int width, int height)
+    {
+        using SKBitmap bitmap = new(width, height);
+        using (SKCanvas canvas = new(bitmap))
+        {
+            canvas.Clear(SKColors.CornflowerBlue);
+        }
+
+        using SKData data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
     }
 
     private static void WriteZipEntry(ZipArchive archive, string path, string text)
