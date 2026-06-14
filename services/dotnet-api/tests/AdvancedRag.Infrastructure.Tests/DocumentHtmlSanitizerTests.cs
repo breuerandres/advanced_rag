@@ -27,4 +27,16 @@ public sealed class DocumentHtmlSanitizerTests
         normalized.Should().NotContain("javascript");
         normalized.Should().NotContain("background-image");
     }
+
+    [Fact]
+    public void Sanitize_PreservesImageWidthAttributeOnStableImage()
+    {
+        var sanitizer = new GanssDocumentHtmlSanitizer();
+
+        string sanitized = sanitizer.Sanitize(
+            "<p><img src=\"/api/document-images/11111111-1111-1111-1111-111111111111/content\" alt=\"Diagram\" width=\"480\"></p>");
+
+        sanitized.Should().Contain("width=\"480\"");
+        sanitized.Should().Contain("/api/document-images/11111111-1111-1111-1111-111111111111/content");
+    }
 }

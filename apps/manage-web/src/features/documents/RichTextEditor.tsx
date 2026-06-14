@@ -1,6 +1,6 @@
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
-import { Image as TiptapImage } from '@tiptap/extension-image'
+import { ResizableImage } from './ResizableImage'
 import { Link as TiptapLink } from '@tiptap/extension-link'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
@@ -79,7 +79,7 @@ export function RichTextEditor({ documentId, value, onChange, onUploadImage }: R
         defaultProtocol: 'https',
         openOnClick: false,
       }),
-      TiptapImage.configure({
+      ResizableImage.configure({
         allowBase64: false,
         inline: false,
       }),
