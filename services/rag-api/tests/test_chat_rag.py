@@ -2832,11 +2832,13 @@ class MultimodalFakeLlmProvider(FakeLlmProvider):
         super().__init__()
         self.multimodal_calls: list[list[ImageInput]] = []
 
-    async def multimodal_complete(
-        self, req: ChatCompletionRequest, images: list[ImageInput]
-    ) -> tuple[str, ChatUsage]:
+    async def multimodal_stream(self, req: ChatCompletionRequest, images: list[ImageInput]):  # type: ignore[no-untyped-def]
         self.multimodal_calls.append(list(images))
-        return await self.chat_complete(req)
+        content, usage = await self.chat_complete(req)
+        size = max(1, len(content) // 6)
+        for start in range(0, len(content), size):
+            yield ChatCompletionDelta(content=content[start : start + size])
+        yield ChatCompletionDelta(finish_reason="stop", usage=usage)
 
 
 class FakeSessionValidator:

@@ -99,6 +99,7 @@ Jump to the relevant decision group below. Section names match the `##` headings
 - [Task 17 Budget Exhaustion E2E Scope](#2026-05-18---task-17-budget-exhaustion-e2e-scope)
 - [Text-First RAG Image Indexing](#2026-06-01---text-first-rag-image-indexing)
 - [Query-Time Multimodal RAG](#2026-06-01---query-time-multimodal-rag)
+- [Multimodal Answers Stream Token-By-Token](#2026-06-14--multimodal-answers-stream-token-by-token)
 
 ### Data Model And Operations
 
@@ -2065,3 +2066,15 @@ Jump to the relevant decision group below. Section names match the `##` headings
 **Consequences:** New `apps/manage-web/src/features/documents/ResizableImage.ts`; `RichTextEditor` uses it instead of the base Image extension; `App.css` gains handle/select styles; `DocumentHtmlSanitizerTests` gains a width-preservation test; i18n key `documents.toolbar_block_style` added. Drag interaction is verified manually (jsdom cannot simulate layout/pointer drag).
 
 **Follow-up (same day):** the editor toolbar is centered (`justify-content: center`), and editor images are now **inline** (`ResizableImage` configured `inline: true`, NodeView wrapper is a `<span>`) so the existing text-align buttons align the containing paragraph — and thus the image. Alignment persists as the paragraph's `text-align` (the only block-alignment CSS the Ganss sanitizer keeps); the docs viewer renders `.document-content img` as `inline-block` so paragraph `text-align` centers it. No image-node `textAlign` attribute is stored (text-align on the `<img>` itself would not center it in the viewer).
+
+## 2026-06-14 — Multimodal answers stream token-by-token
+
+**Context:** Query-time multimodal RAG (2026-06-01) generated the answer with a single-shot OpenAI Responses call and emitted the whole answer as one SSE `answer-token`. After the DOCX image-import slices (2026-06-13/14), real queries began retrieving image-bearing chunks, so both the chat and docs mini-chats stopped "typing" answers gradually whenever an image was selected — the multimodal branch never streamed, only cache hits/no-results and now multimodal emitted a whole-answer blob. Users reported the lost gradual typing as a regression.
+
+**Decision:** Replace the one-shot multimodal path with streaming and unify it with the text path. The `IMultimodalLlmProvider` capability is now `multimodal_stream` (replacing `multimodal_complete`); `OpenAILlmProvider.multimodal_stream` calls `client.responses.create(stream=True)` and maps `response.output_text.delta` → content deltas and `response.completed` → usage. A shared `_stream_answer_from_deltas` helper drives both `generate_answer_stream` (text) and the new `generate_multimodal_answer_stream` through the same incremental `AnswerStreamParser`, so the `{"answer","cited_chunk_ids"}` JSON contract, citation parsing, and `RAG_PROVIDER_UNAVAILABLE` error handling stay identical. `chat_service.answer_stream` selects the multimodal-or-text delta source and forwards `answer-token` events through one shared loop; the capability probe checks `multimodal_stream`. Only cache hits and no-results answers still emit a single whole-answer token (no generation occurs there).
+
+**Rationale:** The text path already streamed via a source-agnostic incremental JSON parser, and the multimodal path returned the same JSON payload, so reusing the parser was the smallest change that restored gradual typing for both apps. Unifying the branches also deleted a duplicated SSE-forwarding/error-handling block and a now-dead one-shot path instead of maintaining two multimodal code paths.
+
+**Tradeoffs:** Streaming surfaces answer characters before the full JSON is parsed, but usage/cost are still finalized from the `response.completed` event, so audit accuracy is unchanged. `multimodal_complete`, `generate_multimodal_answer`, and the `_extract_output_text` helper were removed since the converted branch was their only consumer; a non-streaming multimodal call would have to be re-added if a future caller needs one.
+
+**Consequences:** Touched `providers/base.py` (capability rename), `providers/openai_provider.py` (`multimodal_stream`; `Any`/`_extract_output_text` dropped), `rag/answer_generator.py` (`_stream_answer_from_deltas` + `generate_multimodal_answer_stream`), `rag/chat_service.py` (unified branch, probe, docstrings). Tests: `test_openai_responses_multimodal.py` rewritten for streaming events; `MultimodalFakeLlmProvider` now implements `multimodal_stream` (splitting deltas); new `generate_multimodal_answer_stream` unit test. Multimodal answers remain uncached; the 3-image / 5 MB / `detail:"low"` caps are unchanged. The `/api/chat` SSE contract (`answer-token` events) is unchanged for the frontend.

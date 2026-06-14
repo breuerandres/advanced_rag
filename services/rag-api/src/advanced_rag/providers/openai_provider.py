@@ -13,7 +13,6 @@ app startup where a fake provider is injected before any network call would occu
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -107,9 +106,9 @@ class OpenAILlmProvider(ILlmProvider):
             cached_input_tokens=getattr(usage, "prompt_tokens_cached", 0) if usage else 0,
         )
 
-    async def multimodal_complete(
+    async def multimodal_stream(
         self, req: ChatCompletionRequest, images: list[ImageInput]
-    ) -> tuple[str, ChatUsage]:
+    ) -> AsyncIterator[ChatCompletionDelta]:
         client = self._ensure_client()
 
         instructions = "\n\n".join(m.content for m in req.messages if m.role == "system")
@@ -131,6 +130,7 @@ class OpenAILlmProvider(ILlmProvider):
                 "store": False,
                 "temperature": req.temperature,
                 "max_output_tokens": req.max_tokens,
+                "stream": True,
             }
             if instructions:
                 kwargs["instructions"] = instructions
@@ -138,30 +138,28 @@ class OpenAILlmProvider(ILlmProvider):
                 kwargs["text"] = {"format": req.response_format}
             return await client.responses.create(**kwargs)
 
-        response = await retry_async(_call, retry_on=is_transient_openai_error)
+        stream = await retry_async(_call, retry_on=is_transient_openai_error)
 
-        content = getattr(response, "output_text", None) or _extract_output_text(response)
-        usage = getattr(response, "usage", None)
-        cached = 0
-        details = getattr(usage, "input_tokens_details", None) if usage else None
-        if details is not None:
-            cached = getattr(details, "cached_tokens", 0) or 0
-        return content, ChatUsage(
-            input_tokens=getattr(usage, "input_tokens", 0) if usage else 0,
-            output_tokens=getattr(usage, "output_tokens", 0) if usage else 0,
-            cached_input_tokens=cached,
-        )
-
-
-def _extract_output_text(response: Any) -> str:
-    """Walk a Responses API result for message text when `output_text` is absent."""
-    parts: list[str] = []
-    for item in getattr(response, "output", None) or []:
-        for part in getattr(item, "content", None) or []:
-            text = getattr(part, "text", None)
-            if text:
-                parts.append(text)
-    return "".join(parts)
+        async for event in stream:
+            event_type = getattr(event, "type", "")
+            if event_type == "response.output_text.delta":
+                delta_text = getattr(event, "delta", None)
+                if delta_text:
+                    yield ChatCompletionDelta(content=delta_text)
+            elif event_type == "response.completed":
+                usage = getattr(getattr(event, "response", None), "usage", None)
+                cached = 0
+                details = getattr(usage, "input_tokens_details", None) if usage else None
+                if details is not None:
+                    cached = getattr(details, "cached_tokens", 0) or 0
+                yield ChatCompletionDelta(
+                    finish_reason="stop",
+                    usage=ChatUsage(
+                        input_tokens=getattr(usage, "input_tokens", 0) if usage else 0,
+                        output_tokens=getattr(usage, "output_tokens", 0) if usage else 0,
+                        cached_input_tokens=cached,
+                    ),
+                )
 
 
 class OpenAIEmbeddingProvider(IEmbeddingProvider):

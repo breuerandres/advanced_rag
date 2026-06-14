@@ -29,7 +29,7 @@ from advanced_rag.providers.base import (
 from advanced_rag.rag.answer_generator import (
     AnswerGeneration,
     generate_answer_stream,
-    generate_multimodal_answer,
+    generate_multimodal_answer_stream,
 )
 from advanced_rag.rag.chunking import CHUNKER_VERSION
 from advanced_rag.rag.conversation_memory import condense_question, load_session_history
@@ -191,11 +191,12 @@ class ChatService:
         """Answer a chat question, streaming answer tokens as the model produces them.
 
         Yields typed `ChatStreamEvent`s (`cache-hit` | `answer-token` | `citations` |
-        `usage`); the router wraps them with `request-id`/`done`/`error`. The text path
-        streams character deltas through `generate_answer_stream`; cache hits, no-results
-        answers, and multimodal generation each emit a single whole-answer token. The
-        audit row is written after generation completes, preserving exact usage and the
-        end-to-end latency.
+        `usage`); the router wraps them with `request-id`/`done`/`error`. Retrieval-
+        grounded answers stream character deltas through the shared JSON parser — both
+        the text path (`generate_answer_stream`) and the multimodal path
+        (`generate_multimodal_answer_stream`); only cache hits and no-results answers
+        emit a single whole-answer token. The audit row is written after generation
+        completes, preserving exact usage and the end-to-end latency.
         """
         normalized_question = question.strip()
         if not normalized_question:
@@ -325,10 +326,11 @@ class ChatService:
                 yield ChatStreamEvent(event="answer-token", payload={"delta": completion.answer})
             else:
                 # Query-time multimodal: select authorized images from the final
-                # retrieved chunks. Falls back to the streaming text path when none survive.
+                # retrieved chunks. Both the multimodal and the text path stream answer
+                # tokens through the same JSON parser, so the SSE forwarding below is shared.
                 selected_images = await self._select_multimodal_images(session, chunks, claims)
                 if selected_images:
-                    completion = await generate_multimodal_answer(
+                    answer_deltas = generate_multimodal_answer_stream(
                         llm=cast(IMultimodalLlmProvider, self._llm_provider),
                         question=retrieval_question,
                         chunks=chunks,
@@ -338,46 +340,39 @@ class ChatService:
                         temperature=self._settings.openai_chat_temperature,
                         max_tokens=self._settings.openai_chat_max_tokens,
                     )
-                    input_tokens = (completion.usage.input_tokens or 0) + embedding_tokens
-                    output_tokens = completion.usage.output_tokens or 0
-                    # Multimodal is a single-shot Responses call; emit the whole answer.
-                    yield ChatStreamEvent(
-                        event="answer-token", payload={"delta": completion.answer}
-                    )
                 else:
-                    final_generation: AnswerGeneration | None = None
-                    try:
-                        async for item in generate_answer_stream(
-                            llm=self._llm_provider,
-                            question=retrieval_question,
-                            chunks=chunks,
-                            locale=active_locale,
-                            model=self._settings.resolved_chat_model,
-                            temperature=self._settings.openai_chat_temperature,
-                            max_tokens=self._settings.openai_chat_max_tokens,
-                        ):
-                            if isinstance(item, str):
-                                yield ChatStreamEvent(
-                                    event="answer-token", payload={"delta": item}
-                                )
-                            else:
-                                final_generation = item
-                    except Exception as exc:  # noqa: BLE001 - surface as SSE error event
-                        logger.warning(
-                            "Answer streaming failed for request %s.", request_id, exc_info=True
-                        )
-                        raise ApiException(
-                            "RAG_PROVIDER_UNAVAILABLE",
-                            503,
-                            "The answer provider is currently unavailable.",
-                        ) from exc
-                    completion = final_generation or AnswerGeneration(
-                        answer="", cited_chunk_ids=[], usage=ChatUsage()
+                    answer_deltas = generate_answer_stream(
+                        llm=self._llm_provider,
+                        question=retrieval_question,
+                        chunks=chunks,
+                        locale=active_locale,
+                        model=self._settings.resolved_chat_model,
+                        temperature=self._settings.openai_chat_temperature,
+                        max_tokens=self._settings.openai_chat_max_tokens,
                     )
-                    input_tokens = (completion.usage.input_tokens or 0) + embedding_tokens
-                    output_tokens = completion.usage.output_tokens or _estimate_tokens(
-                        completion.answer
+                final_generation: AnswerGeneration | None = None
+                try:
+                    async for item in answer_deltas:
+                        if isinstance(item, str):
+                            yield ChatStreamEvent(event="answer-token", payload={"delta": item})
+                        else:
+                            final_generation = item
+                except Exception as exc:  # noqa: BLE001 - surface as SSE error event
+                    logger.warning(
+                        "Answer streaming failed for request %s.", request_id, exc_info=True
                     )
+                    raise ApiException(
+                        "RAG_PROVIDER_UNAVAILABLE",
+                        503,
+                        "The answer provider is currently unavailable.",
+                    ) from exc
+                completion = final_generation or AnswerGeneration(
+                    answer="", cited_chunk_ids=[], usage=ChatUsage()
+                )
+                input_tokens = (completion.usage.input_tokens or 0) + embedding_tokens
+                output_tokens = completion.usage.output_tokens or _estimate_tokens(
+                    completion.answer
+                )
             multimodal_used = bool(selected_images)
 
             citations = [
@@ -609,12 +604,12 @@ class ChatService:
         """Select and fetch authorized images for the final retrieved chunks.
 
         Returns an empty list (text-only path) when multimodal is disabled, the
-        provider has no `multimodal_complete`, no chunk has images, or every fetch
+        provider has no `multimodal_stream`, no chunk has images, or every fetch
         is dropped (auth/size/transport). A single fetch failure never fails chat.
         """
         if not (self._settings.multimodal_enabled and chunks):
             return []
-        if getattr(self._llm_provider, "multimodal_complete", None) is None:
+        if getattr(self._llm_provider, "multimodal_stream", None) is None:
             return []
         candidates = await load_image_candidates(session, [chunk.id for chunk in chunks])
         selected_candidates = select_image_candidates(

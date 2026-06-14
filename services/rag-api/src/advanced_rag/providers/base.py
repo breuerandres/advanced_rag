@@ -113,15 +113,20 @@ class IMultimodalLlmProvider(Protocol):
 
     Implemented separately from `ILlmProvider` so text-only providers (ollama,
     anthropic, azure) need no changes. The chat service probes for
-    `multimodal_complete` and falls back to the text path when it is absent.
+    `multimodal_stream` and falls back to the text path when it is absent.
     """
 
     name: str
 
-    async def multimodal_complete(
+    def multimodal_stream(
         self, req: ChatCompletionRequest, images: list[ImageInput]
-    ) -> tuple[str, ChatUsage]:
-        """Non-streaming multimodal completion. Returns full content and usage."""
+    ) -> AsyncIterator[ChatCompletionDelta]:
+        """Stream a multimodal completion token by token.
+
+        Mirrors `ILlmProvider.chat_stream` but attaches `images` to the request:
+        yields `ChatCompletionDelta(content=...)` per chunk and a final delta
+        carrying usage. Implemented only by providers whose model accepts images.
+        """
         ...
 
 
