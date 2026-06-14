@@ -91,6 +91,22 @@ public sealed class EfDocumentRepository : IDocumentRepository
             .Where(permission => permission.DocumentId == document.Id)
             .ExecuteDeleteAsync(ct);
 
+        // ExecuteDelete issues an immediate SQL DELETE but does not evict already-tracked
+        // entities from the change tracker. Publishing saves twice on one scoped DbContext
+        // (Pending before indexing, Published after), so the DocumentPermission/Group rows
+        // added by the first save are still tracked under these ids; re-adding them below
+        // would throw an identity-map conflict (surfaced as HTTP 500). Detach any lingering
+        // permission entities so the rewrite stays safe across repeated saves in one request.
+        foreach (var trackedPermission in _db.ChangeTracker.Entries<DocumentPermission>().ToList())
+        {
+            trackedPermission.State = EntityState.Detached;
+        }
+
+        foreach (var trackedPermissionGroup in _db.ChangeTracker.Entries<DocumentPermissionGroup>().ToList())
+        {
+            trackedPermissionGroup.State = EntityState.Detached;
+        }
+
         foreach (DocumentAccessRuleRecord rule in document.AccessRules)
         {
             _db.DocumentPermissions.Add(new DocumentPermission
