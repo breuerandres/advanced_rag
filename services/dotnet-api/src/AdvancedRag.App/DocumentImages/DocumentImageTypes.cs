@@ -86,15 +86,6 @@ public sealed class DocumentImageException : Exception
 public sealed class DocumentImageService : IDocumentImageService
 {
     private const long MaxImageSizeBytes = 5 * 1024 * 1024;
-    private static readonly IReadOnlyDictionary<string, string> ExtensionsByContentType =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["image/png"] = ".png",
-            ["image/jpeg"] = ".jpg",
-            ["image/jpg"] = ".jpg",
-            ["image/webp"] = ".webp",
-            ["image/gif"] = ".gif",
-        };
 
     private readonly IDocumentRepository _documents;
     private readonly IDocumentImageRepository _images;
@@ -133,8 +124,8 @@ public sealed class DocumentImageService : IDocumentImageService
 
         await RequireCanManageDocumentAsync(command.ActorUserId, document.AccessRules, ct);
 
-        string contentType = NormalizeContentType(command.ContentType);
-        if (!ExtensionsByContentType.TryGetValue(contentType, out string? extension))
+        string contentType = DocumentImageObjectKey.NormalizeContentType(command.ContentType);
+        if (!DocumentImageObjectKey.TryGetExtension(contentType, out string? extension))
         {
             throw new DocumentImageException(
                 "DOCUMENT_IMAGE_TYPE_UNSUPPORTED",
@@ -161,7 +152,7 @@ public sealed class DocumentImageService : IDocumentImageService
         }
 
         string sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
-        string objectKey = $"documents/{command.DocumentId:D}/images/{imageId:D}/{sha256}{extension}";
+        string objectKey = DocumentImageObjectKey.Build(command.DocumentId, imageId, sha256, extension!);
         await using MemoryStream uploadStream = new(bytes);
         await _storage.PutAsync(objectKey, contentType, uploadStream, ct);
 
@@ -207,11 +198,6 @@ public sealed class DocumentImageService : IDocumentImageService
     private static string StableUrl(Guid imageId)
     {
         return $"/api/document-images/{imageId:D}/content";
-    }
-
-    private static string NormalizeContentType(string contentType)
-    {
-        return contentType.Split(';', 2)[0].Trim().ToLowerInvariant();
     }
 
     private async Task RequireCanManageDocumentAsync(
