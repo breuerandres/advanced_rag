@@ -37,7 +37,7 @@ export const ResizableImage = TiptapImage.extend({
       const { editor, getPos } = props
       let currentNode = props.node
 
-      const container = document.createElement('div')
+      const container = document.createElement('span')
       container.className = 'resizable-image'
 
       const img = document.createElement('img')

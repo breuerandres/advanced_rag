@@ -390,7 +390,7 @@ h2 {
 }
 
 .document-content img {
-  display: block;
+  display: inline-block;
   max-width: 100%;
   height: auto;
   border-radius: 6px;

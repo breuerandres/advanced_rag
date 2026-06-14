@@ -81,7 +81,7 @@ export function RichTextEditor({ documentId, value, onChange, onUploadImage }: R
       }),
       ResizableImage.configure({
         allowBase64: false,
-        inline: false,
+        inline: true,
       }),
       Table.configure({
         resizable: true,
