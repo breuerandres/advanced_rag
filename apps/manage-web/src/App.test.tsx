@@ -2287,6 +2287,7 @@ describe("management feedback reporting", () => {
           queryAuditEventId: "99999999-9999-9999-9999-999999999999",
           userId: "11111111-1111-1111-1111-111111111111",
           userDisplayName: "Ana Gomez",
+          userEmail: "ana.gomez@example.com",
           question: "Que regla aplica?",
           answerSummary: "Usa credencial visible.",
           feedbackValue: "down",
@@ -2307,6 +2308,7 @@ describe("management feedback reporting", () => {
           queryAuditEventId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
           userId: "11111111-1111-1111-1111-111111111111",
           userDisplayName: "Ana Gomez",
+          userEmail: "ana.gomez@example.com",
           question: "Como ingreso al portal?",
           answerSummary: "Ingresa con tu cuenta corporativa.",
           feedbackValue: null,
@@ -2339,6 +2341,7 @@ describe("management feedback reporting", () => {
 
     expect(await screen.findByText("Que regla aplica?")).toBeInTheDocument();
     expect(screen.getByText("Como ingreso al portal?")).toBeInTheDocument();
+    expect(screen.getAllByText("ana.gomez@example.com")).toHaveLength(2);
     expect(screen.getByText("No sirvio")).toBeInTheDocument();
     expect(screen.getByText("Sin feedback")).toBeInTheDocument();
     expect(screen.getByText("Falto detalle")).toBeInTheDocument();

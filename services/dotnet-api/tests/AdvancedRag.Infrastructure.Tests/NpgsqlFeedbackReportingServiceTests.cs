@@ -19,6 +19,9 @@ public sealed class NpgsqlFeedbackReportingServiceTests
         string sql = NpgsqlFeedbackReportingService.BuildSql(query);
 
         sql.Should().Contain("from rag.v_query_audit_with_citations event");
+        sql.Should().Contain("left join app.users account on account.\"Id\" = event.user_id");
+        sql.Should().Contain("coalesce(account.display_name, event.user_id::text) as user_display_name");
+        sql.Should().Contain("account.email as user_email");
         sql.Should().Contain("where true");
         sql.Should().NotContain("where event.feedback_value is not null");
         sql.Should().Contain("order by event.feedback_updated_at desc nulls last");

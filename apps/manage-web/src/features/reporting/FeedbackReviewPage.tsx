@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
-import { Button, DataTable, Input } from '@helpcenter/shared-ui'
+import { Button, DataTable, Input, Pagination } from '@helpcenter/shared-ui'
 import {
   listFeedbackReport,
   type FeedbackReportFilters,
@@ -10,6 +10,8 @@ import {
 import { exportRowsToXlsx } from '../../lib/xlsx'
 
 type PolarityFilter = 'all' | 'negative'
+
+const FEEDBACK_PAGE_SIZE = 10
 
 export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean }) {
   const { t } = useTranslation()
@@ -22,6 +24,7 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  const [page, setPage] = useState(1)
 
   const loadFeedback = useCallback(async (filters: FeedbackReportFilters) => {
     setIsLoading(true)
@@ -29,6 +32,7 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
     try {
       const rows = await listFeedbackReport(filters)
       setItems(rows)
+      setPage(1)
       setHasLoadedOnce(true)
     } catch {
       setLoadError(true)
@@ -53,6 +57,7 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
           { header: t('feedback.question_column'), value: (item) => item.question, width: 48 },
           { header: t('feedback.answer_column'), value: (item) => item.answerSummary, width: 48 },
           { header: t('feedback.user'), value: (item) => item.userDisplayName, width: 24 },
+          { header: t('feedback.email_column'), value: (item) => item.userEmail ?? '', width: 28 },
           {
             header: t('feedback.title'),
             value: (item) => feedbackLabel(item.feedbackValue, t),
@@ -92,7 +97,12 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
       key: 'user',
       header: t('feedback.user'),
       className: 'feedback-user-column',
-      render: (item: FeedbackReportItem) => item.userDisplayName,
+      render: (item: FeedbackReportItem) => (
+        <>
+          <span className="user-name">{item.userDisplayName}</span>
+          {item.userEmail ? <span className="user-email">{item.userEmail}</span> : null}
+        </>
+      ),
     },
     {
       key: 'feedback',
@@ -212,12 +222,23 @@ export function FeedbackReviewPage({ embedded = false }: { embedded?: boolean })
         ) : null}
 
         {items.length > 0 ? (
-          <DataTable
-            className="table-frame feedback-table"
-            columns={columns}
-            data={items}
-            getRowId={(item) => item.queryAuditEventId}
-          />
+          <>
+            <DataTable
+              className="table-frame feedback-table"
+              columns={columns}
+              data={items.slice((page - 1) * FEEDBACK_PAGE_SIZE, page * FEEDBACK_PAGE_SIZE)}
+              getRowId={(item) => item.queryAuditEventId}
+            />
+            {items.length > FEEDBACK_PAGE_SIZE ? (
+              <div className="table-pagination">
+                <Pagination
+                  page={page}
+                  pageCount={Math.ceil(items.length / FEEDBACK_PAGE_SIZE)}
+                  onPageChange={setPage}
+                />
+              </div>
+            ) : null}
+          </>
         ) : null}
     </section>
   )

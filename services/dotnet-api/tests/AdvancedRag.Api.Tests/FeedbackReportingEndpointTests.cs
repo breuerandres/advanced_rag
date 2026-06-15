@@ -45,6 +45,8 @@ public sealed class FeedbackReportingEndpointTests
         body.Should().NotBeNull();
         body!.Should().ContainSingle();
         body![0].FeedbackValue.Should().Be("down");
+        body![0].UserDisplayName.Should().Be("Ana Gomez");
+        body![0].UserEmail.Should().Be("ana.gomez@example.com");
         body![0].FeedbackUpdatedAt.Should().Be(DateTimeOffset.Parse("2026-05-18T12:00:00Z"));
         _factory.Reporting.LastQuery.Should().Be(
             new FeedbackReportQuery(
@@ -171,6 +173,7 @@ public sealed class FakeFeedbackReportingService : IFeedbackReportingService
                 QueryAuditEventId: Guid.Parse("33333333-3333-3333-3333-333333333333"),
                 UserId: query.UserId ?? Guid.Parse("22222222-2222-2222-2222-222222222222"),
                 UserDisplayName: "Ana Gomez",
+                UserEmail: "ana.gomez@example.com",
                 Question: "Pregunta",
                 AnswerSummary: "Respuesta resumida",
                 FeedbackValue: "down",

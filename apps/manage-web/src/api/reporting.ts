@@ -10,6 +10,7 @@ export interface FeedbackReportItem {
   queryAuditEventId: string
   userId: string
   userDisplayName: string
+  userEmail: string | null
   question: string
   answerSummary: string
   feedbackValue: 'up' | 'down' | null

@@ -42,6 +42,7 @@ public sealed class ReportingController : ApiControllerBase
             item.QueryAuditEventId,
             item.UserId,
             item.UserDisplayName,
+            item.UserEmail,
             item.Question,
             item.AnswerSummary,
             item.FeedbackValue,

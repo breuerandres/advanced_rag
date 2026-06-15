@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ClipboardList, Download, RefreshCw, Search } from 'lucide-react'
-import { Button, DataTable, EmptyState, Input } from '@helpcenter/shared-ui'
+import { Button, DataTable, EmptyState, Input, Pagination } from '@helpcenter/shared-ui'
 import { listAuditEvents, type ManagementAuditEvent } from '../../api/audit'
 import { ApiError } from '../../lib/api-error'
 import { exportRowsToXlsx } from '../../lib/xlsx'
 
 type LoadState = 'loading' | 'ready' | 'error'
+
+const AUDIT_PAGE_SIZE = 15
 
 export function AuditPage() {
   const { t } = useTranslation()
@@ -15,6 +17,7 @@ export function AuditPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [eventTypeFilter, setEventTypeFilter] = useState('all')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     void loadEvents()
@@ -26,6 +29,7 @@ export function AuditPage() {
     setErrorMessage(null)
     try {
       setEvents(await listAuditEvents())
+      setPage(1)
       setLoadState('ready')
     } catch (error) {
       const reference = error instanceof ApiError ? error.requestId : 'unknown'
@@ -175,7 +179,10 @@ export function AuditPage() {
               type="search"
               placeholder={t('audit.search_placeholder')}
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={(event) => {
+                setSearchQuery(event.target.value)
+                setPage(1)
+              }}
             />
           </span>
         </label>
@@ -183,7 +190,10 @@ export function AuditPage() {
           <span>{t('audit.type')}</span>
           <select
             value={eventTypeFilter}
-            onChange={(event) => setEventTypeFilter(event.target.value)}
+            onChange={(event) => {
+              setEventTypeFilter(event.target.value)
+              setPage(1)
+            }}
           >
             <option value="all">{t('audit.all')}</option>
             {eventTypes.map(([eventType, eventLabel]) => (
@@ -224,9 +234,18 @@ export function AuditPage() {
           <DataTable
             className="table-frame audit-table"
             columns={columns}
-            data={filteredEvents}
+            data={filteredEvents.slice((page - 1) * AUDIT_PAGE_SIZE, page * AUDIT_PAGE_SIZE)}
             getRowId={(event) => event.id}
           />
+          {filteredEvents.length > AUDIT_PAGE_SIZE ? (
+            <div className="table-pagination">
+              <Pagination
+                page={page}
+                pageCount={Math.ceil(filteredEvents.length / AUDIT_PAGE_SIZE)}
+                onPageChange={setPage}
+              />
+            </div>
+          ) : null}
         </>
       ) : null}
     </section>

@@ -436,6 +436,7 @@
     "empty": "There are no questions to review yet.",
     "question_column": "Question",
     "answer_column": "Answer",
+    "email_column": "Email",
     "comment_column": "Comment",
     "cache_column": "Cache",
     "date_column": "Date",

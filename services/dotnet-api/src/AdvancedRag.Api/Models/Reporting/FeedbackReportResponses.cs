@@ -4,6 +4,7 @@ public sealed record FeedbackReportItemResponse(
     Guid QueryAuditEventId,
     Guid UserId,
     string UserDisplayName,
+    string? UserEmail,
     string Question,
     string AnswerSummary,
     string? FeedbackValue,

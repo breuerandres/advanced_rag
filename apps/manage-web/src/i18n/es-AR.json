@@ -436,6 +436,7 @@
     "empty": "Todavia no hay preguntas para revisar.",
     "question_column": "Pregunta",
     "answer_column": "Respuesta",
+    "email_column": "Email",
     "comment_column": "Comentario",
     "cache_column": "Cache",
     "date_column": "Fecha",

@@ -462,6 +462,12 @@ h2 {
   background: #ffffff;
 }
 
+.table-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
 table {
   width: 100%;
   min-width: min(100%, 980px);

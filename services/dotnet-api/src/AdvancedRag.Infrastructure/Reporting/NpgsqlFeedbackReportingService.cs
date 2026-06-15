@@ -35,6 +35,9 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
                     auditId,
                     reader.GetGuid(reader.GetOrdinal("user_id")),
                     reader.GetString(reader.GetOrdinal("user_display_name")),
+                    reader.IsDBNull(reader.GetOrdinal("user_email"))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal("user_email")),
                     reader.GetString(reader.GetOrdinal("question")),
                     reader.GetString(reader.GetOrdinal("answer_summary")),
                     reader.IsDBNull(reader.GetOrdinal("feedback_value"))
@@ -72,7 +75,8 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
             select
                 event.query_audit_event_id,
                 event.user_id,
-                event.user_id::text as user_display_name,
+                coalesce(account.display_name, event.user_id::text) as user_display_name,
+                account.email as user_email,
                 event.question,
                 event.answer_summary,
                 event.feedback_value,
@@ -85,6 +89,7 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
                 event.document_version_id,
                 event.heading_path
             from rag.v_query_audit_with_citations event
+            left join app.users account on account."Id" = event.user_id
             where true
             """);
 
@@ -154,6 +159,7 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
         private readonly Guid _queryAuditEventId;
         private readonly Guid _userId;
         private readonly string _userDisplayName;
+        private readonly string? _userEmail;
         private readonly string _question;
         private readonly string _answerSummary;
         private readonly string? _feedbackValue;
@@ -167,6 +173,7 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
             Guid queryAuditEventId,
             Guid userId,
             string userDisplayName,
+            string? userEmail,
             string question,
             string answerSummary,
             string? feedbackValue,
@@ -179,6 +186,7 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
             _queryAuditEventId = queryAuditEventId;
             _userId = userId;
             _userDisplayName = userDisplayName;
+            _userEmail = userEmail;
             _question = question;
             _answerSummary = answerSummary;
             _feedbackValue = feedbackValue;
@@ -197,6 +205,7 @@ public sealed class NpgsqlFeedbackReportingService : IFeedbackReportingService
                 _queryAuditEventId,
                 _userId,
                 _userDisplayName,
+                _userEmail,
                 _question,
                 _answerSummary,
                 _feedbackValue,

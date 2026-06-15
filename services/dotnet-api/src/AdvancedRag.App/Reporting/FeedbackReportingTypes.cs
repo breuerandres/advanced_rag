@@ -11,6 +11,7 @@ public sealed record FeedbackReportItem(
     Guid QueryAuditEventId,
     Guid UserId,
     string UserDisplayName,
+    string? UserEmail,
     string Question,
     string AnswerSummary,
     string? FeedbackValue,
