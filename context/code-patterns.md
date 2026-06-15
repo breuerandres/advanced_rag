@@ -115,6 +115,7 @@ Codes are stable strings, UPPER_SNAKE_CASE. Document new codes in this file when
 | `LOGIN_IP_RATE_LIMITED` | 429 | Login attempts from one origin IP exceeded the configured technical limit. |
 | `LOGIN_USER_RATE_LIMITED` | 429 | Login attempts for one user/email exceeded the configured technical limit. |
 | `CHAT_RATE_LIMITED` | 429 | Chat questions for one user exceeded the configured technical limit. |
+| `CHAT_QUESTION_TOO_LONG` | 400 | Chat question exceeded the configured maximum character length (`chat_max_question_chars`). |
 | `IMPORT_RATE_LIMITED` | 429 | Assisted import extraction requests for one user exceeded the configured technical limit. |
 | `VIEWER_EXCHANGE_RATE_LIMITED` | 429 | Viewer exchange attempts exceeded the configured technical limit. |
 | `AI_BUDGET_EXCEEDED` | 429 | User reached configured monthly AI budget. |
