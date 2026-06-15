@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
+using AdvancedRag.App.Configuration;
 using AdvancedRag.App.DocumentImages;
 using AdvancedRag.App.Documents;
 using Ganss.Xss;
@@ -12,8 +13,6 @@ namespace AdvancedRag.Infrastructure.Documents;
 
 public sealed class DocumentImportExtractionService : IDocumentImportExtractionService
 {
-    public const int MaxImportBytes = 10 * 1024 * 1024;
-
     private const string DocxMimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     private const string PdfMimeType = "application/pdf";
     private static readonly Regex ImageTagPattern = new(
@@ -22,25 +21,35 @@ public sealed class DocumentImportExtractionService : IDocumentImportExtractionS
     private readonly HtmlSanitizer _htmlSanitizer = new();
     private readonly IDocumentHtmlSanitizer _documentHtmlSanitizer;
     private readonly ImportImageNormalizer _imageNormalizer;
+    private readonly ITenantConfigService _tenantConfig;
 
     public DocumentImportExtractionService(
         IDocumentHtmlSanitizer documentHtmlSanitizer,
-        ImportImageNormalizer imageNormalizer)
+        ImportImageNormalizer imageNormalizer,
+        ITenantConfigService tenantConfig)
     {
         _documentHtmlSanitizer = documentHtmlSanitizer;
         _imageNormalizer = imageNormalizer;
+        _tenantConfig = tenantConfig;
     }
 
-    public Task<ImportExtractionResult> ExtractAsync(ImportExtractionCommand command, CancellationToken ct)
+    private async Task<long> GetMaxImportBytesAsync(CancellationToken ct)
+    {
+        var config = await _tenantConfig.GetAsync(ct);
+        return (long)config.ImportMaxFileSizeMb * 1024 * 1024;
+    }
+
+    public async Task<ImportExtractionResult> ExtractAsync(ImportExtractionCommand command, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        if (command.FileBytes.LongLength > MaxImportBytes)
+        long maxBytes = await GetMaxImportBytesAsync(ct);
+        if (command.FileBytes.LongLength > maxBytes)
         {
             throw new DocumentImportException(
                 "IMPORT_FILE_TOO_LARGE",
                 413,
                 "Uploaded import file exceeds the configured size limit.",
-                new Dictionary<string, object?> { ["maxBytes"] = MaxImportBytes });
+                new Dictionary<string, object?> { ["maxBytes"] = maxBytes });
         }
 
         ImportedContent content = command.MimeType switch
@@ -71,25 +80,26 @@ public sealed class DocumentImportExtractionService : IDocumentImportExtractionS
             Convert.ToHexString(SHA256.HashData(command.FileBytes)).ToLowerInvariant(),
             "Extracted");
 
-        return Task.FromResult(new ImportExtractionResult(
+        return new ImportExtractionResult(
             normalizedText,
             NormalizeContentHtml(content.ContentHtml),
-            metadata));
+            metadata);
     }
 
-    public Task<DocxImportExtractionResult> ExtractDocxWithImagesAsync(
+    public async Task<DocxImportExtractionResult> ExtractDocxWithImagesAsync(
         ImportExtractionCommand command,
         Guid documentId,
         CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        if (command.FileBytes.LongLength > MaxImportBytes)
+        long maxBytes = await GetMaxImportBytesAsync(ct);
+        if (command.FileBytes.LongLength > maxBytes)
         {
             throw new DocumentImportException(
                 "IMPORT_FILE_TOO_LARGE",
                 413,
                 "Uploaded import file exceeds the configured size limit.",
-                new Dictionary<string, object?> { ["maxBytes"] = MaxImportBytes });
+                new Dictionary<string, object?> { ["maxBytes"] = maxBytes });
         }
 
         if (!string.Equals(command.MimeType, DocxMimeType, StringComparison.Ordinal))
@@ -165,11 +175,11 @@ public sealed class DocumentImportExtractionService : IDocumentImportExtractionS
             Convert.ToHexString(SHA256.HashData(command.FileBytes)).ToLowerInvariant(),
             "Extracted");
 
-        return Task.FromResult(new DocxImportExtractionResult(
+        return new DocxImportExtractionResult(
             normalizedText,
             sanitizedHtml,
             metadata,
-            images));
+            images);
     }
 
     private ImportedContent ExtractDocx(byte[] fileBytes)

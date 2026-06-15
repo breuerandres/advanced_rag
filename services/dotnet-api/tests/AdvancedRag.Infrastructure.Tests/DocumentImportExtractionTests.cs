@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using AdvancedRag.App.Configuration;
 using AdvancedRag.App.Documents;
 using AdvancedRag.Infrastructure.Documents;
 using FluentAssertions;
@@ -13,12 +14,39 @@ public sealed class DocumentImportExtractionTests
     private const string DocxMime =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-    private static DocumentImportExtractionService CreateService(ImportImageNormalizer? imageNormalizer = null)
+    private static DocumentImportExtractionService CreateService(
+        ImportImageNormalizer? imageNormalizer = null,
+        int importMaxFileSizeMb = 10)
     {
         return new DocumentImportExtractionService(
             new GanssDocumentHtmlSanitizer(),
-            imageNormalizer ?? new ImportImageNormalizer());
+            imageNormalizer ?? new ImportImageNormalizer(),
+            new FakeTenantConfig(importMaxFileSizeMb));
     }
+
+    private sealed class FakeTenantConfig : ITenantConfigService
+    {
+        private readonly int _mb;
+
+        public FakeTenantConfig(int mb) => _mb = mb;
+
+        public Task<TenantConfig> GetAsync(CancellationToken ct) =>
+            Task.FromResult(ToConfig(TenantConfigDraft.CreateDefault() with { ImportMaxFileSizeMb = _mb }));
+
+        public Task<TenantConfig> UpdateAsync(TenantConfigDraft draft, CancellationToken ct) => GetAsync(ct);
+    }
+
+    private static TenantConfig ToConfig(TenantConfigDraft d) => new(
+        Guid.NewGuid(), d.BrandName, d.BrandLogoUrl, d.BrandFaviconUrl, d.PrimaryColor,
+        d.DefaultLocale, d.SupportedLocales, d.LlmProvider, d.LlmModel, d.LlmBaseUrl,
+        d.EmbeddingProvider, d.EmbeddingModel, d.EmbeddingDimensions, d.RerankerProvider,
+        d.RerankerModel, d.RerankerBaseUrl, d.EnableBm25, d.EnableReranker,
+        d.EnableConversationalMemory, d.EnableQueryRewrite, d.RagTopKVector, d.RagTopKBm25,
+        d.RagTopKFinal, d.RrfK, d.ConversationHistoryTurns, d.CacheTtlHours,
+        d.CacheSimilarityThreshold, d.DefaultMonthlyBudgetUsd, d.GlobalDailyBudgetUsd,
+        d.EnableVlmImageDescription, d.EnableOtel, d.S3Endpoint, d.S3Bucket, d.S3Region,
+        d.CustomerTimezone, d.ImportMaxFileSizeMb, d.ChatMaxQuestionChars, d.SeededFromEnv,
+        DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
     [Fact]
     public async Task ExtractAsync_DocxReturnsTextHtmlAndSafeMetadata()
@@ -69,6 +97,21 @@ public sealed class DocumentImportExtractionTests
     {
         var service = CreateService();
         var bytes = new byte[(10 * 1024 * 1024) + 1];
+
+        var act = () => service.ExtractAsync(
+            new ImportExtractionCommand("too-large.pdf", "application/pdf", bytes, ActorId),
+            CancellationToken.None);
+
+        await act.Should()
+            .ThrowAsync<DocumentImportException>()
+            .Where(error => error.Code == "IMPORT_FILE_TOO_LARGE");
+    }
+
+    [Fact]
+    public async Task ExtractAsync_RejectsFilesOverConfiguredLimit()
+    {
+        var service = CreateService(importMaxFileSizeMb: 1);
+        var bytes = new byte[2 * 1024 * 1024];
 
         var act = () => service.ExtractAsync(
             new ImportExtractionCommand("too-large.pdf", "application/pdf", bytes, ActorId),
