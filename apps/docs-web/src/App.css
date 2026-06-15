@@ -430,9 +430,9 @@ h2 {
 }
 
 .document-titleblock {
-  max-width: 72ch;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 8px 24px 0;
+  padding: 8px 0 0;
 }
 
 .document-chips {
@@ -462,14 +462,15 @@ h2 {
 }
 
 .document-view .document-content {
-  max-width: 72ch;
+  max-width: 1040px;
   margin: 0 auto;
+  padding: 24px 0;
 }
 
 .document-footer {
-  max-width: 72ch;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 0 24px 24px;
+  padding: 0 0 24px;
   color: #6b625c;
   font-size: 13px;
 }

@@ -876,7 +876,7 @@ function DocumentEditor({
       </header>
 
       <form className="document-form">
-        <div className="dialog-grid">
+        <div className="dialog-grid document-meta-grid">
           <label className="field">
             <span>{t("documents.title_field")}</span>
             <Input
