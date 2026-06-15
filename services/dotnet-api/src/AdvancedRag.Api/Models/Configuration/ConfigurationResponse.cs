@@ -2,6 +2,7 @@ namespace AdvancedRag.Api.Models.Configuration;
 
 public sealed record ConfigurationResponse(
     string CustomerTimezone,
+    string LlmProvider,
     string ChatModel,
     string EmbeddingModel,
     int EmbeddingDimensions,

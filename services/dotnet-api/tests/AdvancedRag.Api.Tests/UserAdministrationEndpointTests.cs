@@ -482,7 +482,7 @@ public sealed class UserAdministrationWebApplicationFactory : WebApplicationFact
             services.RemoveAll<ITenantConfigService>();
             services.AddSingleton<IAuthService>(_auth);
             services.AddSingleton<IUserAdministrationService>(_users);
-            services.AddSingleton<ITenantConfigService, FakeTenantConfigService>();
+            services.AddScoped<ITenantConfigService, FakeTenantConfigService>();
         });
     }
 }
@@ -492,6 +492,7 @@ public sealed class FakeTenantConfigService : ITenantConfigService
     private TenantConfig _config = ToConfig(TenantConfigDraft.CreateDefault() with
     {
         SupportedLocales = ["es-AR", "en-US", "pt-BR"],
+        LlmModel = "gpt-4.1-nano",
     });
 
     public Task<TenantConfig> GetAsync(CancellationToken ct)

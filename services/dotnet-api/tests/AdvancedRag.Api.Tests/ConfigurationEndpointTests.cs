@@ -66,6 +66,28 @@ public sealed class ConfigurationEndpointTests
     }
 
     [Fact]
+    public async Task GetConfiguration_IncludesProviderAndOperationalFields()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        string sessionCookie = await LoginAsync(client);
+
+        using HttpRequestMessage request = new(HttpMethod.Get, "/api/configuration");
+        request.Headers.Host = "manage.localhost";
+        request.Headers.Add("Cookie", sessionCookie);
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        ConfigurationResponse? body = await response.Content.ReadFromJsonAsync<ConfigurationResponse>();
+        body.Should().NotBeNull();
+        body!.LlmProvider.Should().Be("openai");
+        body.ChatModel.Should().Be("gpt-4.1-nano");          // from tenant_config (env-seeded)
+        body.ImportMaxFileSizeMb.Should().Be(10);
+        body.ChatMaxQuestionChars.Should().Be(4000);
+        body.EmbeddingModel.Should().Be("text-embedding-3-small"); // still env-sourced
+    }
+
+    [Fact]
     public async Task GetV1Config_WithoutSession_ReturnsPublicSafeTenantConfigWithoutSecrets()
     {
         using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
@@ -83,7 +105,7 @@ public sealed class ConfigurationEndpointTests
         body.Locale.DefaultLocale.Should().Be("es-AR");
         body.Locale.SupportedLocales.Should().Equal("es-AR", "en-US", "pt-BR");
         body.Providers.Llm.Provider.Should().Be("openai");
-        body.Providers.Llm.Model.Should().Be("gpt-4o-mini");
+        body.Providers.Llm.Model.Should().Be("gpt-4.1-nano");
         body.Providers.Llm.BaseUrl.Should().BeNull();
         body.Providers.Embedding.Dimensions.Should().Be(1024);
         body.Providers.Reranker.Enabled.Should().BeTrue();
@@ -251,6 +273,7 @@ public sealed class ConfigurationEndpointTests
 
     private sealed record ConfigurationResponse(
         string CustomerTimezone,
+        string LlmProvider,
         string ChatModel,
         string EmbeddingModel,
         int EmbeddingDimensions,

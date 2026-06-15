@@ -4,7 +4,6 @@ using AdvancedRag.Api.Models.Configuration;
 using AdvancedRag.App.Configuration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Globalization;
 
 namespace AdvancedRag.Api.Controllers;
 
@@ -23,33 +22,27 @@ public sealed class ConfigurationController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult Get()
+    public async Task<IActionResult> Get(CancellationToken ct)
     {
-        ConfigurationResponse response = new(
-            CustomerTimezone: _configuration["CUSTOMER_TIMEZONE"]
-                ?? _configuration["Customer:Timezone"]
-                ?? "UTC",
-            ChatModel: _configuration["OPENAI_CHAT_MODEL"]
-                ?? _configuration["OpenAI:ChatModel"]
-                ?? "gpt-4.1-nano",
+        TenantConfig config = await _tenantConfig.GetAsync(ct);
+        return Ok(BuildResponse(config));
+    }
+
+    private ConfigurationResponse BuildResponse(TenantConfig config)
+    {
+        return new ConfigurationResponse(
+            CustomerTimezone: config.CustomerTimezone,
+            LlmProvider: config.LlmProvider,
+            ChatModel: config.LlmModel,
             EmbeddingModel: _configuration["OPENAI_EMBEDDING_MODEL"]
                 ?? _configuration["OpenAI:EmbeddingModel"]
                 ?? "text-embedding-3-small",
             EmbeddingDimensions: GetInt("OPENAI_EMBEDDING_DIMENSIONS", "OpenAI:EmbeddingDimensions", 1536),
-            DefaultMonthlyAiBudgetUsd: GetDecimal(
-                "DEFAULT_MONTHLY_AI_BUDGET_USD",
-                "AiBudget:DefaultMonthlyUsd",
-                5m),
-            SemanticCacheTtlHours: GetInt(
-                "RAG_SEMANTIC_CACHE_TTL_HOURS",
-                "Rag:SemanticCacheTtlHours",
-                24),
-            SemanticCacheSimilarityThreshold: GetDecimal(
-                "RAG_SEMANTIC_CACHE_SIMILARITY_THRESHOLD",
-                "Rag:SemanticCacheSimilarityThreshold",
-                0.90m),
-            ChatMaxQuestionChars: GetInt("CHAT_MAX_QUESTION_CHARS", "Chat:MaxQuestionChars", 4000),
-            ImportMaxFileSizeMb: 10,
+            DefaultMonthlyAiBudgetUsd: config.DefaultMonthlyBudgetUsd,
+            SemanticCacheTtlHours: config.CacheTtlHours,
+            SemanticCacheSimilarityThreshold: config.CacheSimilarityThreshold,
+            ChatMaxQuestionChars: config.ChatMaxQuestionChars,
+            ImportMaxFileSizeMb: config.ImportMaxFileSizeMb,
             Secrets:
             [
                 SecretStatus(
@@ -77,8 +70,6 @@ public sealed class ConfigurationController : ControllerBase
                     ["S3_SECRET_KEY", "S3:SecretKey"],
                     ["S3_SECRET_KEY_FILE", "S3:SecretKeyFile"]),
             ]);
-
-        return Ok(response);
     }
 
     [HttpGet("/api/v1/config")]
@@ -118,14 +109,6 @@ public sealed class ConfigurationController : ControllerBase
     {
         string? value = _configuration[environmentKey] ?? _configuration[configurationKey];
         return int.TryParse(value, out int parsed) ? parsed : fallback;
-    }
-
-    private decimal GetDecimal(string environmentKey, string configurationKey, decimal fallback)
-    {
-        string? value = _configuration[environmentKey] ?? _configuration[configurationKey];
-        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal parsed)
-            ? parsed
-            : fallback;
     }
 
     private SecretConfigurationStatusResponse SecretStatus(
