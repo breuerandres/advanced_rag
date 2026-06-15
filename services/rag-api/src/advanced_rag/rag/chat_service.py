@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from advanced_rag.auth.chat_tokens import ChatTokenClaims
 from advanced_rag.core.config import Settings
 from advanced_rag.core.errors import ApiException
+from advanced_rag.core.tenant_config_refresher import TenantConfigRefresher
 from advanced_rag.providers.base import (
     ChatUsage,
     IEmbeddingProvider,
@@ -140,12 +141,14 @@ class ChatService:
         reranker_provider: IRerankerProvider | None,
         settings: Settings,
         hnsw_iterative_scan_supported: bool = False,
+        tenant_config_refresher: TenantConfigRefresher | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._embedding_provider = embedding_provider
         self._llm_provider = llm_provider
         self._reranker_provider = reranker_provider
         self._settings = settings
+        self._tenant_config_refresher = tenant_config_refresher
         # Set to True only when the server's pgvector advertised >= 0.8 at startup.
         # When False the retrieval SQL relies on `ef_search` alone.
         self._hnsw_iterative_scan_supported = hnsw_iterative_scan_supported
@@ -174,6 +177,16 @@ class ChatService:
                 details={"field": "question"},
             )
         async with self._session_factory() as session:
+            if self._tenant_config_refresher is not None:
+                await self._tenant_config_refresher.refresh_if_stale(session)
+            max_chars = self._settings.chat_max_question_chars
+            if max_chars > 0 and len(question) > max_chars:
+                raise ApiException(
+                    "CHAT_QUESTION_TOO_LONG",
+                    400,
+                    "Question exceeds the configured maximum length.",
+                    details={"field": "question", "maxChars": max_chars},
+                )
             await self._ensure_pricing_configured(session)
             await self._enforce_budget(session, UUID(claims.user_id), datetime.now(UTC))
 

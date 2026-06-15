@@ -186,6 +186,53 @@ def test_chat_streams_multiple_answer_tokens_and_writes_audit() -> None:
     assert state["citation_document_ids"] == [document_id]
 
 
+def test_chat_rejects_question_over_configured_max_length() -> None:
+    with _postgres() as database:
+        asyncio.run(
+            database.seed_chat_corpus(
+                allowed_document_id=uuid4(),
+                denied_document_id=uuid4(),
+                preview_document_id=uuid4(),
+                monthly_budget=Decimal("5.0000"),
+            )
+        )
+        asyncio.run(database.seed_tenant_config(chat_max_question_chars=10))
+        app = create_app(
+            Settings(
+                rag_database_url=database.async_url,
+                openai_chat_model=CHAT_MODEL,
+                openai_embedding_model=EMBEDDING_MODEL,
+                openai_embedding_dimensions=EMBEDDING_DIMENSIONS,
+                customer_timezone="UTC",
+                enable_reranker=False,
+                csrf_signing_key=TEST_CSRF_SIGNING_KEY,
+            ),
+            embedding_provider=FakeEmbeddingProvider(),
+            llm_provider=FakeLlmProvider(),
+            session_validator=FakeSessionValidator(
+                ChatTokenClaims(
+                    user_id=str(USER_ID),
+                    role="Viewer",
+                    groups=[str(ALLOWED_GROUP_ID)],
+                    access_scope_hash="scope-allowed",
+                    corpus="published",
+                )
+            ),
+        )
+        client = TestClient(app)
+        client.cookies.set("__Host-session", "valid")
+        set_csrf(client)
+
+        response = client.post(
+            "/api/chat",
+            json={"question": "This question is way too long for the limit."},
+            headers={"X-Request-ID": "req-too-long"},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "CHAT_QUESTION_TOO_LONG"
+
+
 def _published_chat_app(database: "ChatDatabase") -> Any:
     """Build a chat app with the standard published-corpus Viewer claims."""
     return create_app(
@@ -1594,6 +1641,39 @@ class ChatDatabase:
                     primary key (document_id, dimension_value_id)
                 )
                 """
+            )
+            # Minimal app.tenant_config so the TenantConfigRefresher (now wired into the
+            # chat precheck) can read it cross-schema. Left empty by default, so the
+            # refresher is a no-op and tests keep using the env-sourced Settings; the
+            # over-long-question test seeds a row via seed_tenant_config().
+            await connection.execute(
+                """
+                CREATE TABLE app.tenant_config (
+                    llm_model text not null,
+                    cache_ttl_hours int not null,
+                    cache_similarity_threshold numeric(4, 3) not null,
+                    default_monthly_budget_usd numeric(8, 2) not null,
+                    customer_timezone text not null,
+                    chat_max_question_chars int not null,
+                    created_at timestamptz not null default now()
+                )
+                """
+            )
+        finally:
+            await connection.close()
+
+    async def seed_tenant_config(self, *, chat_max_question_chars: int) -> None:
+        connection = await asyncpg.connect(self.dsn)
+        try:
+            await connection.execute(
+                """
+                INSERT INTO app.tenant_config (
+                    llm_model, cache_ttl_hours, cache_similarity_threshold,
+                    default_monthly_budget_usd, customer_timezone, chat_max_question_chars
+                )
+                VALUES ('gpt-4.1-nano', 24, 0.90, 5.00, 'UTC', $1)
+                """,
+                chat_max_question_chars,
             )
         finally:
             await connection.close()

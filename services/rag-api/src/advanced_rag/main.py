@@ -34,6 +34,7 @@ from advanced_rag.core.health import OperationalReadinessChecker, ReadinessResul
 from advanced_rag.core.logging import OperationalRequestLoggingMiddleware
 from advanced_rag.core.request_id import RequestIdMiddleware
 from advanced_rag.core.rate_limit import FixedWindowRateLimiter
+from advanced_rag.core.tenant_config_refresher import TenantConfigRefresher
 from advanced_rag.db.session import create_database_engine, create_session_factory
 from advanced_rag.providers import (
     IEmbeddingProvider,
@@ -122,12 +123,14 @@ def create_app(
             resolved_settings,
             lambda: app.state.chat_token_validator,
         )
+    app.state.tenant_config_refresher = TenantConfigRefresher(resolved_settings)
     app.state.chat_service = ChatService(
         app.state.session_factory,
         app.state.embedding_provider,
         app.state.llm_provider,
         app.state.reranker_provider,
         resolved_settings,
+        tenant_config_refresher=app.state.tenant_config_refresher,
     )
     app.state.feedback_service = FeedbackService(app.state.session_factory)
     app.state.maintenance_service = MaintenanceService(app.state.session_factory)
