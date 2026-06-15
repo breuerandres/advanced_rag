@@ -204,6 +204,83 @@ public sealed class ConfigurationEndpointTests
         body.Storage.S3Endpoint.Should().Be("http://minio:9000");
     }
 
+    [Fact]
+    public async Task PutConfiguration_AsAdmin_PersistsAndReturnsUpdated()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        string sessionCookie = await LoginAsync(client);
+        CsrfState csrf = await GetCsrfAsync(client);
+
+        using HttpResponseMessage response = await SendJsonAsync(
+            client, HttpMethod.Put, "/api/configuration",
+            new
+            {
+                chatModel = "gpt-4.1-mini",
+                customerTimezone = "UTC",
+                defaultMonthlyAiBudgetUsd = 9.00m,
+                semanticCacheTtlHours = 48,
+                semanticCacheSimilarityThreshold = 0.88m,
+                chatMaxQuestionChars = 2500,
+                importMaxFileSizeMb = 15,
+            },
+            csrf, sessionCookie);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        ConfigurationResponse? body = await response.Content.ReadFromJsonAsync<ConfigurationResponse>();
+        body.Should().NotBeNull();
+        body!.ChatModel.Should().Be("gpt-4.1-mini");
+        body.ImportMaxFileSizeMb.Should().Be(15);
+        body.SemanticCacheSimilarityThreshold.Should().Be(0.88m);
+    }
+
+    [Fact]
+    public async Task PutConfiguration_AsViewer_ReturnsForbidden()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        string sessionCookie = await LoginAsync(client, FakeAuthService.TargetEmail);
+        CsrfState csrf = await GetCsrfAsync(client);
+
+        using HttpResponseMessage response = await SendJsonAsync(
+            client, HttpMethod.Put, "/api/configuration",
+            new
+            {
+                chatModel = "x",
+                customerTimezone = "UTC",
+                defaultMonthlyAiBudgetUsd = 5m,
+                semanticCacheTtlHours = 24,
+                semanticCacheSimilarityThreshold = 0.9m,
+                chatMaxQuestionChars = 4000,
+                importMaxFileSizeMb = 10,
+            },
+            csrf, sessionCookie);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task PutConfiguration_WithInvalidThreshold_ReturnsValidationFailed()
+    {
+        using HttpClient client = _factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        string sessionCookie = await LoginAsync(client);
+        CsrfState csrf = await GetCsrfAsync(client);
+
+        using HttpResponseMessage response = await SendJsonAsync(
+            client, HttpMethod.Put, "/api/configuration",
+            new
+            {
+                chatModel = "gpt-4.1-nano",
+                customerTimezone = "UTC",
+                defaultMonthlyAiBudgetUsd = 5m,
+                semanticCacheTtlHours = 24,
+                semanticCacheSimilarityThreshold = 1.5m,
+                chatMaxQuestionChars = 4000,
+                importMaxFileSizeMb = 10,
+            },
+            csrf, sessionCookie);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     private static async Task<string> LoginAsync(HttpClient client, string email = FakeAuthService.AdminEmail)
     {
         CsrfState csrf = await GetCsrfAsync(client);

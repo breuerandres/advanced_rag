@@ -72,6 +72,44 @@ public sealed class ConfigurationController : ControllerBase
             ]);
     }
 
+    [HttpPut]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Update([FromBody] UpdateConfigurationRequest request, CancellationToken ct)
+    {
+        TenantConfig current = await _tenantConfig.GetAsync(ct);
+        TenantConfigDraft draft = new(
+            current.BrandName, current.BrandLogoUrl, current.BrandFaviconUrl, current.PrimaryColor,
+            current.DefaultLocale, current.SupportedLocales, current.LlmProvider,
+            request.ChatModel, current.LlmBaseUrl, current.EmbeddingProvider, current.EmbeddingModel,
+            current.EmbeddingDimensions, current.RerankerProvider, current.RerankerModel,
+            current.RerankerBaseUrl, current.EnableBm25, current.EnableReranker,
+            current.EnableConversationalMemory, current.EnableQueryRewrite, current.RagTopKVector,
+            current.RagTopKBm25, current.RagTopKFinal, current.RrfK, current.ConversationHistoryTurns,
+            request.SemanticCacheTtlHours, request.SemanticCacheSimilarityThreshold,
+            request.DefaultMonthlyAiBudgetUsd, current.GlobalDailyBudgetUsd,
+            current.EnableVlmImageDescription, current.EnableOtel, current.S3Endpoint,
+            current.S3Bucket, current.S3Region, request.CustomerTimezone,
+            request.ImportMaxFileSizeMb, request.ChatMaxQuestionChars, current.SeededFromEnv);
+
+        try
+        {
+            TenantConfig updated = await _tenantConfig.UpdateAsync(draft, ct);
+            return Ok(BuildResponse(updated));
+        }
+        catch (TenantConfigException exception)
+        {
+            return StatusCode(
+                exception.HttpStatus,
+                ErrorResponse.Create(
+                    exception.Code,
+                    exception.Message,
+                    HttpContext.Items.TryGetValue(RequestIdMiddleware.ContextItemKey, out object? value)
+                        ? value?.ToString() ?? string.Empty
+                        : string.Empty,
+                    exception.Details));
+        }
+    }
+
     [HttpGet("/api/v1/config")]
     [AllowAnonymous]
     public async Task<ActionResult<TenantConfigResponse>> GetTenantConfigAsync(CancellationToken ct)

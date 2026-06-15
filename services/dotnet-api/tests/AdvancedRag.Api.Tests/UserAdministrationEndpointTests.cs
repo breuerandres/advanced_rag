@@ -489,24 +489,19 @@ public sealed class UserAdministrationWebApplicationFactory : WebApplicationFact
 
 public sealed class FakeTenantConfigService : ITenantConfigService
 {
-    private TenantConfig _config = ToConfig(TenantConfigDraft.CreateDefault() with
-    {
-        SupportedLocales = ["es-AR", "en-US", "pt-BR"],
-        LlmModel = "gpt-4.1-nano",
-    });
+    // Delegates to the real TenantConfigService over an in-memory repository so that
+    // UpdateAsync exercises the production Normalize() validation (e.g. rejecting an
+    // out-of-range cache-similarity threshold) rather than blindly persisting drafts.
+    private readonly TenantConfigService _inner = new(new InMemoryTenantConfigRepository(
+        ToConfig(TenantConfigDraft.CreateDefault() with
+        {
+            SupportedLocales = ["es-AR", "en-US", "pt-BR"],
+            LlmModel = "gpt-4.1-nano",
+        })));
 
-    public Task<TenantConfig> GetAsync(CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        return Task.FromResult(_config);
-    }
+    public Task<TenantConfig> GetAsync(CancellationToken ct) => _inner.GetAsync(ct);
 
-    public Task<TenantConfig> UpdateAsync(TenantConfigDraft draft, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        _config = ToConfig(draft);
-        return Task.FromResult(_config);
-    }
+    public Task<TenantConfig> UpdateAsync(TenantConfigDraft draft, CancellationToken ct) => _inner.UpdateAsync(draft, ct);
 
     private static TenantConfig ToConfig(TenantConfigDraft draft)
     {
@@ -551,6 +546,21 @@ public sealed class FakeTenantConfigService : ITenantConfigService
             draft.SeededFromEnv,
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow);
+    }
+
+    private sealed class InMemoryTenantConfigRepository : ITenantConfigRepository
+    {
+        private TenantConfig _config;
+
+        public InMemoryTenantConfigRepository(TenantConfig seed) => _config = seed;
+
+        public Task<TenantConfig> GetAsync(CancellationToken ct) => Task.FromResult(_config);
+
+        public Task<TenantConfig> UpsertAsync(TenantConfigDraft draft, CancellationToken ct)
+        {
+            _config = ToConfig(draft);
+            return Task.FromResult(_config);
+        }
     }
 }
 
