@@ -79,7 +79,6 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
   const [stateFilter, setStateFilter] = useState<DocumentStateFilter>("all");
   const [indexingFilter, setIndexingFilter] = useState<IndexingFilter>("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [audienceFilter, setAudienceFilter] = useState("all");
   const [unitFilter, setUnitFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
   const [editorState, setEditorState] = useState<EditorState | null>(null);
@@ -113,11 +112,6 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
     () => uniqueValues(documents.map((document) => document.documentType)),
     [documents],
   );
-  const audiences = useMemo(
-    () => uniqueValues(documents.map((document) => document.audience)),
-    [documents],
-  );
-
   const filteredDocuments = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
@@ -128,8 +122,6 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
         indexingFilter === "all" || document.indexingStatus === indexingFilter;
       const matchesType =
         typeFilter === "all" || document.documentType === typeFilter;
-      const matchesAudience =
-        audienceFilter === "all" || document.audience === audienceFilter;
       const accessRules = document.accessRules ?? [];
       const matchesUnit =
         unitFilter === "all" ||
@@ -143,7 +135,6 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
         !matchesState ||
         !matchesIndexing ||
         !matchesType ||
-        !matchesAudience ||
         !matchesUnit ||
         !matchesGroup
       ) {
@@ -176,7 +167,6 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
         document.state,
         document.indexingStatus,
         document.documentType,
-        document.audience,
         document.updatedAt,
         ...groupNames,
         ...ruleGroupNames,
@@ -188,7 +178,6 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
       return searchableText.includes(normalizedQuery);
     });
   }, [
-    audienceFilter,
     documents,
     groupFilter,
     groups,
@@ -419,20 +408,6 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                 </select>
               </label>
               <label className="field">
-                <span>{t("documents.audience")}</span>
-                <select
-                  value={audienceFilter}
-                  onChange={(event) => setAudienceFilter(event.target.value)}
-                >
-                  <option value="all">{t("documents.all_feminine")}</option>
-                  {audiences.map((audience) => (
-                    <option key={audience} value={audience}>
-                      {audience}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
                 <span>{t("documents.filter_unit")}</span>
                 <select
                   value={unitFilter}
@@ -509,11 +484,6 @@ export function DocumentsPage({ userRoles }: DocumentsPageProps) {
                     key: "type",
                     header: t("documents.type_column"),
                     render: (document) => document.documentType || "-",
-                  },
-                  {
-                    key: "audience",
-                    header: t("documents.audience"),
-                    render: (document) => document.audience || "-",
                   },
                   {
                     key: "access",
@@ -677,7 +647,6 @@ function DocumentEditor({
     }
     return options;
   }, [documentTypes, editableVersion]);
-  const [audience, setAudience] = useState(editableVersion?.audience ?? "");
   const [contentHtml, setContentHtml] = useState(editableVersion?.contentHtml ?? "");
   const [rules, setRules] = useState<EditableAccessRule[]>(() =>
     initialAccessRules(documentDetail),
@@ -734,7 +703,6 @@ function DocumentEditor({
       const request = {
         title,
         documentTypeId,
-        audience,
         contentHtml: normalizeEditorHtml(contentHtml),
         accessRules: rules.map(toAccessRuleInput),
       };
@@ -765,7 +733,6 @@ function DocumentEditor({
     if (
       title.trim().length === 0 ||
       documentTypeId === null ||
-      audience.trim().length === 0 ||
       plainText(contentHtml).length === 0 ||
       !hasValidAccessRules
     ) {
@@ -939,18 +906,6 @@ function DocumentEditor({
                 </option>
               ))}
             </select>
-          </label>
-          <label className="field">
-            <span>{t("documents.audience")}</span>
-            <Input
-              invalid={hasReviewValidationError && audience.trim().length === 0}
-              type="text"
-              value={audience}
-              onChange={(event) => {
-                setAudience(event.target.value);
-                setIsDirty(true);
-              }}
-            />
           </label>
           <div className="field import-field">
             <span id={`${importInputId}-label`}>{t("documents.import_file")}</span>
@@ -1348,7 +1303,6 @@ function toSummary(document: DocumentDetail): DocumentSummary {
     state: document.state,
     documentTypeId: version?.documentTypeId ?? null,
     documentType: version?.documentType ?? "",
-    audience: version?.audience ?? "",
     allowedGroupIds: document.allowedGroupIds.map((groupId) =>
       groupId.toString(),
     ),
@@ -1587,7 +1541,6 @@ function emptyDocument(): DocumentDetail {
       title: "",
       documentTypeId: null,
       documentType: "",
-      audience: "",
       contentHtml: "",
       indexingStatus: "None",
     },

@@ -147,34 +147,39 @@ export function DocumentTypesPage() {
                 key: 'actions',
                 header: t('documentTypes.actions_column'),
                 render: (type) => (
-                  <span className="table-actions">
+                  <div className="row-actions">
                     <Button
-                      className="text-button"
+                      className="icon-button"
                       type="button"
                       aria-label={t('documentTypes.edit_for', { name: type.name })}
+                      tooltip={t('documentTypes.edit')}
                       onClick={() => setDialog({ mode: 'edit', type })}
                     >
-                      <Pencil size={14} />
-                      {t('documentTypes.edit')}
+                      <Pencil size={16} />
                     </Button>
                     <Button
-                      className="text-button"
+                      className="icon-button"
                       type="button"
+                      aria-label={
+                        type.isActive
+                          ? t('documentTypes.deactivate_for', { name: type.name })
+                          : t('documentTypes.activate_for', { name: type.name })
+                      }
+                      tooltip={type.isActive ? t('documentTypes.deactivate') : t('documentTypes.activate')}
                       onClick={() => void toggleActive(type)}
                     >
-                      <Power size={14} />
-                      {type.isActive ? t('documentTypes.deactivate') : t('documentTypes.activate')}
+                      <Power size={16} />
                     </Button>
                     <Button
-                      className="text-button"
+                      className="icon-button"
                       type="button"
                       aria-label={t('documentTypes.delete_for', { name: type.name })}
+                      tooltip={t('documentTypes.delete')}
                       onClick={() => void removeType(type)}
                     >
-                      <Trash2 size={14} />
-                      {t('documentTypes.delete')}
+                      <Trash2 size={16} />
                     </Button>
-                  </span>
+                  </div>
                 ),
               },
             ]}

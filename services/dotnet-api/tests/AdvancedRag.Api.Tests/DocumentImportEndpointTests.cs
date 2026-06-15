@@ -152,7 +152,6 @@ public sealed class FakeDocumentImportService : IDocumentImportService
             Path.GetFileNameWithoutExtension(command.OriginalFilename),
             null,
             string.Empty,
-            string.Empty,
             "<p>imported</p>",
             Array.Empty<DocumentAccessRuleRecord>(),
             command.ActorUserId);

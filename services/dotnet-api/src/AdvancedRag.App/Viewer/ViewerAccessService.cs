@@ -111,7 +111,6 @@ public sealed class ViewerAccessService : IViewerAccessService
             version.Title,
             document.State,
             version.DocumentType,
-            version.Audience,
             version.ContentHtml,
             DateTimeOffset.MaxValue);
     }

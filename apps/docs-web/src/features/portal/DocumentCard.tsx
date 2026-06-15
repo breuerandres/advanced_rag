@@ -29,7 +29,6 @@ export function DocumentCard({
         {document.documentType}
       </span>
       <h2>{document.title}</h2>
-      <p className="card-audience">{document.audience}</p>
       <span className="card-footer">
         {updated ? (
           <span className="card-updated">{t('portal.updated_ago', { when: updated })}</span>

@@ -101,7 +101,6 @@ public sealed class EfViewerAccessRepository : IViewerAccessRepository, IViewerS
             version.State,
             version.Title,
             documentType,
-            version.Audience,
             version.ContentHtml);
     }
 

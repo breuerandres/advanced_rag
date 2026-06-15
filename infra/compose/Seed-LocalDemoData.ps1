@@ -198,21 +198,20 @@ on conflict ("Id") do update set
   updated_at = now();
 
 insert into app.document_versions (
-  "Id", document_id, version_number, state, title, document_type, audience, content_html, published_at, published_by_user_id, indexing_status, created_at
+  "Id", document_id, version_number, state, title, document_type_id, content_html, published_at, published_by_user_id, indexing_status, created_at
 )
-select version_id, document_id, 1, 'Published', title, 'Politica', audience, content_html, now(), published_by, 'Succeeded', now()
+select version_id, document_id, 1, 'Published', title, '20000000-0000-0000-0000-000000000001'::uuid, content_html, now(), published_by, 'Succeeded', now()
 from (values
-  ('05000000-0000-0000-0000-000000000001'::uuid, '04000000-0000-0000-0000-000000000001'::uuid, 'Manual general de comunicacion interna', 'Todos', '<h1>Manual general de comunicacion interna</h1><p>Lineamientos generales para comunicaciones internas de toda la empresa.</p>', '02000000-0000-0000-0000-000000000001'::uuid),
-  ('05000000-0000-0000-0000-000000000002'::uuid, '04000000-0000-0000-0000-000000000002'::uuid, 'Guia del area Comunicacion', 'Comunicacion', '<h1>Guia del area Comunicacion</h1><p>Procesos internos para el area Comunicacion y sus equipos dependientes.</p>', '02000000-0000-0000-0000-000000000002'::uuid),
-  ('05000000-0000-0000-0000-000000000003'::uuid, '04000000-0000-0000-0000-000000000003'::uuid, 'Calendario de campanas de Marketing', 'Marketing', '<h1>Calendario de campanas de Marketing</h1><p>Fechas y criterios de coordinacion para campanas de Marketing.</p>', '02000000-0000-0000-0000-000000000002'::uuid),
-  ('05000000-0000-0000-0000-000000000004'::uuid, '04000000-0000-0000-0000-000000000004'::uuid, 'Checklist de produccion audiovisual', 'Produccion Audiovisual', '<h1>Checklist de produccion audiovisual</h1><p>Pasos previos para piezas audiovisuales internas.</p>', '02000000-0000-0000-0000-000000000002'::uuid),
-  ('05000000-0000-0000-0000-000000000005'::uuid, '04000000-0000-0000-0000-000000000005'::uuid, 'Procedimiento de guardias de Sistemas', 'Sistemas', '<h1>Procedimiento de guardias de Sistemas</h1><p>Rotacion y escalamiento para guardias del area Sistemas.</p>', '02000000-0000-0000-0000-000000000001'::uuid),
-  ('05000000-0000-0000-0000-000000000006'::uuid, '04000000-0000-0000-0000-000000000006'::uuid, 'Protocolo de comunicacion en crisis', 'Comunicacion', '<h1>Protocolo de comunicacion en crisis</h1><p>Canales, responsables y aprobaciones del comite de crisis.</p>', '02000000-0000-0000-0000-000000000002'::uuid)
-) as version_seed(version_id, document_id, title, audience, content_html, published_by)
+  ('05000000-0000-0000-0000-000000000001'::uuid, '04000000-0000-0000-0000-000000000001'::uuid, 'Manual general de comunicacion interna', '<h1>Manual general de comunicacion interna</h1><p>Lineamientos generales para comunicaciones internas de toda la empresa.</p>', '02000000-0000-0000-0000-000000000001'::uuid),
+  ('05000000-0000-0000-0000-000000000002'::uuid, '04000000-0000-0000-0000-000000000002'::uuid, 'Guia del area Comunicacion', '<h1>Guia del area Comunicacion</h1><p>Procesos internos para el area Comunicacion y sus equipos dependientes.</p>', '02000000-0000-0000-0000-000000000002'::uuid),
+  ('05000000-0000-0000-0000-000000000003'::uuid, '04000000-0000-0000-0000-000000000003'::uuid, 'Calendario de campanas de Marketing', '<h1>Calendario de campanas de Marketing</h1><p>Fechas y criterios de coordinacion para campanas de Marketing.</p>', '02000000-0000-0000-0000-000000000002'::uuid),
+  ('05000000-0000-0000-0000-000000000004'::uuid, '04000000-0000-0000-0000-000000000004'::uuid, 'Checklist de produccion audiovisual', '<h1>Checklist de produccion audiovisual</h1><p>Pasos previos para piezas audiovisuales internas.</p>', '02000000-0000-0000-0000-000000000002'::uuid),
+  ('05000000-0000-0000-0000-000000000005'::uuid, '04000000-0000-0000-0000-000000000005'::uuid, 'Procedimiento de guardias de Sistemas', '<h1>Procedimiento de guardias de Sistemas</h1><p>Rotacion y escalamiento para guardias del area Sistemas.</p>', '02000000-0000-0000-0000-000000000001'::uuid),
+  ('05000000-0000-0000-0000-000000000006'::uuid, '04000000-0000-0000-0000-000000000006'::uuid, 'Protocolo de comunicacion en crisis', '<h1>Protocolo de comunicacion en crisis</h1><p>Canales, responsables y aprobaciones del comite de crisis.</p>', '02000000-0000-0000-0000-000000000002'::uuid)
+) as version_seed(version_id, document_id, title, content_html, published_by)
 on conflict (document_id, version_number) do update set
   title = excluded.title,
-  document_type = excluded.document_type,
-  audience = excluded.audience,
+  document_type_id = excluded.document_type_id,
   content_html = excluded.content_html,
   state = excluded.state,
   published_at = excluded.published_at,

@@ -48,7 +48,6 @@ test('renders the portal with document-type chips and cards', async () => {
           title: 'Manual legal',
           state: 'Published',
           documentType: 'Manual',
-          audience: 'Legal',
           allowedGroups: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legales' }],
           updatedAt: '2026-05-22T12:00:00Z',
         },
@@ -57,7 +56,6 @@ test('renders the portal with document-type chips and cards', async () => {
           title: 'Política de viajes',
           state: 'Published',
           documentType: 'Política',
-          audience: 'Todos',
           allowedGroups: [],
           updatedAt: '2026-06-01T12:00:00Z',
         },
@@ -196,7 +194,6 @@ test('shows the filtered empty state with a clear-filters action', async () => {
           title: 'Manual legal',
           state: 'Published',
           documentType: 'Manual',
-          audience: 'Legal',
           allowedGroups: [],
           updatedAt: '2026-05-22T12:00:00Z',
         },
@@ -207,7 +204,7 @@ test('shows the filtered empty state with a clear-filters action', async () => {
 
   render(<App />)
 
-  await user.type(await screen.findByPlaceholderText('Buscar por título, tipo o audiencia…'), 'inexistente')
+  await user.type(await screen.findByPlaceholderText('Buscar por título o tipo…'), 'inexistente')
 
   expect(await screen.findByText('No encontramos documentos con los filtros actuales.')).toBeInTheDocument()
 
@@ -251,7 +248,6 @@ test('renders the document with back navigation and session footer', async () =>
       title: 'Procedimiento publicado',
       state: 'Published',
       documentType: 'Politica',
-      audience: 'Operaciones',
       contentHtml: '<h2>Contenido publicado</h2><p>Usa el equipo de seguridad.</p>',
       tokenExpiresAt: '2026-05-18T12:15:00Z',
     }),
@@ -276,7 +272,6 @@ test('shows a draft banner when viewing an unpublished version', async () => {
       title: 'Borrador interno',
       state: 'Draft',
       documentType: 'Manual',
-      audience: 'Operaciones',
       contentHtml: '<p>Contenido en preparación.</p>',
       tokenExpiresAt: '2026-05-18T12:15:00Z',
     }),
@@ -312,7 +307,6 @@ test('consumes handoff code, removes it from the URL, then loads the document', 
       title: 'Procedimiento publicado',
       state: 'Published',
       documentType: 'Politica',
-      audience: 'Operaciones',
       contentHtml: '<p>Contenido publicado.</p>',
       tokenExpiresAt: '2026-05-18T12:15:00Z',
     }),
@@ -348,7 +342,6 @@ test('renders list content inside the document content surface', async () => {
       title: 'Procedimiento publicado',
       state: 'Published',
       documentType: 'Politica',
-      audience: 'Operaciones',
       contentHtml: '<ul><li>Paso uno</li></ul><ol><li>Paso dos</li></ol>',
       tokenExpiresAt: '2026-05-18T12:15:00Z',
     }),
@@ -501,7 +494,6 @@ const PUBLISHED_DOCUMENT = {
   title: 'Procedimiento publicado',
   state: 'Published',
   documentType: 'Politica',
-  audience: 'Operaciones',
   contentHtml: '<p>Usa el equipo de seguridad.</p>',
   tokenExpiresAt: '2026-05-18T12:15:00Z',
 }

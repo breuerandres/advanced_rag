@@ -49,7 +49,6 @@ public sealed class DocumentsController : ApiControllerBase
                 new CreateDocumentCommand(
                     request.Title,
                     request.DocumentTypeId,
-                    request.Audience,
                     request.ContentHtml,
                     ToAccessRules(request),
                     ActorUserId(),
@@ -76,7 +75,6 @@ public sealed class DocumentsController : ApiControllerBase
                     id,
                     request.Title,
                     request.DocumentTypeId,
-                    request.Audience,
                     request.ContentHtml,
                     ToAccessRules(request),
                     ActorUserId(),

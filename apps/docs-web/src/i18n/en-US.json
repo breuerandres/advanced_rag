@@ -11,7 +11,7 @@
   "portal": {
     "title": "Document library",
     "subtitle": "Find guides and documentation based on your permissions.",
-    "search_placeholder": "Search by title, type, or audience…",
+    "search_placeholder": "Search by title or type…",
     "filter_all": "All",
     "filters_label": "Filter by document type",
     "empty_title": "No documents to show",

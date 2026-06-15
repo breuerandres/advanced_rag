@@ -62,7 +62,7 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 - Use table/list views for operational review workflows, with compact filters above or beside the result set. Search controls should be bounded instead of consuming the full workspace width when paired with short filters.
 - Use detail panels or pages for document lifecycle state, version history, audit events, indexing status, and feedback context.
 - Document lifecycle status badges use distinct semantic colors for `Draft`, `In Review`, `Published`, and `Archived` so reviewers can scan publication readiness quickly.
-- The document list must support filtering across the visible document attributes: search text, lifecycle state, indexing state, document type, audience, access-group coverage, and updated metadata when available.
+- The document list must support filtering across the visible document attributes: search text, lifecycle state, indexing state, document type, access-group coverage, and updated metadata when available.
 - Forms must show field-level validation, server errors, dirty state, disabled submission state, and recovery actions.
 - The document editor supports assisted PDF/DOCX import through the .NET API: upload, extraction loading state, extraction error state, safe draft HTML inserted into the editor when available, fallback extracted text, and user-controlled formatting before save/review.
 - The import upload control must show the 10 MB per-file limit and validate file size before upload when the browser exposes the size.
@@ -116,8 +116,8 @@ The base UI stack is decided for the MVP. Detailed screen-level layouts still ne
 
 ## Document Viewer UI
 
-- `docs.localhost` root renders an independent authenticated document portal styled as a warm help center: bounded search, document-type filter chips (access groups are not navigation), and a card grid with type icon/tint, audience, relative updated date, and a state chip only for non-published documents. Visible documents are determined by the current user; management roles (`Admin`, `DocumentEditor`, `DocumentPublisher`) open documents with management purpose links.
-- Document-id URLs render the focused viewer: a sticky top bar with a "Volver a la biblioteca" link back to the portal root, type/audience chips above the title, a centered reading column (max 72ch, 17px/1.7), a quiet session-expiry footer line, and a tinted banner when viewing draft/in-review versions.
+- `docs.localhost` root renders an independent authenticated document portal styled as a warm help center: bounded search, document-type filter chips (access groups are not navigation), and a card grid with type icon/tint, relative updated date, and a state chip only for non-published documents. Visible documents are determined by the current user; management roles (`Admin`, `DocumentEditor`, `DocumentPublisher`) open documents with management purpose links.
+- Document-id URLs render the focused viewer: a sticky top bar with a "Volver a la biblioteca" link back to the portal root, a type chip above the title, a centered reading column (max 72ch, 17px/1.7), a quiet session-expiry footer line, and a tinted banner when viewing draft/in-review versions.
 - A floating document-chat bubble renders only on Published documents. The panel is ephemeral (state lost on reload), streams answers from FastAPI's document-scoped `/api/chat`, supports 👍/👎 feedback with optional comment per answer, shows budget-limited and rate-limited states with friendly copy, and rolls back partial turns on stream failure with a retry action. Doc-chat conversations never appear in chat-web's session drawer.
 - The viewer must handle missing session, unauthorized, document-not-found, and successful document states. All docs-web user-facing strings are i18n keys (es-AR default, en-US), including error-code mappings.
 - Credential-bearing tokens must never be visible to JavaScript or shown in the URL.

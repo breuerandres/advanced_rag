@@ -217,7 +217,6 @@ public sealed class ViewerEndpointTests : IClassFixture<ViewerWebApplicationFact
         string Title,
         string State,
         string DocumentType,
-        string Audience,
         string ContentHtml,
         DateTimeOffset TokenExpiresAt);
 
@@ -332,7 +331,6 @@ public sealed class FakeViewerAccessService : IViewerAccessService
             "Published procedure",
             "Published",
             "Policy",
-            "Operations",
             "<h1>Contenido publicado</h1>",
             DateTimeOffset.UtcNow.AddMinutes(15)));
     }

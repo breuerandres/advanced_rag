@@ -82,7 +82,6 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             command.Title.Trim(),
             documentTypeId,
             documentTypeName,
-            command.Audience.Trim(),
             SanitizeDocumentHtml(command.ContentHtml),
             NormalizeRules(command.AccessRules),
             command.ActorUserId);
@@ -111,7 +110,6 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
 
         string normalizedTitle = command.Title.Trim();
         (Guid? documentTypeId, string documentTypeName) = await ResolveTypeAsync(command.DocumentTypeId, ct);
-        string normalizedAudience = command.Audience.Trim();
         string normalizedContent = SanitizeDocumentHtml(command.ContentHtml);
         DateTimeOffset now = DateTimeOffset.UtcNow;
         DocumentVersionRecord? existingDraft = document.CurrentDraftVersion;
@@ -128,7 +126,6 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 normalizedTitle,
                 documentTypeId,
                 documentTypeName,
-                normalizedAudience,
                 normalizedContent,
                 now,
                 null,
@@ -153,7 +150,6 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
                 Title = normalizedTitle,
                 DocumentTypeId = documentTypeId,
                 DocumentType = documentTypeName,
-                Audience = normalizedAudience,
                 ContentHtml = normalizedContent,
                 IndexingStatus = IndexingStatus.None,
                 IndexingJobId = null,
@@ -431,7 +427,6 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
             source?.Title ?? document.Title,
             source?.DocumentTypeId,
             source?.DocumentType ?? string.Empty,
-            source?.Audience ?? string.Empty,
             source?.ContentHtml ?? string.Empty,
             now,
                 null,
@@ -516,11 +511,6 @@ public sealed class DocumentLifecycleService : IDocumentLifecycleService
         if (draft.DocumentTypeId is null)
         {
             missing.Add("documentType");
-        }
-
-        if (string.IsNullOrWhiteSpace(draft.Audience))
-        {
-            missing.Add("audience");
         }
 
         if (document.AccessRules.Count == 0 || document.AccessRules.Any(IsInvalidRule))

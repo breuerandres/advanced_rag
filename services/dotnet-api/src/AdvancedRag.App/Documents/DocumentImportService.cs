@@ -41,7 +41,6 @@ public sealed class DocumentImportService : IDocumentImportService
             title,
             null,
             string.Empty,
-            string.Empty,
             extracted.ContentHtml,
             Array.Empty<DocumentAccessRuleRecord>(),
             command.ActorUserId);

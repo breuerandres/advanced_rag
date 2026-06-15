@@ -36,7 +36,6 @@ public sealed class DocumentEndpointTests : IClassFixture<DocumentEndpointWebApp
             {
                 title = "Protocolo de comunicacion en crisis",
                 documentTypeId = "20000000-0000-0000-0000-000000000003",
-                audience = "Comunicacion",
                 contentHtml = "<p>Contenido</p>",
                 accessRules = new[]
                 {
@@ -77,7 +76,6 @@ public sealed class DocumentEndpointTests : IClassFixture<DocumentEndpointWebApp
             {
                 title = "Documento sin regla",
                 documentTypeId = "20000000-0000-0000-0000-000000000001",
-                audience = "Todos",
                 contentHtml = "<p>Contenido</p>",
                 accessRules = new[] { new { organizationalUnitId = (Guid?)null, groupIds = Array.Empty<Guid>() } },
             },
@@ -104,7 +102,6 @@ public sealed class DocumentEndpointTests : IClassFixture<DocumentEndpointWebApp
             {
                 title = "Documento Gerentes",
                 documentTypeId = "20000000-0000-0000-0000-000000000001",
-                audience = "Gerentes",
                 contentHtml = "<p>Contenido</p>",
                 accessRules = new[]
                 {
@@ -138,7 +135,6 @@ public sealed class DocumentEndpointTests : IClassFixture<DocumentEndpointWebApp
             {
                 title = "Protocolo crisis",
                 documentTypeId = "20000000-0000-0000-0000-000000000003",
-                audience = "Comunicacion",
                 contentHtml = "<p>Contenido</p>",
                 accessRules = new[]
                 {
@@ -469,7 +465,6 @@ public sealed class FakeDocumentLifecycleService : IDocumentLifecycleService
             "Protocolo de comunicacion en crisis",
             Guid.Parse("20000000-0000-0000-0000-000000000003"),
             "Procedimiento",
-            "Comunicacion",
             "<p>Contenido</p>",
             rules,
             FakeDocumentAuthService.AdminUserId);

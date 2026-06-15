@@ -7,7 +7,6 @@ export interface ViewerDocument {
   title: string
   state: string
   documentType: string
-  audience: string
   contentHtml: string
   tokenExpiresAt: string
 }
@@ -34,7 +33,6 @@ export interface ViewerCatalogDocument {
   title: string
   state: string
   documentType: string
-  audience: string
   allowedGroups: ViewerDocumentGroup[]
   updatedAt: string
 }

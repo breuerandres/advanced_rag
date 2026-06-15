@@ -207,7 +207,7 @@ Document states are `Draft`, `In Review`, `Published`, and `Archived`.
 - If the user abandons the import flow without saving the draft, the imported HTML/text, import metadata, and extraction result are not persisted as business data.
 - Unsaved extraction requests may still appear in normal sanitized technical logs with request ID, status, duration, and safe error code.
 - The user remains responsible for final formatting, title, document type, access attributes, and review readiness after import. The MVP does not promise high-fidelity PDF-to-HTML reconstruction.
-- Moving a draft to `In Review` requires title, document type, allowed groups/departments, audience/user type, non-empty sanitized HTML content, and valid sanitized content. Document tags are deferred for the MVP and are not exposed through the product UI or public API.
+- Moving a draft to `In Review` requires title, document type, allowed groups/departments, non-empty sanitized HTML content, and valid sanitized content. Document tags are deferred for the MVP and are not exposed through the product UI or public API.
 - Sending a draft to `In Review` may include an optional internal review comment. Returning or rejecting a version from `In Review` back to `Draft` requires an internal comment explaining the reason.
 - Review comments are stored in the `app` schema and included in the management audit trail.
 - `Admin` and `DocumentManager` can return or reject a version from `In Review` back to `Draft` when they provide the required internal comment. This does not grant `DocumentManager` permission to publish.

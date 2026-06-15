@@ -27,7 +27,6 @@ public enum IndexingStatus
 public sealed record CreateDocumentCommand(
     string Title,
     Guid? DocumentTypeId,
-    string Audience,
     string ContentHtml,
     IReadOnlyList<DocumentAccessRuleDraft> AccessRules,
     Guid ActorUserId,
@@ -37,7 +36,6 @@ public sealed record UpdateDraftCommand(
     Guid DocumentId,
     string Title,
     Guid? DocumentTypeId,
-    string Audience,
     string ContentHtml,
     IReadOnlyList<DocumentAccessRuleDraft> AccessRules,
     Guid ActorUserId,
@@ -78,7 +76,6 @@ public sealed record DocumentVersionRecord(
     string Title,
     Guid? DocumentTypeId,
     string DocumentType,
-    string Audience,
     string ContentHtml,
     DateTimeOffset CreatedAt,
     DateTimeOffset? SubmittedForReviewAt,
@@ -111,7 +108,6 @@ public sealed record DocumentAggregate(
         string title,
         Guid? documentTypeId,
         string documentTypeName,
-        string audience,
         string contentHtml,
         IReadOnlyList<DocumentAccessRuleRecord> accessRules,
         Guid actorUserId)
@@ -129,7 +125,6 @@ public sealed record DocumentAggregate(
                 title,
                 documentTypeId,
                 documentTypeName,
-                audience,
                 contentHtml,
                 now,
                 null,
@@ -152,7 +147,6 @@ public sealed record DocumentSummary(
     DocumentState State,
     Guid? DocumentTypeId,
     string DocumentType,
-    string Audience,
     IReadOnlyList<DocumentAccessRuleRecord> AccessRules,
     int? DraftVersionNumber,
     int? PublishedVersionNumber,
@@ -175,9 +169,6 @@ public sealed record DocumentSummary(
                 ?? document.CurrentPublishedVersion?.DocumentTypeId,
             document.CurrentDraftVersion?.DocumentType
                 ?? document.CurrentPublishedVersion?.DocumentType
-                ?? string.Empty,
-            document.CurrentDraftVersion?.Audience
-                ?? document.CurrentPublishedVersion?.Audience
                 ?? string.Empty,
             document.AccessRules,
             document.CurrentDraftVersion?.VersionNumber,

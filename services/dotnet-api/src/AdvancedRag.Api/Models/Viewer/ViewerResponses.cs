@@ -16,7 +16,6 @@ public sealed record ViewerDocumentResponse(
     string Title,
     string State,
     string DocumentType,
-    string Audience,
     string ContentHtml,
     DateTimeOffset TokenExpiresAt)
 {
@@ -28,7 +27,6 @@ public sealed record ViewerDocumentResponse(
             result.Title,
             result.State,
             result.DocumentType,
-            result.Audience,
             result.ContentHtml,
             result.TokenExpiresAt);
     }
@@ -51,7 +49,6 @@ public sealed record ViewerDocumentCatalogItemResponse(
     string Title,
     string State,
     string DocumentType,
-    string Audience,
     IReadOnlyList<ViewerDocumentGroupResponse> AllowedGroups,
     DateTimeOffset UpdatedAt)
 {
@@ -62,7 +59,6 @@ public sealed record ViewerDocumentCatalogItemResponse(
             item.Title,
             item.State,
             item.DocumentType,
-            item.Audience,
             item.AllowedGroups.Select(group => new ViewerDocumentGroupResponse(group.Id, group.Name)).ToArray(),
             item.UpdatedAt);
     }

@@ -23,7 +23,6 @@ export function DocumentView({ document }: { document: ViewerDocument }) {
             {createElement(typeIcon(document.documentType), { size: 13, 'aria-hidden': true })}
             {document.documentType}
           </span>
-          <span className="meta-chip">{document.audience}</span>
           {document.state !== 'Published' && stateKey ? (
             <span className="state-chip">{t(stateKey)}</span>
           ) : null}

@@ -82,8 +82,7 @@ test('setup fallback creates an admin and reaches chat and viewer product surfac
 
   const document = await browserPostJson<DocumentDetail>(adminPage, '/api/documents', {
     title: `Primer uso seguridad ${Date.now()}`,
-    documentType: 'Politica',
-    audience: 'Equipo interno',
+    documentTypeId: '20000000-0000-0000-0000-000000000001',
     contentHtml:
       '<h1>Seguridad</h1><p>Para aprobar una solicitud interna, el colaborador debe validar identidad y registrar el motivo.</p>',
     allowedGroupIds: [group.id],

@@ -48,8 +48,7 @@ test('MVP happy path works across management, chat, viewer, feedback, and budget
   const documentManagerApi = await authenticatedApi('manage.localhost', documentManagerEmail)
   const document = await postJson<DocumentDetail>(documentManagerApi, '/api/documents', {
     title: `E2E Seguridad ${Date.now()}`,
-    documentType: 'Politica',
-    audience: 'Equipo interno',
+    documentTypeId: '20000000-0000-0000-0000-000000000001',
     contentHtml:
       '<h1>Seguridad</h1><p>Para aprobar una solicitud interna, el colaborador debe validar identidad y registrar el motivo en el sistema.</p>',
     allowedGroupIds: [group.id],

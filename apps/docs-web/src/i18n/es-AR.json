@@ -11,7 +11,7 @@
   "portal": {
     "title": "Biblioteca de documentos",
     "subtitle": "Encontrá guías y documentación según tus permisos.",
-    "search_placeholder": "Buscar por título, tipo o audiencia…",
+    "search_placeholder": "Buscar por título o tipo…",
     "filter_all": "Todos",
     "filters_label": "Filtrar por tipo de documento",
     "empty_title": "Sin documentos para mostrar",

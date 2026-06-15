@@ -205,7 +205,6 @@ public sealed class ViewerAccessServiceTests
                 "Published",
                 "Published procedure",
                 "Policy",
-                "Operations",
                 "<p>Contenido publicado</p>"),
             [Rule(EmpresaUnitId)]);
         repository.Documents[DraftDocumentId] = new ViewerDocumentAccess(
@@ -218,7 +217,6 @@ public sealed class ViewerAccessServiceTests
                 "Draft",
                 "Draft procedure",
                 "Policy",
-                "Operations",
                 "<p>Borrador</p>"),
             null,
             [Rule(EmpresaUnitId)]);
@@ -252,7 +250,6 @@ public sealed class ViewerAccessServiceTests
                 "Published",
                 title,
                 "Manual",
-                "Demo",
                 "<p>Contenido publicado</p>"),
             [Rule(organizationalUnitId)]);
     }

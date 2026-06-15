@@ -146,7 +146,6 @@ public sealed class AppDbContext : DbContext
             entity.Property(item => item.State).HasColumnName("state").HasMaxLength(32).IsRequired();
             entity.Property(item => item.Title).HasColumnName("title").HasMaxLength(240).IsRequired();
             entity.Property(item => item.DocumentTypeId).HasColumnName("document_type_id");
-            entity.Property(item => item.Audience).HasColumnName("audience").HasMaxLength(160).IsRequired();
             entity.Property(item => item.ContentHtml).HasColumnName("content_html").IsRequired();
             entity.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
             entity.Property(item => item.SubmittedForReviewAt).HasColumnName("submitted_for_review_at");

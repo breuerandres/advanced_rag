@@ -222,7 +222,6 @@ public sealed class EfDocumentRepository : IDocumentRepository
                 State = ToStorage(version.State),
                 Title = version.Title,
                 DocumentTypeId = version.DocumentTypeId,
-                Audience = version.Audience,
                 ContentHtml = version.ContentHtml,
                 CreatedAt = version.CreatedAt,
                 SubmittedForReviewAt = version.SubmittedForReviewAt,
@@ -238,7 +237,6 @@ public sealed class EfDocumentRepository : IDocumentRepository
         existing.State = ToStorage(version.State);
         existing.Title = version.Title;
         existing.DocumentTypeId = version.DocumentTypeId;
-        existing.Audience = version.Audience;
         existing.ContentHtml = version.ContentHtml;
         existing.SubmittedForReviewAt = version.SubmittedForReviewAt;
         existing.SubmittedForReviewByUserId = version.SubmittedForReviewByUserId;
@@ -272,7 +270,6 @@ public sealed class EfDocumentRepository : IDocumentRepository
             version.Title,
             version.DocumentTypeId,
             documentTypeName,
-            version.Audience,
             version.ContentHtml,
             version.CreatedAt,
             version.SubmittedForReviewAt,

@@ -95,8 +95,7 @@ test('document manager can manage groups and assignments without admin-only user
 
   const document = await apiJson<{ id: string }>(page, 'POST', '/api/documents', {
     title: `Role matrix document ${Date.now()}`,
-    documentType: 'Policy',
-    audience: 'Internal',
+    documentTypeId: '20000000-0000-0000-0000-000000000001',
     contentHtml: '<p>Role matrix publication guard.</p>',
     allowedGroupIds: [createdGroup.id],
   })

@@ -17,7 +17,6 @@ export interface DocumentSummary {
   state: string
   documentTypeId?: string | null
   documentType: string
-  audience: string
   allowedGroupIds: string[]
   accessRules?: DocumentAccessRule[]
   draftVersionNumber: number | null
@@ -33,7 +32,6 @@ export interface DocumentVersion {
   title: string
   documentTypeId?: string | null
   documentType: string
-  audience: string
   contentHtml: string
   indexingStatus: string
 }
@@ -52,7 +50,6 @@ export interface DocumentDetail {
 export interface SaveDocumentDraftRequest {
   title: string
   documentTypeId: string | null
-  audience: string
   contentHtml: string
   accessRules: DocumentAccessRuleInput[]
 }

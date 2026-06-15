@@ -90,7 +90,6 @@ public sealed class ViewerDocumentCatalogService : IViewerDocumentCatalogService
             document.Title,
             ToDisplayState(document.State),
             document.DocumentType,
-            document.Audience,
             allowedGroups,
             document.UpdatedAt);
     }
@@ -114,7 +113,6 @@ public sealed record ViewerDocumentCatalogItem(
     string Title,
     string State,
     string DocumentType,
-    string Audience,
     IReadOnlyList<GroupRecord> AllowedGroups,
     DateTimeOffset UpdatedAt);
 

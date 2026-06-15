@@ -74,7 +74,6 @@ public sealed record ViewerDocumentVersion(
     string State,
     string Title,
     string DocumentType,
-    string Audience,
     string ContentHtml);
 
 public sealed record ViewerDocumentResult(
@@ -83,7 +82,6 @@ public sealed record ViewerDocumentResult(
     string Title,
     string State,
     string DocumentType,
-    string Audience,
     string ContentHtml,
     DateTimeOffset TokenExpiresAt);
 

@@ -8,7 +8,6 @@ public sealed record DocumentSummaryResponse(
     string State,
     Guid? DocumentTypeId,
     string DocumentType,
-    string Audience,
     IReadOnlyList<Guid> AllowedGroupIds,
     IReadOnlyList<DocumentAccessRuleResponse> AccessRules,
     int? DraftVersionNumber,
@@ -24,7 +23,6 @@ public sealed record DocumentSummaryResponse(
             ToDisplay(summary.State),
             summary.DocumentTypeId,
             summary.DocumentType,
-            summary.Audience,
             summary.AllowedGroupIds,
             summary.AccessRules.Select(DocumentAccessRuleResponse.FromRecord).ToArray(),
             summary.DraftVersionNumber,
@@ -86,7 +84,6 @@ public sealed record DocumentVersionResponse(
     string Title,
     Guid? DocumentTypeId,
     string DocumentType,
-    string Audience,
     string ContentHtml,
     string IndexingStatus)
 {
@@ -99,7 +96,6 @@ public sealed record DocumentVersionResponse(
             version.Title,
             version.DocumentTypeId,
             version.DocumentType,
-            version.Audience,
             version.ContentHtml,
             version.IndexingStatus.ToString());
     }

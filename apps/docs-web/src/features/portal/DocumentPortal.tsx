@@ -38,7 +38,7 @@ export function DocumentPortal({
       const matchesType = selectedType === 'all' || document.documentType === selectedType
       const matchesQuery =
         normalizedQuery.length === 0 ||
-        [document.title, document.documentType, document.audience]
+        [document.title, document.documentType]
           .join(' ')
           .toLowerCase()
           .includes(normalizedQuery)

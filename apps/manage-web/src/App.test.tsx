@@ -81,7 +81,6 @@ const documentsResponse = [
     title: "Politica de seguridad",
     state: "Draft",
     documentType: "Politica",
-    audience: "Todos",
     allowedGroupIds: ["22222222-2222-2222-2222-222222222222"],
     draftVersionNumber: 1,
     publishedVersionNumber: null,
@@ -93,7 +92,6 @@ const documentsResponse = [
     title: "Procedimiento de compras",
     state: "In Review",
     documentType: "Procedimiento",
-    audience: "Compras",
     allowedGroupIds: ["44444444-4444-4444-4444-444444444444"],
     draftVersionNumber: 2,
     publishedVersionNumber: 1,
@@ -113,7 +111,6 @@ const documentDetail = {
     title: "Politica de seguridad",
     documentTypeId: "d0000000-0000-0000-0000-000000000001",
     documentType: "Politica",
-    audience: "Todos",
     contentHtml: "<p>Usar credencial visible.</p>",
     indexingStatus: "None",
   },
@@ -134,7 +131,6 @@ const inReviewDocumentDetail = {
     state: "In Review",
     title: "Procedimiento de compras",
     documentType: "Procedimiento",
-    audience: "Compras",
     indexingStatus: "Pending",
   },
   currentPublishedVersion: {
@@ -144,7 +140,6 @@ const inReviewDocumentDetail = {
     state: "Published",
     title: "Procedimiento de compras",
     documentType: "Procedimiento",
-    audience: "Compras",
     indexingStatus: "Succeeded",
   },
   allowedGroupIds: ["44444444-4444-4444-4444-444444444444"],
@@ -165,7 +160,6 @@ const publishedDocumentDetail = {
     title: "Manual publicado",
     documentTypeId: "d0000000-0000-0000-0000-000000000003",
     documentType: "Manual",
-    audience: "Operaciones",
     contentHtml: "<p>Contenido vigente publicado.</p>",
     indexingStatus: "Succeeded",
   },
@@ -1283,10 +1277,6 @@ describe("management documents", () => {
       "Procedimiento",
     );
     await user.selectOptions(
-      screen.getByRole("combobox", { name: "Audiencia" }),
-      "Compras",
-    );
-    await user.selectOptions(
       screen.getByRole("combobox", { name: "Grupo" }),
       "44444444-4444-4444-4444-444444444444",
     );
@@ -1349,7 +1339,6 @@ describe("management documents", () => {
         ...documentDetail.currentDraftVersion!,
         title: "Nueva instruccion",
         documentType: "Procedimiento",
-        audience: "Operaciones",
         contentHtml: "<p>Usar casco visible.</p>",
       },
     };
@@ -1432,10 +1421,6 @@ describe("management documents", () => {
       screen.getByRole("combobox", { name: "Tipo" }),
       screen.getByRole("option", { name: "Procedimiento" }),
     );
-    await user.type(
-      screen.getByRole("textbox", { name: "Audiencia" }),
-      "Operaciones",
-    );
     await user.click(screen.getByRole("checkbox", { name: "Operaciones" }));
     await user.type(
       screen.getByRole("textbox", { name: "Contenido del documento" }),
@@ -1464,7 +1449,6 @@ describe("management documents", () => {
         ...documentDetail.currentDraftVersion!,
         title: "Documento con grupo nuevo",
         documentType: "Procedimiento",
-        audience: "Mantenimiento",
         contentHtml: "<p>Contenido operativo.</p>",
       },
     };
@@ -1516,10 +1500,6 @@ describe("management documents", () => {
       screen.getByRole("option", { name: "Procedimiento" }),
     );
     await user.type(
-      screen.getByRole("textbox", { name: "Audiencia" }),
-      "Mantenimiento",
-    );
-    await user.type(
       screen.getByRole("textbox", { name: "Contenido del documento" }),
       "Contenido operativo.",
     );
@@ -1549,7 +1529,6 @@ describe("management documents", () => {
         ...documentDetail.currentDraftVersion!,
         title: "Protocolo de crisis",
         documentType: "Procedimiento",
-        audience: "Comunicación",
         contentHtml: "<p>Escalar al comité.</p>",
       },
     };
@@ -1579,10 +1558,6 @@ describe("management documents", () => {
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Tipo" }),
       screen.getByRole("option", { name: "Procedimiento" }),
-    );
-    await user.type(
-      screen.getByRole("textbox", { name: "Audiencia" }),
-      "Comunicación",
     );
 
     await selectUnitOption(user, "Unidad organizativa", "Comunicación", [
@@ -1648,10 +1623,6 @@ describe("management documents", () => {
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Tipo" }),
       screen.getByRole("option", { name: "Procedimiento" }),
-    );
-    await user.type(
-      screen.getByRole("textbox", { name: "Audiencia" }),
-      "Comunicación",
     );
 
     // The default access rule is left empty (no unit, no group); the backend
@@ -1788,7 +1759,7 @@ describe("management documents", () => {
 
     expect(
       screen.getByText(
-        "Completa titulo, tipo, audiencia, reglas de acceso y contenido antes de enviar a revision.",
+        "Completa titulo, tipo, reglas de acceso y contenido antes de enviar a revision.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Titulo" })).toHaveAttribute(
@@ -1796,10 +1767,6 @@ describe("management documents", () => {
       "true",
     );
     expect(screen.getByRole("combobox", { name: "Tipo" })).toHaveAttribute(
-      "aria-invalid",
-      "false",
-    );
-    expect(screen.getByRole("textbox", { name: "Audiencia" })).toHaveAttribute(
       "aria-invalid",
       "false",
     );
@@ -1864,7 +1831,6 @@ describe("management documents", () => {
           title: publishedDocumentDetail.title,
           state: "Published",
           documentType: "Manual",
-          audience: "Operaciones",
           allowedGroupIds: ["22222222-2222-2222-2222-222222222222"],
           draftVersionNumber: null,
           publishedVersionNumber: 1,
@@ -1894,9 +1860,6 @@ describe("management documents", () => {
     );
     expect(screen.getByRole("combobox", { name: "Tipo" })).toHaveDisplayValue(
       "Manual",
-    );
-    expect(screen.getByRole("textbox", { name: "Audiencia" })).toHaveValue(
-      "Operaciones",
     );
     expect(
       screen.getByRole("textbox", { name: "Contenido del documento" }),

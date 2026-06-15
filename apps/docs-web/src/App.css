@@ -262,12 +262,6 @@ h2 {
   font-weight: 600;
 }
 
-.card-audience {
-  margin: 0;
-  color: #3d4947;
-  font-size: 14px;
-}
-
 .card-footer {
   display: flex;
   align-items: center;
@@ -771,7 +765,6 @@ h2 {
 }
 
 [data-theme='dark'] .portal-intro p,
-[data-theme='dark'] .card-audience,
 [data-theme='dark'] .card-updated,
 [data-theme='dark'] .document-footer,
 [data-theme='dark'] .doc-chat-header p,

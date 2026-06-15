@@ -77,7 +77,6 @@ public sealed class DocumentVersion
     public required string State { get; set; }
     public required string Title { get; set; }
     public Guid? DocumentTypeId { get; set; }
-    public required string Audience { get; set; }
     public required string ContentHtml { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? SubmittedForReviewAt { get; set; }
