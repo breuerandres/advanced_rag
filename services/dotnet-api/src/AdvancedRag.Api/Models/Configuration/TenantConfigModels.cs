@@ -35,7 +35,10 @@ public sealed record UpdateTenantConfigRequest(
     bool EnableOtel,
     string? S3Endpoint,
     string S3Bucket,
-    string S3Region)
+    string S3Region,
+    string CustomerTimezone = "America/Argentina/Buenos_Aires",
+    int ImportMaxFileSizeMb = 10,
+    int ChatMaxQuestionChars = 4000)
 {
     public TenantConfigDraft ToDraft()
     {
@@ -72,7 +75,11 @@ public sealed record UpdateTenantConfigRequest(
             EnableOtel,
             S3Endpoint,
             S3Bucket,
-            S3Region);
+            S3Region,
+            CustomerTimezone,
+            ImportMaxFileSizeMb,
+            ChatMaxQuestionChars,
+            false);
     }
 }
 
@@ -83,7 +90,8 @@ public sealed record TenantConfigResponse(
     TenantRetrievalConfigResponse Retrieval,
     TenantFeatureConfigResponse Features,
     TenantBudgetConfigResponse Budgets,
-    TenantStorageConfigResponse Storage)
+    TenantStorageConfigResponse Storage,
+    TenantOperationalConfigResponse Operational)
 {
     public static TenantConfigResponse FromTenantConfig(TenantConfig config)
     {
@@ -122,7 +130,11 @@ public sealed record TenantConfigResponse(
             new TenantBudgetConfigResponse(
                 config.DefaultMonthlyBudgetUsd,
                 config.GlobalDailyBudgetUsd),
-            new TenantStorageConfigResponse(config.S3Endpoint, config.S3Bucket, config.S3Region));
+            new TenantStorageConfigResponse(config.S3Endpoint, config.S3Bucket, config.S3Region),
+            new TenantOperationalConfigResponse(
+                config.CustomerTimezone,
+                config.ImportMaxFileSizeMb,
+                config.ChatMaxQuestionChars));
     }
 }
 
@@ -164,3 +176,8 @@ public sealed record TenantFeatureConfigResponse(
 public sealed record TenantBudgetConfigResponse(decimal DefaultMonthlyBudgetUsd, decimal? GlobalDailyBudgetUsd);
 
 public sealed record TenantStorageConfigResponse(string? S3Endpoint, string S3Bucket, string S3Region);
+
+public sealed record TenantOperationalConfigResponse(
+    string CustomerTimezone,
+    int ImportMaxFileSizeMb,
+    int ChatMaxQuestionChars);

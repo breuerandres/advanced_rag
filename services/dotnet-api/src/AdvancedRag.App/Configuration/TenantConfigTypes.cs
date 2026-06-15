@@ -35,6 +35,10 @@ public sealed record TenantConfig(
     string? S3Endpoint,
     string S3Bucket,
     string S3Region,
+    string CustomerTimezone,
+    int ImportMaxFileSizeMb,
+    int ChatMaxQuestionChars,
+    bool SeededFromEnv,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -71,7 +75,11 @@ public sealed record TenantConfigDraft(
     bool EnableOtel,
     string? S3Endpoint,
     string S3Bucket,
-    string S3Region)
+    string S3Region,
+    string CustomerTimezone,
+    int ImportMaxFileSizeMb,
+    int ChatMaxQuestionChars,
+    bool SeededFromEnv)
 {
     public static TenantConfigDraft CreateDefault()
     {
@@ -108,7 +116,11 @@ public sealed record TenantConfigDraft(
             false,
             null,
             "helpcenter",
-            "us-east-1");
+            "us-east-1",
+            "America/Argentina/Buenos_Aires",
+            10,
+            4000,
+            false);
     }
 }
 
@@ -175,7 +187,9 @@ public sealed class TenantConfigService : ITenantConfigService
             || draft.CacheSimilarityThreshold <= 0m
             || draft.CacheSimilarityThreshold > 1m
             || draft.DefaultMonthlyBudgetUsd < 0m
-            || draft.GlobalDailyBudgetUsd < 0m)
+            || draft.GlobalDailyBudgetUsd < 0m
+            || draft.ImportMaxFileSizeMb <= 0
+            || draft.ChatMaxQuestionChars <= 0)
         {
             throw new TenantConfigException(
                 "VALIDATION_FAILED",
@@ -202,6 +216,7 @@ public sealed class TenantConfigService : ITenantConfigService
             S3Endpoint = EmptyToNull(draft.S3Endpoint),
             S3Bucket = Required(draft.S3Bucket, "s3Bucket"),
             S3Region = Required(draft.S3Region, "s3Region"),
+            CustomerTimezone = Required(draft.CustomerTimezone, "customerTimezone"),
         };
     }
 

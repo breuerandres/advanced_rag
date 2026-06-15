@@ -49,6 +49,7 @@ public sealed class EfTenantConfigRepository : ITenantConfigRepository
                 RerankerModel = draft.RerankerModel,
                 S3Bucket = draft.S3Bucket,
                 S3Region = draft.S3Region,
+                CustomerTimezone = draft.CustomerTimezone,
             };
             _db.TenantConfigs.Add(entity);
         }
@@ -86,6 +87,10 @@ public sealed class EfTenantConfigRepository : ITenantConfigRepository
         entity.S3Endpoint = draft.S3Endpoint;
         entity.S3Bucket = draft.S3Bucket;
         entity.S3Region = draft.S3Region;
+        entity.CustomerTimezone = draft.CustomerTimezone;
+        entity.ImportMaxFileSizeMb = draft.ImportMaxFileSizeMb;
+        entity.ChatMaxQuestionChars = draft.ChatMaxQuestionChars;
+        entity.SeededFromEnv = draft.SeededFromEnv;
         entity.UpdatedAt = now;
 
         await _db.SaveChangesAsync(ct);
@@ -129,6 +134,10 @@ public sealed class EfTenantConfigRepository : ITenantConfigRepository
             entity.S3Endpoint,
             entity.S3Bucket,
             entity.S3Region,
+            entity.CustomerTimezone,
+            entity.ImportMaxFileSizeMb,
+            entity.ChatMaxQuestionChars,
+            entity.SeededFromEnv,
             entity.CreatedAt,
             entity.UpdatedAt);
     }

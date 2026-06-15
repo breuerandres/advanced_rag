@@ -109,6 +109,22 @@ public sealed class AppDbContextMappingTests
             .Equal(nameof(UserGroupPublishGrant.UserId), nameof(UserGroupPublishGrant.GroupId));
     }
 
+    [Fact]
+    public void TenantConfig_MapsOperationalColumns()
+    {
+        using var db = CreateDbContext();
+        var entityType = db.Model.FindEntityType(typeof(TenantConfig))!;
+
+        entityType.FindProperty(nameof(TenantConfig.CustomerTimezone))!
+            .GetColumnName().Should().Be("customer_timezone");
+        entityType.FindProperty(nameof(TenantConfig.ImportMaxFileSizeMb))!
+            .GetColumnName().Should().Be("import_max_file_size_mb");
+        entityType.FindProperty(nameof(TenantConfig.ChatMaxQuestionChars))!
+            .GetColumnName().Should().Be("chat_max_question_chars");
+        entityType.FindProperty(nameof(TenantConfig.SeededFromEnv))!
+            .GetColumnName().Should().Be("seeded_from_env");
+    }
+
     private static AppDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

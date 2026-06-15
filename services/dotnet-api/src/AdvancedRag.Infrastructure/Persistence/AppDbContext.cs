@@ -382,6 +382,10 @@ public sealed class AppDbContext : DbContext
             entity.Property(item => item.S3Endpoint).HasColumnName("s3_endpoint");
             entity.Property(item => item.S3Bucket).HasColumnName("s3_bucket").IsRequired();
             entity.Property(item => item.S3Region).HasColumnName("s3_region").IsRequired();
+            entity.Property(item => item.CustomerTimezone).HasColumnName("customer_timezone").IsRequired();
+            entity.Property(item => item.ImportMaxFileSizeMb).HasColumnName("import_max_file_size_mb");
+            entity.Property(item => item.ChatMaxQuestionChars).HasColumnName("chat_max_question_chars");
+            entity.Property(item => item.SeededFromEnv).HasColumnName("seeded_from_env");
             entity.Property(item => item.CreatedAt).HasColumnName("created_at");
             entity.Property(item => item.UpdatedAt).HasColumnName("updated_at");
         });

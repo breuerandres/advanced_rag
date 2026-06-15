@@ -544,6 +544,10 @@ public sealed class FakeTenantConfigService : ITenantConfigService
             draft.S3Endpoint,
             draft.S3Bucket,
             draft.S3Region,
+            draft.CustomerTimezone,
+            draft.ImportMaxFileSizeMb,
+            draft.ChatMaxQuestionChars,
+            draft.SeededFromEnv,
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow);
     }

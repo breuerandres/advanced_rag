@@ -248,6 +248,10 @@ public sealed class TenantConfig
     public string? S3Endpoint { get; set; }
     public required string S3Bucket { get; set; }
     public required string S3Region { get; set; }
+    public required string CustomerTimezone { get; set; }
+    public int ImportMaxFileSizeMb { get; set; }
+    public int ChatMaxQuestionChars { get; set; }
+    public bool SeededFromEnv { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

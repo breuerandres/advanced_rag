@@ -129,6 +129,10 @@ public sealed class EfSetupRepository : ISetupRepository
             S3Endpoint = draft.S3Endpoint,
             S3Bucket = draft.S3Bucket,
             S3Region = draft.S3Region,
+            CustomerTimezone = draft.CustomerTimezone,
+            ImportMaxFileSizeMb = draft.ImportMaxFileSizeMb,
+            ChatMaxQuestionChars = draft.ChatMaxQuestionChars,
+            SeededFromEnv = draft.SeededFromEnv,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
         });
