@@ -1,4 +1,5 @@
 using AdvancedRag.App.Auth;
+using AdvancedRag.App.Configuration;
 using AdvancedRag.App.Users;
 using FluentAssertions;
 
@@ -18,7 +19,7 @@ public sealed class UserAdministrationServiceTests
         var repository = new InMemoryUserAdministrationRepository(
             [new RoleRecord("Viewer")],
             [new GroupRecord(OperationsGroupId, "Operations")]);
-        var service = new UserAdministrationService(repository, new StubPasswordHashService());
+        var service = new UserAdministrationService(repository, new StubPasswordHashService(), new StubTenantConfigService());
 
         var created = await service.CreateUserAsync(
             new CreateUserCommand(
@@ -46,13 +47,39 @@ public sealed class UserAdministrationServiceTests
     }
 
     [Fact]
+    public async Task CreateUserAsync_UsesConfiguredDefaultMonthlyBudget()
+    {
+        var repository = new InMemoryUserAdministrationRepository(
+            [new RoleRecord("Viewer")],
+            [new GroupRecord(OperationsGroupId, "Operations")]);
+        var service = new UserAdministrationService(
+            repository,
+            new StubPasswordHashService(),
+            new StubTenantConfigService(12.00m));
+
+        var created = await service.CreateUserAsync(
+            new CreateUserCommand(
+                "viewer.two@example.com",
+                "Viewer Two",
+                "temporary-password",
+                ["Viewer"],
+                [OperationsGroupId],
+                ActorId,
+                RootUnitId),
+            CancellationToken.None);
+
+        created.MonthlyBudgetUsd.Should().Be(12.00m);
+        repository.Budgets.Should().ContainSingle().Which.MonthlyBudgetUsd.Should().Be(12.00m);
+    }
+
+    [Fact]
     public async Task SetUserRolesAsync_AdminAssignsRoles()
     {
         var repository = new InMemoryUserAdministrationRepository(
             [new RoleRecord("Viewer"), new RoleRecord("DocumentManager")],
             []);
         repository.AddExistingUser(UserId, "manager@example.com", "Manager", ["Viewer"], []);
-        var service = new UserAdministrationService(repository, new StubPasswordHashService());
+        var service = new UserAdministrationService(repository, new StubPasswordHashService(), new StubTenantConfigService());
 
         var updated = await service.SetUserRolesAsync(
             new SetUserRolesCommand(UserId, ["DocumentManager"], ActorId),
@@ -71,7 +98,7 @@ public sealed class UserAdministrationServiceTests
                 new GroupRecord(FinanceGroupId, "Finance"),
             ]);
         repository.AddExistingUser(UserId, "viewer@example.com", "Viewer", ["Viewer"], [OperationsGroupId]);
-        var service = new UserAdministrationService(repository, new StubPasswordHashService());
+        var service = new UserAdministrationService(repository, new StubPasswordHashService(), new StubTenantConfigService());
         var original = await service.GetUserAsync(UserId, CancellationToken.None);
 
         var updated = await service.SetUserGroupsAsync(
@@ -88,7 +115,7 @@ public sealed class UserAdministrationServiceTests
         var repository = new InMemoryUserAdministrationRepository(
             [new RoleRecord("Viewer")],
             [new GroupRecord(OperationsGroupId, "Operations")]);
-        var service = new UserAdministrationService(repository, new StubPasswordHashService());
+        var service = new UserAdministrationService(repository, new StubPasswordHashService(), new StubTenantConfigService());
 
         var updated = await service.UpdateGroupAsync(
             new UpdateGroupCommand(OperationsGroupId, "People Operations", ActorId),
@@ -102,7 +129,7 @@ public sealed class UserAdministrationServiceTests
     {
         var repository = new InMemoryUserAdministrationRepository([new RoleRecord("Viewer")], []);
         repository.AddExistingUser(UserId, "viewer@example.com", "Viewer", ["Viewer"], []);
-        var service = new UserAdministrationService(repository, new StubPasswordHashService());
+        var service = new UserAdministrationService(repository, new StubPasswordHashService(), new StubTenantConfigService());
 
         var act = () => service.SetUserAiBudgetAsync(
             new SetUserAiBudgetCommand(UserId, -0.01m, false, ActorId),
@@ -118,6 +145,18 @@ public sealed class UserAdministrationServiceTests
         public string Hash(string password) => $"hashed:{password}";
 
         public bool Verify(string password, string passwordHash) => passwordHash == Hash(password);
+    }
+
+    private sealed class StubTenantConfigService : ITenantConfigService
+    {
+        private readonly decimal _budget;
+
+        public StubTenantConfigService(decimal budget = 5m) => _budget = budget;
+
+        public Task<TenantConfig> GetAsync(CancellationToken ct) =>
+            Task.FromResult(TenantConfigDraft.CreateDefault().ToConfigForTest() with { DefaultMonthlyBudgetUsd = _budget });
+
+        public Task<TenantConfig> UpdateAsync(TenantConfigDraft draft, CancellationToken ct) => GetAsync(ct);
     }
 
     private sealed class InMemoryUserAdministrationRepository : IUserAdministrationRepository

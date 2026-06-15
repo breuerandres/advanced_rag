@@ -1,4 +1,5 @@
 using AdvancedRag.App.Auth;
+using AdvancedRag.App.Configuration;
 
 namespace AdvancedRag.App.Users;
 
@@ -33,13 +34,16 @@ public sealed class UserAdministrationService : IUserAdministrationService
 
     private readonly IUserAdministrationRepository _repository;
     private readonly IPasswordHashService _passwords;
+    private readonly ITenantConfigService _tenantConfig;
 
     public UserAdministrationService(
         IUserAdministrationRepository repository,
-        IPasswordHashService passwords)
+        IPasswordHashService passwords,
+        ITenantConfigService tenantConfig)
     {
         _repository = repository;
         _passwords = passwords;
+        _tenantConfig = tenantConfig;
     }
 
     public Task<IReadOnlyList<UserManagementUser>> ListUsersAsync(CancellationToken ct)
@@ -115,9 +119,10 @@ public sealed class UserAdministrationService : IUserAdministrationService
             roleNames,
             groupIds,
             organizationalUnitId);
+        decimal defaultBudget = (await _tenantConfig.GetAsync(ct)).DefaultMonthlyBudgetUsd;
         var budget = new UserBudgetDraft(
             user.Id,
-            DefaultMonthlyBudgetUsd,
+            defaultBudget,
             false,
             command.ActorUserId);
 
