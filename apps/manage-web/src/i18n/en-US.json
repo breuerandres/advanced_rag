@@ -390,7 +390,16 @@
     "chat_question": "Chat question",
     "characters_value": "{{count}} characters",
     "secret_values": "Secret-backed values",
-    "secret_copy": "The console shows operational status, not sensitive values."
+    "secret_copy": "The console shows operational status, not sensitive values.",
+    "provider": "Provider",
+    "chat_model": "Chat model",
+    "edit": "Edit",
+    "save": "Save changes",
+    "cancel": "Cancel",
+    "saved": "Configuration saved.",
+    "save_error": "Could not save the configuration. Reference: {{reference}}.",
+    "read_only_hint": "Only an administrator can edit this configuration.",
+    "fixed_hint": "Embedding and dimensions are fixed to preserve the coherence of indexed documents."
   },
   "audit": {
     "eyebrow": "Control",

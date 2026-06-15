@@ -168,6 +168,7 @@ const publishedDocumentDetail = {
 
 const configurationResponse = {
   customerTimezone: "America/Argentina/Buenos_Aires",
+  llmProvider: "openai",
   chatModel: "gpt-4.1-nano",
   embeddingModel: "text-embedding-3-small",
   embeddingDimensions: 1536,
@@ -2210,6 +2211,68 @@ describe("management configuration", () => {
       screen.getByText("Valores protegidos por secretos"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/sk-/i)).not.toBeInTheDocument();
+  });
+
+  test("admin edits and saves operational configuration", async () => {
+    const updatedConfiguration = {
+      ...configurationResponse,
+      chatModel: "gpt-4.1-mini",
+    };
+    const fetchMock = stubFetch([
+      jsonResponse(200, usersResponse),
+      jsonResponse(200, []),
+      jsonResponse(200, configurationResponse),
+      csrfResponse(),
+      jsonResponse(200, updatedConfiguration),
+    ]);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("link", { name: "Configuración" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Editar" }));
+
+    const chatModelInput = screen.getByLabelText("Modelo de chat");
+    await user.clear(chatModelInput);
+    await user.type(chatModelInput, "gpt-4.1-mini");
+
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(
+      await screen.findByText("Configuración guardada."),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/configuration",
+      expect.objectContaining({
+        method: "PUT",
+        body: expect.stringContaining('"chatModel":"gpt-4.1-mini"'),
+      }),
+    );
+  });
+
+  test("viewer sees configuration as read-only without an edit affordance", async () => {
+    stubFetch([jsonResponse(200, configurationResponse)], {
+      session: viewerSessionUser,
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("link", { name: "Configuración" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Configuracion operativa" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Editar" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Solo un administrador puede editar esta configuración."),
+    ).toBeInTheDocument();
   });
 
   test("shows configuration load errors with a safe state", async () => {

@@ -390,7 +390,16 @@
     "chat_question": "Pregunta de chat",
     "characters_value": "{{count}} caracteres",
     "secret_values": "Valores protegidos por secretos",
-    "secret_copy": "La consola muestra estado operativo, no valores sensibles."
+    "secret_copy": "La consola muestra estado operativo, no valores sensibles.",
+    "provider": "Proveedor",
+    "chat_model": "Modelo de chat",
+    "edit": "Editar",
+    "save": "Guardar cambios",
+    "cancel": "Cancelar",
+    "saved": "Configuración guardada.",
+    "save_error": "No se pudo guardar la configuración. Referencia: {{reference}}.",
+    "read_only_hint": "Solo un administrador puede editar esta configuración.",
+    "fixed_hint": "Embedding y dimensiones son fijos para preservar la coherencia de los documentos indexados."
   },
   "audit": {
     "eyebrow": "Control",

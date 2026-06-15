@@ -232,7 +232,7 @@ export default function App() {
         {activeView === 'users' ? <UsersBudgetPage userRoles={sessionUser.roles} /> : null}
         {activeView === 'audit' ? <AuditPage /> : null}
         {activeView === 'feedback' ? <FeedbackReviewPage /> : null}
-        {activeView === 'configuration' ? <ConfigurationPage /> : null}
+        {activeView === 'configuration' ? <ConfigurationPage userRoles={sessionUser.roles} /> : null}
         {activeView === 'account' ? (
           <AccountPage user={sessionUser} onUserUpdated={setSessionUser} />
         ) : null}
