@@ -73,6 +73,7 @@ builder.Services.AddScoped<ISetupService, SetupService>();
 builder.Services.AddScoped<ISetupRepository, EfSetupRepository>();
 builder.Services.AddScoped<ITenantConfigService, TenantConfigService>();
 builder.Services.AddScoped<ITenantConfigRepository, EfTenantConfigRepository>();
+builder.Services.AddScoped<TenantConfigEnvSeeder>();
 builder.Services.AddScoped<IUserAdministrationService, UserAdministrationService>();
 builder.Services.AddScoped<IUserAdministrationRepository, EfUserAdministrationRepository>();
 builder.Services.AddScoped<IOrganizationalUnitService, OrganizationalUnitService>();
@@ -310,6 +311,9 @@ static async Task RunAppDatabaseMigrationsAsync(WebApplication app)
     logger.LogInformation("Applying app database migrations.");
     await db.Database.MigrateAsync();
     logger.LogInformation("App database migrations applied.");
+
+    await scope.ServiceProvider.GetRequiredService<TenantConfigEnvSeeder>().SeedAsync(CancellationToken.None);
+    logger.LogInformation("Tenant configuration reconciled from environment.");
 }
 
 internal sealed record HealthResponse(string Status, IReadOnlyList<string>? Checks = null);
