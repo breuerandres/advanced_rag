@@ -130,6 +130,10 @@ public sealed class AppDbContextMigrationTests
                         (
                             'user_ai_budget_limits',
                             has_table_privilege('rag_owner', 'app.user_ai_budget_limits', 'SELECT')
+                        ),
+                        (
+                            'tenant_config',
+                            has_table_privilege('rag_owner', 'app.tenant_config', 'SELECT')
                         )
                 ) as checked_privileges(privilege, has_select)
                 where has_select
@@ -151,6 +155,7 @@ public sealed class AppDbContextMigrationTests
                 "groups",
                 "organizational_unit_closure",
                 "organizational_units",
+                "tenant_config",
                 "user_ai_budget_limits",
             ]);
     }
