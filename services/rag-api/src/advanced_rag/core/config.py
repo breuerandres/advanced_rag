@@ -79,6 +79,7 @@ class Settings(BaseSettings):
     default_monthly_ai_budget_usd: float = 5.00
     openai_chat_temperature: float = 0.1
     openai_chat_max_tokens: int = 900
+    chat_max_question_chars: int = 4000
     chat_token_issuer: str = "advanced-rag-dotnet-api"
     chat_token_audience: str = "advanced-rag-chat"
     chat_token_public_keys_by_kid: dict[str, str] = {}
