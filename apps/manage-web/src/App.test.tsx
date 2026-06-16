@@ -171,7 +171,7 @@ const configurationResponse = {
   llmProvider: "openai",
   chatModel: "gpt-4.1-nano",
   embeddingModel: "text-embedding-3-small",
-  embeddingDimensions: 1536,
+  embeddingDimensions: 1024,
   defaultMonthlyAiBudgetUsd: 5,
   semanticCacheTtlHours: 24,
   semanticCacheSimilarityThreshold: 0.9,
@@ -2203,7 +2203,7 @@ describe("management configuration", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1-nano")).toBeInTheDocument();
     expect(screen.getByText("text-embedding-3-small")).toBeInTheDocument();
-    expect(screen.getByText("1536 dimensiones")).toBeInTheDocument();
+    expect(screen.getByText("1024 dimensiones")).toBeInTheDocument();
     expect(screen.getByText("USD 5.00")).toBeInTheDocument();
     expect(screen.getByText("24 horas")).toBeInTheDocument();
     expect(screen.getByText("0.90")).toBeInTheDocument();

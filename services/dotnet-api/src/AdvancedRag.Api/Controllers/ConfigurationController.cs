@@ -34,10 +34,8 @@ public sealed class ConfigurationController : ControllerBase
             CustomerTimezone: config.CustomerTimezone,
             LlmProvider: config.LlmProvider,
             ChatModel: config.LlmModel,
-            EmbeddingModel: _configuration["OPENAI_EMBEDDING_MODEL"]
-                ?? _configuration["OpenAI:EmbeddingModel"]
-                ?? "text-embedding-3-small",
-            EmbeddingDimensions: GetInt("OPENAI_EMBEDDING_DIMENSIONS", "OpenAI:EmbeddingDimensions", 1536),
+            EmbeddingModel: config.EmbeddingModel,
+            EmbeddingDimensions: config.EmbeddingDimensions,
             DefaultMonthlyAiBudgetUsd: config.DefaultMonthlyBudgetUsd,
             SemanticCacheTtlHours: config.CacheTtlHours,
             SemanticCacheSimilarityThreshold: config.CacheSimilarityThreshold,
@@ -141,12 +139,6 @@ public sealed class ConfigurationController : ControllerBase
                         : string.Empty,
                     exception.Details));
         }
-    }
-
-    private int GetInt(string environmentKey, string configurationKey, int fallback)
-    {
-        string? value = _configuration[environmentKey] ?? _configuration[configurationKey];
-        return int.TryParse(value, out int parsed) ? parsed : fallback;
     }
 
     private SecretConfigurationStatusResponse SecretStatus(

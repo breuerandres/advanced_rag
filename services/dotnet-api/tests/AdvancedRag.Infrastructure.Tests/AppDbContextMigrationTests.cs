@@ -187,9 +187,9 @@ public sealed class AppDbContextMigrationTests
         tenantConfig.DefaultLocale.Should().Be("es-AR");
         tenantConfig.SupportedLocales.Should().Equal("es-AR");
         tenantConfig.LlmProvider.Should().Be("openai");
-        tenantConfig.LlmModel.Should().Be("gpt-4o-mini");
+        tenantConfig.LlmModel.Should().Be("gpt-4.1-nano");
         tenantConfig.EmbeddingProvider.Should().Be("openai");
-        tenantConfig.EmbeddingModel.Should().Be("text-embedding-3-large");
+        tenantConfig.EmbeddingModel.Should().Be("text-embedding-3-small");
         tenantConfig.EmbeddingDimensions.Should().Be(1024);
         tenantConfig.EnableBm25.Should().BeTrue();
         tenantConfig.EnableReranker.Should().BeTrue();

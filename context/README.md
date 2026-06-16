@@ -55,7 +55,7 @@ For fast reference. The authoritative location is the linked file.
 | Database | One Postgres per customer, schemas `app` + `rag`, pgvector | `architecture.md` |
 | Frontends | 3 React apps: `manage`, `chat`, `docs` | `architecture.md` |
 | Chat model | `gpt-4.1-nano` (configurable) | `rag-spec.md` |
-| Embedding model | `text-embedding-3-small` @ 1536 native dims (configurable) | `rag-spec.md` |
+| Embedding model | `text-embedding-3-small` @ 1024 dims (configurable) | `rag-spec.md` |
 | Default monthly AI budget | USD 5 per user | `architecture.md` |
 | Semantic cache threshold | 0.90 cosine similarity | `rag-spec.md` |
 | Semantic cache TTL | 24 hours | `rag-spec.md` |

@@ -16,12 +16,12 @@ CREATE TABLE IF NOT EXISTS app.tenant_config (
 
     -- LLM provider
     llm_provider                    text NOT NULL DEFAULT 'openai',
-    llm_model                       text NOT NULL DEFAULT 'gpt-4o-mini',
+    llm_model                       text NOT NULL DEFAULT 'gpt-4.1-nano',
     llm_base_url                    text,
 
     -- Embedding provider
     embedding_provider              text NOT NULL DEFAULT 'openai',
-    embedding_model                 text NOT NULL DEFAULT 'text-embedding-3-large',
+    embedding_model                 text NOT NULL DEFAULT 'text-embedding-3-small',
     embedding_dimensions            int  NOT NULL DEFAULT 1024,
 
     -- Reranker provider

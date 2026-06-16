@@ -35,7 +35,7 @@ public sealed class ConfigurationEndpointTests
         body!.CustomerTimezone.Should().Be("America/Argentina/Buenos_Aires");
         body.ChatModel.Should().Be("gpt-4.1-nano");
         body.EmbeddingModel.Should().Be("text-embedding-3-small");
-        body.EmbeddingDimensions.Should().Be(1536);
+        body.EmbeddingDimensions.Should().Be(1024);
         body.DefaultMonthlyAiBudgetUsd.Should().Be(5m);
         body.SemanticCacheTtlHours.Should().Be(24);
         body.SemanticCacheSimilarityThreshold.Should().Be(0.90m);

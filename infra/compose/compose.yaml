@@ -98,6 +98,9 @@ services:
       Jwt__SigningKeysFile: /run/secrets/jwt_signing_keys
       Csrf__SigningKeyFile: /run/secrets/csrf_signing_key
       OPENAI_API_KEY_FILE: /run/secrets/openai_api_key
+      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL}
+      OPENAI_EMBEDDING_DIMENSIONS: ${OPENAI_EMBEDDING_DIMENSIONS}
       InternalService__TokenFile: /run/secrets/internal_service_token
       Rag__InternalBaseUrl: http://rag-api:8000
       Viewer__DocsBaseUrl: https://docs.${PUBLIC_DOMAIN}

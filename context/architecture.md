@@ -322,7 +322,7 @@ The MVP starts with conservative operational defaults that are configurable per 
 | Technical JSON log retention | `30` days |
 | RAG semantic cache TTL | `24` hours |
 | RAG semantic cache similarity threshold | `0.90` |
-| OpenAI embedding dimensions | `1536` |
+| OpenAI embedding dimensions | `1024` |
 | Chat access token TTL | `15` minutes |
 | Login rate limit by IP | `5` attempts per minute |
 | Login rate limit by user | `10` attempts per 15 minutes |
