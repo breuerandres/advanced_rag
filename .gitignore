@@ -40,5 +40,16 @@ backups/
 # graphify generated knowledge-graph artifacts (regenerable via `graphify update .`)
 graphify-out/
 
-# Claude Code personal/local settings (never shared)
-.claude/settings.local.json
+# AI-assisted development scaffolding — kept locally, not versioned.
+# Design memory, plans, specs, and agent/tooling config; not part of the product.
+# Public technical documentation lives in README.md and docs/PROYECTO.md instead.
+context/
+docs/superpowers/
+docs/plans/
+docs/history/
+CLAUDE.md
+AGENTS.md
+.claude/
+
+# Local certificate export (regenerable; analogous to caddy-local-root.crt)
+root.crt
