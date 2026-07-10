@@ -179,6 +179,30 @@ code, pre {
   background: #fcf2eb;
 }
 
+.auth-card-stack {
+  position: relative;
+  align-self: stretch;
+  justify-self: stretch;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 24px 0;
+}
+
+.auth-surface-controls {
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  z-index: 1;
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 8px;
+  width: auto;
+}
+
 .auth-brand {
   display: flex;
   align-items: center;
@@ -213,10 +237,60 @@ code, pre {
   gap: 8px;
 }
 
+.auth-card-header .eyebrow {
+  margin: 0;
+  color: #3d4947;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.auth-card-header h1 {
+  margin: 0;
+  color: #1f1b17;
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
 .auth-card-header p {
   margin: 0;
   color: #3d4947;
   line-height: 1.45;
+}
+
+.auth-card-detail {
+  min-height: 4.35em;
+}
+
+.auth-field {
+  display: grid;
+  gap: 6px;
+  color: #3d4947;
+  font-size: 14px;
+}
+
+.auth-field input {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  border: 1px solid #bcc9c6;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f1b17;
+  padding: 0 10px;
+  font: inherit;
+}
+
+.auth-submit {
+  justify-self: stretch;
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  padding: 8px 12px;
 }
 
 .status-panel {
@@ -256,6 +330,20 @@ code, pre {
     border-right: 0;
     border-bottom: 1px solid #e2d8d2;
   }
+
+  .auth-card-stack {
+    align-content: start;
+    padding: 84px 0 32px;
+  }
+
+  .auth-surface-controls {
+    top: 20px;
+    right: 16px;
+  }
+
+  .auth-card-detail {
+    min-height: 5.8em;
+  }
 }
 
 [data-theme='dark'] .auth-shell {
@@ -264,9 +352,20 @@ code, pre {
 }
 
 [data-theme='dark'] .auth-card-header p,
+[data-theme='dark'] .auth-field,
 [data-theme='dark'] .auth-proof,
 [data-theme='dark'] .status-panel p {
   color: var(--fg-muted);
+}
+
+[data-theme='dark'] .auth-card-header h1 {
+  color: var(--fg);
+}
+
+[data-theme='dark'] .auth-field input {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+  color: var(--fg);
 }
 
 [data-theme='dark'] .auth-card {

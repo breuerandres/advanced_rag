@@ -56,8 +56,15 @@
     "page": "page {{n}}"
   },
   "auth": {
+    "access_controls": "Access controls",
+    "email": "Email",
     "login": "Sign in",
+    "login_detail": "Use your account to access the instruction chat.",
+    "login_error": "Could not sign in.",
+    "login_eyebrow": "Chat",
+    "login_submit": "Enter chat",
     "logout": "Sign out",
+    "password": "Password",
     "session_expired": "Your session expired. Please sign in again.",
     "unauthorized": "You don't have access to this resource."
   },

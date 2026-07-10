@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, CheckCircle2, LogOut } from 'lucide-react'
 import {
   AppShell,
   AuthCardHeader,
-  AuthShell,
+  AuthFrame,
+  AuthSurfaceControls,
   Button,
   DarkModeToggle,
   Input,
@@ -283,7 +284,7 @@ function SetupPage({
           <span>Roles: {(status?.requiredRoles ?? ['Admin', 'DocumentEditor', 'DocumentPublisher', 'Viewer']).join(', ')}</span>
         </div>
         {error ? <p className="status-message error">{error}</p> : null}
-        <label className="field">
+        <label className="auth-field">
           <span>Email</span>
           <Input
             autoComplete="email"
@@ -292,7 +293,7 @@ function SetupPage({
             onChange={(event) => setEmail(event.target.value)}
           />
         </label>
-        <label className="field">
+        <label className="auth-field">
           <span>Nombre visible</span>
           <Input
             autoComplete="name"
@@ -301,7 +302,7 @@ function SetupPage({
             onChange={(event) => setDisplayName(event.target.value)}
           />
         </label>
-        <label className="field">
+        <label className="auth-field">
           <span>Contraseña</span>
           <Input
             autoComplete="new-password"
@@ -310,7 +311,7 @@ function SetupPage({
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
-        <Button className="ui-button primary-button auth-submit" disabled={isSubmitting} type="submit">
+        <Button className="auth-submit" disabled={isSubmitting} type="submit">
           Crear administrador
         </Button>
       </form>
@@ -325,7 +326,7 @@ function LoginPage({
   notice: string | null
   onAuthenticated: (user: SessionUser) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -351,7 +352,16 @@ function LoginPage({
   }
 
   return (
-    <AuthFrame controls={<AuthSurfaceControls />}>
+    <AuthFrame
+      controls={
+        <AuthSurfaceControls
+          languageLabel={t('common.language')}
+          language={i18n.resolvedLanguage ?? i18n.language}
+          onLanguageChange={(value) => void i18n.changeLanguage(value)}
+          themeLabel={t('common.toggle_theme')}
+        />
+      }
+    >
       <form className="auth-card" onSubmit={submit}>
         <AuthCardHeader
           eyebrow={t('auth.login_eyebrow')}
@@ -360,7 +370,7 @@ function LoginPage({
         />
         {notice ? <p className="status-message success">{notice}</p> : null}
         {error ? <p className="status-message error">{error}</p> : null}
-        <label className="field">
+        <label className="auth-field">
           <span>Email</span>
           <Input
             autoComplete="email"
@@ -369,7 +379,7 @@ function LoginPage({
             onChange={(event) => setEmail(event.target.value)}
           />
         </label>
-        <label className="field">
+        <label className="auth-field">
           <span>{t('auth.password')}</span>
           <Input
             autoComplete="current-password"
@@ -378,41 +388,11 @@ function LoginPage({
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
-        <Button className="ui-button primary-button auth-submit" disabled={isSubmitting} type="submit">
+        <Button className="auth-submit" disabled={isSubmitting} type="submit">
           {t('auth.login_submit')}
         </Button>
       </form>
     </AuthFrame>
-  )
-}
-
-function AuthFrame({ children, controls }: { children: ReactNode; controls?: ReactNode }) {
-  return (
-    <AuthShell>
-      <section className="auth-card-stack" aria-label="Controles de acceso">
-        {controls}
-        {children}
-      </section>
-    </AuthShell>
-  )
-}
-
-function AuthSurfaceControls() {
-  const { t, i18n } = useTranslation()
-
-  return (
-    <div className="auth-surface-controls">
-      <LanguageSelect
-        label={t('common.language')}
-        value={i18n.resolvedLanguage ?? i18n.language}
-        onChange={(value) => void i18n.changeLanguage(value)}
-        options={[
-          { value: 'es-AR', label: 'ES' },
-          { value: 'en-US', label: 'EN' },
-        ]}
-      />
-      <DarkModeToggle label={t('common.toggle_theme')} />
-    </div>
   )
 }
 

@@ -68,6 +68,8 @@
     "archived": "Archivado"
   },
   "login": {
+    "access_controls": "Controles de acceso",
+    "detail": "Usá tu cuenta para acceder a la biblioteca de documentos.",
     "eyebrow": "Documentos",
     "title": "Iniciar sesión",
     "email": "Email",

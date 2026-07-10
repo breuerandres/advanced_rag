@@ -2,11 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   AuthCardHeader,
-  AuthShell,
+  AuthFrame,
+  AuthSurfaceControls,
   Button,
-  DarkModeToggle,
   Input,
-  LanguageSelect,
 } from '@helpcenter/shared-ui'
 import { login, type SessionUser } from '../../api/viewer'
 
@@ -32,40 +31,46 @@ export function DocsLoginPage({ onAuthenticated }: { onAuthenticated: (user: Ses
   }
 
   return (
-    <AuthShell>
-      <section className="auth-card-stack" aria-label={t('login.title')}>
-        <div className="auth-surface-controls">
-          <LanguageSelect
-            label={t('common.language')}
-            value={i18n.resolvedLanguage ?? i18n.language}
-            onChange={(value) => void i18n.changeLanguage(value)}
-            options={[
-              { value: 'es-AR', label: 'ES' },
-              { value: 'en-US', label: 'EN' },
-            ]}
+    <AuthFrame
+      ariaLabel={t('login.access_controls')}
+      controls={
+        <AuthSurfaceControls
+          languageLabel={t('common.language')}
+          language={i18n.resolvedLanguage ?? i18n.language}
+          onLanguageChange={(value) => void i18n.changeLanguage(value)}
+          themeLabel={t('common.toggle_theme')}
+        />
+      }
+    >
+      <form className="auth-card" onSubmit={submit}>
+        <AuthCardHeader
+          eyebrow={t('login.eyebrow')}
+          title={t('login.title')}
+          detail={t('login.detail')}
+        />
+        {errorKey ? <p className="status-message error">{t(errorKey)}</p> : null}
+        <label className="auth-field">
+          <span>{t('login.email')}</span>
+          <Input
+            autoComplete="email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
           />
-          <DarkModeToggle label={t('common.toggle_theme')} />
-        </div>
-        <form className="auth-card" onSubmit={submit}>
-          <AuthCardHeader eyebrow={t('login.eyebrow')} title={t('login.title')} />
-          {errorKey ? <p className="status-message error">{t(errorKey)}</p> : null}
-          <label className="field">
-            <span>{t('login.email')}</span>
-            <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>{t('login.password')}</span>
-            <Input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
-          <Button className="primary-button" type="submit" disabled={isSubmitting}>
-            {t('login.submit')}
-          </Button>
-        </form>
-      </section>
-    </AuthShell>
+        </label>
+        <label className="auth-field">
+          <span>{t('login.password')}</span>
+          <Input
+            autoComplete="current-password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+        <Button className="auth-submit" type="submit" disabled={isSubmitting}>
+          {t('login.submit')}
+        </Button>
+      </form>
+    </AuthFrame>
   )
 }

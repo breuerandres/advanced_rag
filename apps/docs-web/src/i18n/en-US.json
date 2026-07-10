@@ -68,6 +68,8 @@
     "archived": "Archived"
   },
   "login": {
+    "access_controls": "Access controls",
+    "detail": "Use your account to access the document library.",
     "eyebrow": "Documents",
     "title": "Sign in",
     "email": "Email",

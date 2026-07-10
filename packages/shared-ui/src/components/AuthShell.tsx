@@ -1,5 +1,7 @@
 import { type ReactNode } from 'react';
 import { ShieldCheck } from 'lucide-react';
+import { DarkModeToggle } from './DarkModeToggle';
+import { LanguageSelect, type LanguageSelectOption } from './LanguageSelect';
 
 export interface AuthShellProps {
   children: ReactNode;
@@ -33,6 +35,60 @@ export function AuthShell({
   );
 }
 
+const defaultLanguageOptions: LanguageSelectOption[] = [
+  { value: 'es-AR', label: 'ES' },
+  { value: 'en-US', label: 'EN' },
+];
+
+export interface AuthFrameProps extends AuthShellProps {
+  ariaLabel?: string;
+  controls?: ReactNode;
+}
+
+export function AuthFrame({
+  ariaLabel = 'Controles de acceso',
+  children,
+  controls,
+  ...shellProps
+}: AuthFrameProps) {
+  return (
+    <AuthShell {...shellProps}>
+      <section className="auth-card-stack" aria-label={ariaLabel}>
+        {controls}
+        {children}
+      </section>
+    </AuthShell>
+  );
+}
+
+export interface AuthSurfaceControlsProps {
+  language: string;
+  languageLabel: string;
+  languageOptions?: LanguageSelectOption[];
+  onLanguageChange: (value: string) => void;
+  themeLabel: string;
+}
+
+export function AuthSurfaceControls({
+  language,
+  languageLabel,
+  languageOptions = defaultLanguageOptions,
+  onLanguageChange,
+  themeLabel,
+}: AuthSurfaceControlsProps) {
+  return (
+    <div className="auth-surface-controls">
+      <LanguageSelect
+        label={languageLabel}
+        value={language}
+        options={languageOptions}
+        onChange={onLanguageChange}
+      />
+      <DarkModeToggle label={themeLabel} />
+    </div>
+  );
+}
+
 export interface AuthCardHeaderProps {
   eyebrow: string;
   title: string;
@@ -44,7 +100,7 @@ export function AuthCardHeader({ eyebrow, title, detail }: AuthCardHeaderProps) 
     <header className="auth-card-header">
       <p className="eyebrow">{eyebrow}</p>
       <h1>{title}</h1>
-      {detail ? <p>{detail}</p> : null}
+      {detail ? <p className="auth-card-detail">{detail}</p> : null}
     </header>
   );
 }

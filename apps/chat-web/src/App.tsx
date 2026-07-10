@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
   type FormEvent,
-  type ReactNode,
   type UIEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +21,8 @@ import {
 } from 'lucide-react'
 import {
   AuthCardHeader,
-  AuthShell,
+  AuthFrame,
+  AuthSurfaceControls,
   Button,
   ChatComposer,
   ChatMessage,
@@ -433,12 +433,12 @@ export default function App() {
   }
 
   if (mode === 'loading') {
-    return <ChatAuthFrame title="Cargando chat" detail="Verificando sesión." />
+    return <ChatStatusFrame title="Cargando chat" detail="Verificando sesión." />
   }
 
   if (mode === 'unavailable') {
     return (
-      <ChatAuthFrame
+      <ChatStatusFrame
         title="Chat no disponible"
         detail={bootError ?? 'Revisá que la API esté disponible.'}
         tone="error"
@@ -802,6 +802,7 @@ function CitationsPanel({
 }
 
 function ChatLoginPage({ onAuthenticated }: { onAuthenticated: (user: SessionUser) => void }) {
+  const { t, i18n } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -815,19 +816,33 @@ function ChatLoginPage({ onAuthenticated }: { onAuthenticated: (user: SessionUse
       const session = await login(email, password)
       onAuthenticated(session.user)
     } catch (caught) {
-      setError(formatApiError(caught, 'No se pudo iniciar sesión.'))
+      setError(formatApiError(caught, t('auth.login_error')))
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <ChatAuthFrame controls={<AuthSurfaceControls />}>
+    <AuthFrame
+      ariaLabel={t('auth.access_controls')}
+      controls={
+        <AuthSurfaceControls
+          languageLabel={t('common.language')}
+          language={i18n.resolvedLanguage ?? i18n.language}
+          onLanguageChange={(value) => void i18n.changeLanguage(value)}
+          themeLabel={t('common.toggle_theme')}
+        />
+      }
+    >
       <form className="auth-card" onSubmit={submit}>
-        <AuthCardHeader eyebrow="Chat" title="Iniciar sesión" />
+        <AuthCardHeader
+          eyebrow={t('auth.login_eyebrow')}
+          title={t('auth.login')}
+          detail={t('auth.login_detail')}
+        />
         {error ? <p className="status-message error">{error}</p> : null}
-        <label className="field">
-          <span>Email</span>
+        <label className="auth-field">
+          <span>{t('auth.email')}</span>
           <Input
             type="email"
             autoComplete="email"
@@ -835,8 +850,8 @@ function ChatLoginPage({ onAuthenticated }: { onAuthenticated: (user: SessionUse
             onChange={(event) => setEmail(event.target.value)}
           />
         </label>
-        <label className="field">
-          <span>Contraseña</span>
+        <label className="auth-field">
+          <span>{t('auth.password')}</span>
           <Input
             type="password"
             autoComplete="current-password"
@@ -844,11 +859,11 @@ function ChatLoginPage({ onAuthenticated }: { onAuthenticated: (user: SessionUse
             onChange={(event) => setPassword(event.target.value)}
           />
         </label>
-        <Button className="primary-button" type="submit" disabled={isSubmitting}>
-          Entrar al chat
+        <Button className="auth-submit" type="submit" disabled={isSubmitting}>
+          {t('auth.login_submit')}
         </Button>
       </form>
-    </ChatAuthFrame>
+    </AuthFrame>
   )
 }
 
@@ -911,50 +926,22 @@ function removeHandoffFromUrl() {
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
-function ChatAuthFrame({
-  children,
-  controls,
+function ChatStatusFrame({
   title,
   detail,
   tone = 'neutral',
 }: {
-  children?: ReactNode
-  controls?: ReactNode
   title?: string
   detail?: string
   tone?: 'neutral' | 'error'
 }) {
   return (
-    <AuthShell>
-      <section className="auth-card-stack" aria-label="Controles de acceso">
-        {controls}
-        {children ?? (
-          <section className={`auth-card status-panel ${tone}`}>
-            <h1>{title}</h1>
-            <p>{detail}</p>
-          </section>
-        )}
+    <AuthFrame>
+      <section className={`auth-card status-panel ${tone}`}>
+        <h1>{title}</h1>
+        <p>{detail}</p>
       </section>
-    </AuthShell>
-  )
-}
-
-function AuthSurfaceControls() {
-  const { t, i18n } = useTranslation()
-
-  return (
-    <div className="auth-surface-controls">
-      <LanguageSelect
-        label={t('common.language')}
-        value={i18n.resolvedLanguage ?? i18n.language}
-        onChange={(value) => void i18n.changeLanguage(value)}
-        options={[
-          { value: 'es-AR', label: 'ES' },
-          { value: 'en-US', label: 'EN' },
-        ]}
-      />
-      <DarkModeToggle label={t('common.toggle_theme')} />
-    </div>
+    </AuthFrame>
   )
 }
 

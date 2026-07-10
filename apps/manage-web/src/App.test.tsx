@@ -299,6 +299,10 @@ describe("management users and budgets", () => {
     expect(
       await screen.findByRole("heading", { name: "Ingresá a la consola" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Email" }).closest("label")).toHaveClass(
+      "auth-field",
+    );
+    expect(screen.getByRole("button", { name: "Ingresar" })).toHaveClass("auth-submit");
 
     await user.type(
       screen.getByRole("textbox", { name: "Email" }),

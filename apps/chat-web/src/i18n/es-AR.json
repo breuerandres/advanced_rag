@@ -56,8 +56,15 @@
     "page": "página {{n}}"
   },
   "auth": {
+    "access_controls": "Controles de acceso",
+    "email": "Email",
     "login": "Iniciar sesión",
+    "login_detail": "Usá tu cuenta para acceder al chat de instrucciones.",
+    "login_error": "No se pudo iniciar sesión.",
+    "login_eyebrow": "Chat",
+    "login_submit": "Entrar al chat",
     "logout": "Cerrar sesión",
+    "password": "Contraseña",
     "session_expired": "Tu sesión expiró. Iniciá sesión nuevamente.",
     "unauthorized": "No tenés acceso a este recurso."
   },
