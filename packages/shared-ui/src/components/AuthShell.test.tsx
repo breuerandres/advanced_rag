@@ -24,7 +24,7 @@ describe('AuthFrame', () => {
       </AuthFrame>,
     );
 
-    expect(screen.getByLabelText('Advanced RAG')).toBeInTheDocument();
+    expect(screen.getByLabelText('ReferentIA')).toBeInTheDocument();
     expect(screen.getByText('Sesiones seguras con cookies HttpOnly y control CSRF.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Sign in' }).closest('main')).toHaveClass('auth-shell');
     expect(screen.getByRole('heading', { name: 'Sign in' }).closest('.auth-card-stack')).toHaveAttribute(

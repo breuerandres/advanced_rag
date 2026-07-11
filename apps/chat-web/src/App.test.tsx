@@ -16,7 +16,7 @@ test('shows the simplified chat workspace with a fixed left conversation drawer'
 
   expect(await screen.findByRole('heading', { name: 'Chat de instrucciones' })).toBeInTheDocument()
   const drawer = screen.getByRole('complementary', { name: 'Menu de chat' })
-  expect(drawer).toHaveTextContent('Advanced RAG')
+  expect(drawer).toHaveTextContent('ReferentIA')
   expect(drawer).toHaveTextContent('viewer@example.com')
   expect(drawer).toHaveTextContent('Viewer')
   expect(screen.getByRole('navigation', { name: 'Historial de conversaciones' })).toBeInTheDocument()

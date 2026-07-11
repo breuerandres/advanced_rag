@@ -12,6 +12,8 @@ export { cn } from './lib/cn';
 // Components
 export { Button } from './components/Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './components/Button';
+export { BrandMark } from './components/BrandMark';
+export type { BrandMarkProps } from './components/BrandMark';
 export { AppShell } from './components/AppShell';
 export { AuthCardHeader, AuthFrame, AuthShell, AuthSurfaceControls } from './components/AuthShell';
 export type {

@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { BrandMark } from './BrandMark';
 import { ShieldCheck } from 'lucide-react';
 import { DarkModeToggle } from './DarkModeToggle';
 import { LanguageSelect, type LanguageSelectOption } from './LanguageSelect';
@@ -6,16 +7,16 @@ import { LanguageSelect, type LanguageSelectOption } from './LanguageSelect';
 export interface AuthShellProps {
   children: ReactNode;
   brandName?: string;
-  brandMark?: string;
+  brandMark?: ReactNode;
   panelLabel?: string;
   proof?: string;
 }
 
 export function AuthShell({
   children,
-  brandName = 'Advanced RAG',
-  brandMark = 'AR',
-  panelLabel = 'Advanced RAG',
+  brandName = 'ReferentIA',
+  brandMark = <BrandMark />,
+  panelLabel = 'ReferentIA',
   proof = 'Sesiones seguras con cookies HttpOnly y control CSRF.',
 }: AuthShellProps) {
   return (
@@ -23,7 +24,7 @@ export function AuthShell({
       <section className="auth-product-panel" aria-label={panelLabel}>
         <div className="auth-brand">
           <span className="brand-mark">{brandMark}</span>
-          <span>{brandName}</span>
+          <span className="brand-name">{brandName}</span>
         </div>
         <div className="auth-proof">
           <ShieldCheck size={18} aria-hidden="true" />

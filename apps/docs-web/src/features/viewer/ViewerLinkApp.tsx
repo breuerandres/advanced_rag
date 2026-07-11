@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, ArrowLeft, BookOpenText, FileText } from 'lucide-react'
-import { AppShell, DarkModeToggle, EmptyState, LanguageSelect } from '@helpcenter/shared-ui'
+import { AlertTriangle, ArrowLeft, FileText } from 'lucide-react'
+import { AppShell, BrandMark, DarkModeToggle, EmptyState, LanguageSelect } from '@helpcenter/shared-ui'
 import {
   consumeViewerHandoff,
   getViewerDocument,
@@ -63,8 +63,8 @@ export function ViewerLinkApp({
             {t('viewer.back_to_library')}
           </a>
           <span className="brand">
-            <BookOpenText size={16} aria-hidden="true" />
-            {t('app.name')}
+            <BrandMark />
+            <span className="brand-name">ReferentIA</span>
           </span>
           <div className="toolbar">
             <LanguageSelect

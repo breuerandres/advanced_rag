@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, BookOpenText } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import {
   AppShell,
+  BrandMark,
   DarkModeToggle,
   EmptyState,
   LanguageSelect,
@@ -78,8 +79,8 @@ export function DocumentPortalApp({ handoffCode }: { handoffCode: string | null 
       <section className="portal-shell">
         <header className="portal-topbar">
           <span className="brand">
-            <BookOpenText size={18} aria-hidden="true" />
-            {t('app.name')}
+            <BrandMark />
+            <span className="brand-name">ReferentIA</span>
           </span>
           <div className="toolbar">
             <LanguageSelect

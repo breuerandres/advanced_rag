@@ -84,17 +84,6 @@
   white-space: nowrap;
 }
 
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: #00685f;
-  color: #ffffff;
-  font-size: 13px;
-}
-
 .nav-link {
   display: flex;
   align-items: center;

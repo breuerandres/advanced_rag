@@ -7,6 +7,7 @@ import {
   AuthCardHeader,
   AuthFrame,
   AuthSurfaceControls,
+  BrandMark,
   Button,
   DarkModeToggle,
   Input,
@@ -182,8 +183,8 @@ export default function App() {
           <Sidebar
             top={
               <div className="sidebar-brand">
-                <span className="brand-mark">AR</span>
-                <span>Advanced RAG</span>
+                <BrandMark />
+                <span className="brand-name">ReferentIA</span>
               </div>
             }
             bottom={

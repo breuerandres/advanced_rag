@@ -23,6 +23,7 @@ import {
   AuthCardHeader,
   AuthFrame,
   AuthSurfaceControls,
+  BrandMark,
   Button,
   ChatComposer,
   ChatMessage,
@@ -665,9 +666,9 @@ function ChatSidebar({
   return (
     <div className="chat-sidebar" role="complementary" aria-label="Menu de chat">
       <header className="chat-sidebar-brand">
-        <span className="brand-mark">AR</span>
+        <BrandMark />
         <div>
-          <p>Advanced RAG</p>
+          <p className="brand-name">ReferentIA</p>
           <span>Chat</span>
         </div>
       </header>
